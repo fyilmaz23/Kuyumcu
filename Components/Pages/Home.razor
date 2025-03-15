@@ -166,9 +166,7 @@
     </MudPaper>
 </MudContainer>
 
-@if (showCustomerModal)
-{
-    <MudDialog Open="showCustomerModal" DisableSidePadding="true">
+    <MudDialog Visible=showCustomerModal>
         <DialogContent>
             <MudContainer Style="max-height: 500px; overflow-y: auto">
                 <MudText Typo="Typo.h6" Class="mb-4">@(currentCustomer.Id == 0 ? "Yeni Müşteri" : "Müşteri Düzenle")</MudText>
@@ -195,7 +193,6 @@
             </MudContainer>
         </DialogContent>
     </MudDialog>
-}
 
 @code {
     // Active tab

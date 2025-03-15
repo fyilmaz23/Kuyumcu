@@ -15,17 +15,17 @@
         <MudGrid>
             <MudItem xs="12" sm="6">
                 <MudTextField T="string" Label="Müşteri ara..." Variant="Variant.Outlined" Adornment="Adornment.Start"
-                AdornmentIcon="@Icons.Material.Filled.Search" @bind-Value="searchTerm" 
-                Immediate="true" OnKeyUp="@(() => Search())" />
+                              AdornmentIcon="@Icons.Material.Filled.Search" @bind-Value="searchTerm"
+                              Immediate="true" OnKeyUp="@(() => Search())" />
             </MudItem>
             <MudItem xs="12" sm="6" Class="d-flex justify-end">
                 <MudStack Row="true" Spacing="2">
-                    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" 
-                    OnClick="@(() => ShowCustomerModal(new Customer()))">
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
+                               OnClick="@(() => ShowCustomerModal(new Customer()))">
                         Yeni Müşteri
                     </MudButton>
-                    <MudButton Variant="Variant.Outlined" Color="Color.Secondary" StartIcon="@Icons.Material.Filled.ArrowBack" 
-                    OnClick="GoBack">
+                    <MudButton Variant="Variant.Outlined" Color="Color.Secondary" StartIcon="@Icons.Material.Filled.ArrowBack"
+                               OnClick="GoBack">
                         Ana Sayfa
                     </MudButton>
                 </MudStack>
@@ -35,94 +35,91 @@
 
     @if (isLoading)
     {
-                <MudProgressCircular Color="Color.Primary" Indeterminate="true" Class="my-7" Size="Size.Large" />
+        <MudProgressCircular Color="Color.Primary" Indeterminate="true" Class="my-7" Size="Size.Large" />
     }
     else if (customers == null || customers.Count == 0)
     {
-                <MudAlert Severity="Severity.Info" Class="ma-4">Henüz müşteri kaydı bulunmamaktadır.</MudAlert>
+        <MudAlert Severity="Severity.Info" Class="ma-4">Henüz müşteri kaydı bulunmamaktadır.</MudAlert>
     }
     else
     {
-                <MudTable Items="@filteredCustomers" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@isLoading" 
-                LoadingProgressColor="Color.Primary">
-                    <HeaderContent>
-                        <MudTh>İsim</MudTh>
-                        <MudTh>Telefon</MudTh>
-                        <MudTh>Borç Durumu</MudTh>
-                        <MudTh>İşlemler</MudTh>
-                    </HeaderContent>
-                    <RowTemplate>
-                        <MudTd DataLabel="İsim">@context.Name</MudTd>
-                        <MudTd DataLabel="Telefon">@context.PhoneNumber</MudTd>
-                        <MudTd DataLabel="Borç Durumu">
+        <MudTable Items="@filteredCustomers" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@isLoading"
+                  LoadingProgressColor="Color.Primary">
+            <HeaderContent>
+                <MudTh>İsim</MudTh>
+                <MudTh>Telefon</MudTh>
+                <MudTh>Borç Durumu</MudTh>
+                <MudTh>İşlemler</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="İsim">@context.Name</MudTd>
+                <MudTd DataLabel="Telefon">@context.PhoneNumber</MudTd>
+                <MudTd DataLabel="Borç Durumu">
                     @if (customerBalances.ContainsKey(context.Id))
                     {
                         var balance = customerBalances[context.Id];
                         if (balance > 0)
                         {
-                            <MudChip  T="string" Color="Color.Error" Size="Size.Small">@($"{balance.ToString("C2")} TL Borçlu")</MudChip>
+                            <MudChip T="string" Color="Color.Error" Size="Size.Small">@($"{balance.ToString("C2")} TL Borçlu")</MudChip>
 
                         }
                         else if (balance < 0)
                         {
-                                        <MudChip  T="string" Color="Color.Success" Size="Size.Small">@($"{Math.Abs(balance).ToString("C2")} TL Alacaklı")</MudChip>
-                                        
+                            <MudChip T="string" Color="Color.Success" Size="Size.Small">@($"{Math.Abs(balance).ToString("C2")} TL Alacaklı")</MudChip>
+
                         }
                         else
                         {
-                                        <MudChip  T="string" Color="Color.Default" Size="Size.Small" >Hesap Sıfır</MudChip>
+                            <MudChip T="string" Color="Color.Default" Size="Size.Small">Hesap Sıfır</MudChip>
                         }
                     }
                     else
                     {
-                                                <MudProgressCircular Size="Size.Small" Indeterminate="true" />
+                        <MudProgressCircular Size="Size.Small" Indeterminate="true" />
                     }
-                            </MudTd>
-                            <MudTd DataLabel="İşlemler">
-                                <MudStack Row="true">
-                                    <MudIconButton Icon="@Icons.Material.Filled.Visibility" Color="Color.Info" Size="Size.Small"
-                                                  OnClick="@(() => ViewCustomerTransactions(context))" />
-                                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
-                                                  OnClick="@(() => ShowCustomerModal(context))" />
-                                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small"
-                                                  OnClick="@(() => DeleteCustomer(context))" />
-                                </MudStack>
-                            </MudTd>
-                        </RowTemplate>
-                    </MudTable>
+                </MudTd>
+                <MudTd DataLabel="İşlemler">
+                    <MudStack Row="true">
+                        <MudIconButton Icon="@Icons.Material.Filled.Visibility" Color="Color.Info" Size="Size.Small"
+                                       OnClick="@(() => ViewCustomerTransactions(context))" />
+                        <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
+                                       OnClick="@(() => ShowCustomerModal(context))" />
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small"
+                                       OnClick="@(() => DeleteCustomer(context))" />
+                    </MudStack>
+                </MudTd>
+            </RowTemplate>
+        </MudTable>
     }
-    </MudContainer>
+</MudContainer>
 
-@if (showCustomerModal)
-{
-                <MudDialog Open="showCustomerModal" DisableSidePadding="true">
-                    <DialogContent>
-                        <MudContainer Style="max-height: 500px; overflow-y: auto">
-                            <MudText Typo="Typo.h6" Class="mb-4">@(currentCustomer.Id == 0 ? "Yeni Müşteri" : "Müşteri Düzenle")</MudText>
-                            <EditForm Model="@currentCustomer" OnValidSubmit="SaveCustomer">
-                                <DataAnnotationsValidator />
-                                <MudGrid>
-                                    <MudItem xs="12">
-                                        <MudTextField @bind-Value="currentCustomer.Name" Label="Müşteri Adı" Variant="Variant.Outlined"
-                                                     Required="true" RequiredError="Müşteri adı gereklidir" />
-                                        <ValidationMessage For="@(() => currentCustomer.Name)" />
-                                    </MudItem>
-                                    <MudItem xs="12">
-                                        <MudTextField @bind-Value="currentCustomer.PhoneNumber" Label="Telefon" Variant="Variant.Outlined"
-                                                     Required="true" RequiredError="Telefon numarası gereklidir" />
-                                        <ValidationMessage For="@(() => currentCustomer.PhoneNumber)" />
-                                    </MudItem>
-                                </MudGrid>
-                                <MudDivider Class="my-4" />
-                                <MudStack Row="true" Justify="Justify.FlexEnd">
-                                    <MudButton Variant="Variant.Text" Color="Color.Default" OnClick="CloseCustomerModal">İptal</MudButton>
-                                    <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary">Kaydet</MudButton>
-                                </MudStack>
-                            </EditForm>
-                        </MudContainer>
-                    </DialogContent>
-                </MudDialog>
-}
+<MudDialog Visible=showCustomerModal>
+    <DialogContent>
+        <MudContainer Style="max-height: 500px; overflow-y: auto">
+            <MudText Typo="Typo.h6" Class="mb-4">@(currentCustomer.Id == 0 ? "Yeni Müşteri" : "Müşteri Düzenle")</MudText>
+            <EditForm Model="@currentCustomer" OnValidSubmit="SaveCustomer">
+                <DataAnnotationsValidator />
+                <MudGrid>
+                    <MudItem xs="12">
+                        <MudTextField @bind-Value="currentCustomer.Name" Label="Müşteri Adı" Variant="Variant.Outlined"
+                                      Required="true" RequiredError="Müşteri adı gereklidir" />
+                        <ValidationMessage For="@(() => currentCustomer.Name)" />
+                    </MudItem>
+                    <MudItem xs="12">
+                        <MudTextField @bind-Value="currentCustomer.PhoneNumber" Label="Telefon" Variant="Variant.Outlined"
+                                      Required="true" RequiredError="Telefon numarası gereklidir" />
+                        <ValidationMessage For="@(() => currentCustomer.PhoneNumber)" />
+                    </MudItem>
+                </MudGrid>
+                <MudDivider Class="my-4" />
+                <MudStack Row="true" Justify="Justify.FlexEnd">
+                    <MudButton Variant="Variant.Text" Color="Color.Default" OnClick="CloseCustomerModal">İptal</MudButton>
+                    <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary">Kaydet</MudButton>
+                </MudStack>
+            </EditForm>
+        </MudContainer>
+    </DialogContent>
+</MudDialog>
 
 @code {
     private List<Customer> customers;
