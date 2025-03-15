@@ -1,0 +1,187 @@
+@page "/transactions"
+@inject DatabaseService DatabaseService
+@inject NavigationManager NavigationManager
+
+<MudContainer Class="mt-4">
+    <MudPaper Elevation="0" Class="mb-4">
+        <MudGrid>
+            <MudItem xs="12">
+                <MudText Typo="Typo.h4">Tüm İşlemler</MudText>
+            </MudItem>
+        </MudGrid>
+    </MudPaper>
+
+    <MudPaper Elevation="1" Class="pa-4 mb-4">
+        <MudGrid>
+            <MudItem xs="12" sm="4">
+                    <MudSelect T="TransactionType?" Label="İşlem Türü" @bind-Value="filterType" Variant="Variant.Outlined">
+                                <MudSelectItem T="TransactionType?" Value="@((TransactionType?)null)">Tümü</MudSelectItem>
+                                <MudSelectItem T="TransactionType?" Value="@(TransactionType.CustomerDebt)">Sadece Müşteri Borçları</MudSelectItem>
+                                <MudSelectItem T="TransactionType?" Value="@(TransactionType.StoreDebt)">Sadece Kuyumcu Borçları</MudSelectItem>
+                            </MudSelect>
+            </MudItem>
+            <MudItem xs="12" sm="8" Class="d-flex justify-end">
+                <MudButton Variant="Variant.Outlined" Color="Color.Secondary" StartIcon="@Icons.Material.Filled.ArrowBack" 
+                          OnClick="@(() => NavigationManager.NavigateTo("/"))">
+                    Ana Sayfa
+                </MudButton>
+            </MudItem>
+        </MudGrid>
+    </MudPaper>
+
+    @if (isLoading)
+    {
+        <MudProgressCircular Color="Color.Primary" Indeterminate="true" Class="my-7" Size="Size.Large" />
+    }
+    else if (transactions == null || transactions.Count == 0)
+    {
+        <MudAlert Severity="Severity.Info" Class="ma-4">Henüz işlem kaydı bulunmamaktadır.</MudAlert>
+    }
+    else if (filteredTransactions.Count == 0)
+    {
+        <MudAlert Severity="Severity.Info" Class="ma-4">Seçilen kriterlere uygun işlem bulunamadı.</MudAlert>
+    }
+    else
+    {
+        <MudTable Items="@filteredTransactions" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@isLoading" 
+                  LoadingProgressColor="Color.Primary">
+            <HeaderContent>
+                <MudTh>Tarih</MudTh>
+                <MudTh>Müşteri</MudTh>
+                <MudTh>Tür</MudTh>
+                <MudTh>Tutar</MudTh>
+                <MudTh>Para/Değer</MudTh>
+                <MudTh>Açıklama</MudTh>
+                <MudTh>İşlemler</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="Tarih">@context.Date.ToString("dd.MM.yyyy HH:mm")</MudTd>
+                <MudTd DataLabel="Müşteri">
+                    @if (customerNames.ContainsKey(context.CustomerId))
+                    {
+                        <MudLink Href="@($"/customer/{context.CustomerId}")">@customerNames[context.CustomerId]</MudLink>
+                    }
+                    else
+                    {
+                        <MudText>Bilinmeyen Müşteri</MudText>
+                    }
+                </MudTd>
+                <MudTd DataLabel="Tür">
+                    @if (context.Type == TransactionType.CustomerDebt)
+                    {
+                        <MudChip T="string" Color="Color.Error" Size="Size.Small">Giden</MudChip>
+                    }
+                    else
+                    {
+                        <MudChip T="string" Color="Color.Success" Size="Size.Small" >Gelen</MudChip>
+                    }
+                </MudTd>
+                <MudTd DataLabel="Tutar">@context.Amount.ToString("N2")</MudTd>
+                <MudTd DataLabel="Para/Değer">@context.CurrencyType.GetDisplayName() (@context.CurrencyType.GetSymbol())</MudTd>
+                <MudTd DataLabel="Açıklama">@(context.Description ?? "-")</MudTd>
+                <MudTd DataLabel="İşlemler">
+                    <MudIconButton Icon="@Icons.Material.Filled.Visibility" Color="Color.Info" Size="Size.Small"
+                                  OnClick="@(() => ViewTransactionDetails(context))" />
+                </MudTd>
+            </RowTemplate>
+        </MudTable>
+        
+        <MudPaper Elevation="2" Class="mt-4 pa-4">
+            <MudText Typo="Typo.h6" Class="mb-3">Özet</MudText>
+            <MudGrid>
+                <MudItem xs="12" sm="4">
+                    <MudPaper Elevation="0" Class="pa-3">
+                        <MudText Typo="Typo.subtitle1"><strong>Toplam Giden (TL):</strong></MudText>
+                        <MudText Typo="Typo.h6" Color="Color.Error">@totalCustomerDebtTL.ToString("C2") TL</MudText>
+                    </MudPaper>
+                </MudItem>
+                <MudItem xs="12" sm="4">
+                    <MudPaper Elevation="0" Class="pa-3">
+                        <MudText Typo="Typo.subtitle1"><strong>Toplam Gelen (TL):</strong></MudText>
+                        <MudText Typo="Typo.h6" Color="Color.Success">@totalStoreDebtTL.ToString("C2") TL</MudText>
+                    </MudPaper>
+                </MudItem>
+                <MudItem xs="12" sm="4">
+                    <MudPaper Elevation="0" Class="pa-3">
+                        <MudText Typo="Typo.subtitle1"><strong>Net Durum (TL):</strong></MudText>
+                        @if (netBalanceTL > 0)
+                        {
+                            <MudText Typo="Typo.h6" Color="Color.Error">@netBalanceTL.ToString("C2") TL (Giden)</MudText>
+                        }
+                        else if (netBalanceTL < 0)
+                        {
+                            <MudText Typo="Typo.h6" Color="Color.Success">@Math.Abs(netBalanceTL).ToString("C2") TL (Gelen)</MudText>
+                        }
+                        else
+                        {
+                            <MudText Typo="Typo.h6">0.00 TL (Eşit)</MudText>
+                        }
+                    </MudPaper>
+                </MudItem>
+            </MudGrid>
+        </MudPaper>
+    }
+</MudContainer>
+
+@code {
+    private List<Transaction> transactions;
+    private Dictionary<int, string> customerNames = new Dictionary<int, string>();
+    private bool isLoading = true;
+    private TransactionType? filterType = null; // -1: All, 0: CustomerDebt, 1: StoreDebt
+
+    private decimal totalCustomerDebtTL = 0;
+    private decimal totalStoreDebtTL = 0;
+    private decimal netBalanceTL = 0;
+
+    private List<Transaction> filteredTransactions => transactions?
+        .Where(t => filterType == null || t.Type == filterType)
+        .OrderByDescending(t => t.Date)
+        .ToList();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        isLoading = true;
+        
+        transactions = await DatabaseService.GetTransactionsAsync();
+        
+        var customers = await DatabaseService.GetCustomersAsync();
+        customerNames = customers.ToDictionary(c => c.Id, c => c.Name);
+        
+        CalculateTotals();
+        
+        isLoading = false;
+    }
+    
+    private void CalculateTotals()
+    {
+        totalCustomerDebtTL = 0;
+        totalStoreDebtTL = 0;
+        
+        if (transactions != null)
+        {
+            foreach (var transaction in transactions.Where(t => t.CurrencyType == CurrencyType.TurkishLira))
+            {
+                if (transaction.Type == TransactionType.CustomerDebt)
+                {
+                    totalCustomerDebtTL += transaction.Amount;
+                }
+                else
+                {
+                    totalStoreDebtTL += transaction.Amount;
+                }
+            }
+        }
+        
+        netBalanceTL = totalCustomerDebtTL - totalStoreDebtTL;
+    }
+
+    private void ViewTransactionDetails(Transaction transaction)
+    {
+        NavigationManager.NavigateTo($"/customer/{transaction.CustomerId}");
+    }
+}

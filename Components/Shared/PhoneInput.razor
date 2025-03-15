@@ -1,0 +1,80 @@
+@using System.Text.RegularExpressions
+@inherits InputBase<string>
+
+<input @attributes="AdditionalAttributes" 
+       class="@CssClass" 
+       value="@FormattedValue" 
+       @oninput="OnInput"
+       @onkeydown="OnKeyDown" />
+
+@code {
+    private string FormattedValue => FormatPhone(CurrentValue);
+
+    protected override bool TryParseValueFromString(string value, out string result, out string validationErrorMessage)
+    {
+        result = UnformatPhone(value);
+        validationErrorMessage = null;
+        return true;
+    }
+
+    private void OnInput(ChangeEventArgs args)
+    {
+        string value = args.Value?.ToString() ?? string.Empty;
+        
+        // Remove formatting to get raw digits
+        string digits = UnformatPhone(value);
+        
+        // Limit to 10 digits
+        if (digits.Length > 10)
+            digits = digits.Substring(0, 10);
+            
+        CurrentValueAsString = digits;
+    }
+
+    private void OnKeyDown(KeyboardEventArgs args)
+    {
+        // Allow only digits, navigation keys, backspace and delete
+        if (args.Key.Length == 1 && !char.IsDigit(args.Key[0]) && !args.CtrlKey)
+        {
+            // Prevent default behavior for non-digit keys
+            if (args.Key != "Backspace" && args.Key != "Delete" && 
+                args.Key != "ArrowLeft" && args.Key != "ArrowRight" && 
+                args.Key != "Tab")
+            {
+                // This doesn't actually prevent default in Blazor, but we'll handle it in OnInput
+            }
+        }
+    }
+
+    private string FormatPhone(string phone)
+    {
+        if (string.IsNullOrWhiteSpace(phone))
+            return string.Empty;
+
+        // Clean the input, keep only digits
+        string digits = new string(phone.Where(char.IsDigit).ToArray());
+
+        // Format based on number of digits
+        if (digits.Length <= 3)
+        {
+            return $"({digits}";
+        }
+        else if (digits.Length <= 6)
+        {
+            return $"({digits.Substring(0, 3)}) {digits.Substring(3)}";
+        }
+        else
+        {
+            return $"({digits.Substring(0, 3)}) {digits.Substring(3, 3)} {digits.Substring(6)}";
+        }
+    }
+
+    private string UnformatPhone(string formattedPhone)
+    {
+        if (string.IsNullOrWhiteSpace(formattedPhone))
+            return string.Empty;
+            
+        // Remove all non-digit characters
+        return new string(formattedPhone.Where(char.IsDigit).ToArray());
+    }
+}

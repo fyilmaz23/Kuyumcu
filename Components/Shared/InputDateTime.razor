@@ -1,0 +1,38 @@
+@using System.Linq.Expressions
+@using System.Globalization
+@inherits InputBase<DateTime>
+
+<input type="datetime-local" 
+       class="@CssClass" 
+       value="@CurrentValueAsString"
+       @onchange="@(EventCallback.Factory.CreateBinder<string>(this, __value => CurrentValueAsString = __value, CurrentValueAsString, culture: new CultureInfo("tr-TR")))"
+       @attributes="AdditionalAttributes" />
+
+@code {
+    private readonly CultureInfo _culture = new CultureInfo("tr-TR");
+
+    /// <summary>
+    /// Parses a string to get the DateTime value.
+    /// </summary>
+    protected override bool TryParseValueFromString(string value, out DateTime result, out string validationErrorMessage)
+    {
+        if (DateTime.TryParse(value, _culture, DateTimeStyles.None, out result))
+        {
+            validationErrorMessage = null;
+            return true;
+        }
+        
+        validationErrorMessage = $"{FieldIdentifier.FieldName} alanı geçerli bir tarih ve saat olmalıdır.";
+        return false;
+    }
+
+    /// <summary>
+    /// Formats the value as a string. Derived classes can override this to determine the formatting used for CurrentValueAsString.
+    /// </summary>
+    protected override string FormatValueAsString(DateTime value)
+    {
+        // HTML datetime-local input requires the format to be yyyy-MM-ddTHH:mm
+        // We can't change this or it won't work with the HTML control
+        return value.ToString("yyyy-MM-ddTHH:mm");
+    }
+}

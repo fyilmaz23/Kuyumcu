@@ -1,0 +1,30 @@
+﻿@inherits InputBase<TimeOnly>
+
+<input type="time" value="@CurrentValueAsString" @onchange="HandleChange" class="form-control" />
+
+@code {
+    protected override string FormatValueAsString(TimeOnly value)
+    {
+        return value.ToString("HH:mm");
+    }
+
+    protected override bool TryParseValueFromString(string value, out TimeOnly result, out string validationErrorMessage)
+    {
+        if (TimeOnly.TryParse(value, out result))
+        {
+            validationErrorMessage = null;
+            return true;
+        }
+
+        validationErrorMessage = "Geçersiz saat formatı";
+        return false;
+    }
+
+    private async Task HandleChange(ChangeEventArgs e)
+    {
+        if (e.Value is string value && TimeOnly.TryParse(value, out var parsedTime))
+        {
+            CurrentValue = parsedTime;
+        }
+    }
+}

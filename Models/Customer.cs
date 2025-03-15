@@ -1,0 +1,25 @@
+using SQLite;
+using System.ComponentModel.DataAnnotations;
+using MaxLengthAttribute = System.ComponentModel.DataAnnotations.MaxLengthAttribute;
+
+namespace Kuyumcu.Models
+{
+    public class Customer
+    {
+        [PrimaryKey, AutoIncrement]
+        public int Id { get; set; }
+        
+        [Required(ErrorMessage = "İsim alanı zorunludur")]
+        [MaxLength(100, ErrorMessage = "İsim en fazla 100 karakter olabilir")]
+        public string Name { get; set; }
+        
+        [Required(ErrorMessage = "Telefon alanı zorunludur")]
+        [MaxLength(10, ErrorMessage = "Telefon numarası en fazla 10 karakter olabilir")]
+        public string PhoneNumber { get; set; }
+        
+        public override string ToString()
+        {
+            return Name;
+        }
+    }
+}
