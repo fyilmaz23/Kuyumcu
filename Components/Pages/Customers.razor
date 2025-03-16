@@ -106,8 +106,7 @@
                         <ValidationMessage For="@(() => currentCustomer.Name)" />
                     </MudItem>
                     <MudItem xs="12">
-                        <MudTextField @bind-Value="currentCustomer.PhoneNumber" Label="Telefon" Variant="Variant.Outlined"
-                                      Required="true" RequiredError="Telefon numarası gereklidir" />
+                        <MudTextField @bind-Value="currentCustomer.PhoneNumber" Label="Telefon" Variant="Variant.Outlined" />
                         <ValidationMessage For="@(() => currentCustomer.PhoneNumber)" />
                     </MudItem>
                 </MudGrid>

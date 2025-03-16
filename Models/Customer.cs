@@ -13,7 +13,6 @@ namespace Kuyumcu.Models
         [MaxLength(100, ErrorMessage = "İsim en fazla 100 karakter olabilir")]
         public string Name { get; set; }
         
-        [Required(ErrorMessage = "Telefon alanı zorunludur")]
         [MaxLength(10, ErrorMessage = "Telefon numarası en fazla 10 karakter olabilir")]
         public string PhoneNumber { get; set; }
         

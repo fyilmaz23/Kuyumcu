@@ -18,6 +18,7 @@ public static class MauiProgram
 
 		builder.Services.AddMauiBlazorWebView();
 		builder.Services.AddSingleton<DatabaseService>();
+        builder.Services.AddSingleton<BackupService>();
         builder.Services.AddMudServices();
 
 #if DEBUG
@@ -25,6 +26,12 @@ public static class MauiProgram
 		builder.Logging.AddDebug();
 #endif
 
-		return builder.Build();
+		var app = builder.Build();
+        
+        // Veritabanı yedekleme servisini başlat
+        var backupService = app.Services.GetService<BackupService>();
+        backupService?.Start();
+
+		return app;
 	}
 }
