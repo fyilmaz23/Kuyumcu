@@ -19,6 +19,7 @@ public static class MauiProgram
 		builder.Services.AddMauiBlazorWebView();
 		builder.Services.AddSingleton<DatabaseService>();
         builder.Services.AddSingleton<BackupService>();
+        builder.Services.AddSingleton<PrintService>();
         builder.Services.AddMudServices();
 
 #if DEBUG

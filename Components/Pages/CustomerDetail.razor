@@ -2,6 +2,7 @@
 @inject DatabaseService DatabaseService
 @inject NavigationManager NavigationManager
 @inject IDialogService Dialog
+@inject PrintService PrintService
 @using System.Globalization
 
 <MudContainer Class="mt-4">
@@ -63,6 +64,22 @@ else
                     </MudItem>
                 }
             </MudGrid>
+            
+            <MudStack Row="true" Justify="Justify.FlexEnd" Class="mt-3">
+                <MudStack Row="true" AlignItems="AlignItems.Center">
+                    <MudSelect T="string" Label="Yazıcı" @bind-Value="selectedPrinter" Variant="Variant.Outlined" 
+                              AnchorOrigin="Origin.BottomCenter" Style="min-width: 200px;">
+                        @foreach (var printer in availablePrinters)
+                        {
+                            <MudSelectItem Value="@printer">@printer</MudSelectItem>
+                        }
+                    </MudSelect>
+                    <MudButton Variant="Variant.Filled" 
+                              Color="Color.Primary" 
+                              StartIcon="@Icons.Material.Filled.Print" 
+                              OnClick="PrintCustomerReceipt">Yazdır</MudButton>
+                </MudStack>
+            </MudStack>
         }
     </MudPaper>
 
@@ -236,9 +253,40 @@ else
     private DateTime? currentTransactionDate;
     private TimeSpan? currentTransactionTime;
     
+    // Printer selection
+    private List<string> availablePrinters = new List<string>();
+    private string selectedPrinter;
+    
     protected override async Task OnInitializedAsync()
     {
+        // Yazıcıları yükle
+        LoadPrinters();
+        
         await LoadCustomerData();
+    }
+    
+    private void LoadPrinters()
+    {
+        try 
+        {
+            availablePrinters = PrintService.GetAvailablePrinters();
+            
+            // Eğer yazıcı varsa, ilk yazıcıyı seç
+            if (availablePrinters.Count > 0)
+            {
+                selectedPrinter = availablePrinters.FirstOrDefault(p => p.ToLower().Contains("thermal") || p.ToLower().Contains("termal"));
+                
+                // Termal yazıcı bulunamadıysa ilk yazıcıyı seç
+                if (string.IsNullOrEmpty(selectedPrinter))
+                {
+                    selectedPrinter = availablePrinters[0];
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Yazıcı listesi alınamadı: {ex.Message}");
+        }
     }
     
     private async Task LoadCustomerData()
@@ -274,6 +322,34 @@ else
             })
             .OrderBy(g => g.Key.ToString())
             .ToList();
+    }
+    
+    private void PrintCustomerReceipt()
+    {
+        try
+        {
+            if (!string.IsNullOrEmpty(selectedPrinter))
+            {
+                // Seçili yazıcıyı PrintService'e bildir
+                PrintService.SetPrinterName(selectedPrinter);
+            }
+            
+            // Yazdır
+            PrintService.PrintCustomerReceipt(customer, groupedTransactions);
+            
+            // Başarılı mesajı
+            Dialog.ShowMessageBox(
+                "Yazdırma",
+                "Makbuz başarıyla yazdırıldı.",
+                yesText: "Tamam");
+        }
+        catch (Exception ex)
+        {
+            Dialog.ShowMessageBox(
+                "Yazdırma Hatası",
+                $"Yazdırma işlemi sırasında bir hata oluştu: {ex.Message}",
+                yesText: "Tamam");
+        }
     }
     
     private void GoBack()
@@ -339,10 +415,4 @@ else
         await LoadCustomerData();
     }
     
-    public class TransactionGroup
-    {
-        public CurrencyType Key { get; set; }
-        public List<Transaction> Transactions { get; set; }
-        public decimal Balance { get; set; }
-    }
 }
