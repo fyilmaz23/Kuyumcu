@@ -92,37 +92,62 @@
                     
                     <MudPaper Elevation="2" Class="mt-4 pa-4">
                         <MudText Typo="Typo.h6" Class="mb-3">Özet</MudText>
-                        <MudGrid>
-                            <MudItem xs="12" sm="4">
-                                <MudPaper Elevation="0" Class="pa-3">
-                                    <MudText Typo="Typo.subtitle1"><strong>Toplam Giden (TL):</strong></MudText>
-                                    <MudText Typo="Typo.h6" Color="Color.Error">@totalCustomerDebtTL.ToString("C2") TL</MudText>
-                                </MudPaper>
-                            </MudItem>
-                            <MudItem xs="12" sm="4">
-                                <MudPaper Elevation="0" Class="pa-3">
-                                    <MudText Typo="Typo.subtitle1"><strong>Toplam Gelen (TL):</strong></MudText>
-                                    <MudText Typo="Typo.h6" Color="Color.Success">@totalStoreDebtTL.ToString("C2") TL</MudText>
-                                </MudPaper>
-                            </MudItem>
-                            <MudItem xs="12" sm="4">
-                                <MudPaper Elevation="0" Class="pa-3">
-                                    <MudText Typo="Typo.subtitle1"><strong>Net Durum (TL):</strong></MudText>
-                                    @if (netBalanceTL > 0)
-                                    {
-                                        <MudText Typo="Typo.h6" Color="Color.Error">@netBalanceTL.ToString("C2") TL (Giden)</MudText>
-                                    }
-                                    else if (netBalanceTL < 0)
-                                    {
-                                        <MudText Typo="Typo.h6" Color="Color.Success">@Math.Abs(netBalanceTL).ToString("C2") TL (Gelen)</MudText>
-                                    }
-                                    else
-                                    {
-                                        <MudText Typo="Typo.h6">0.00 TL (Eşit)</MudText>
-                                    }
-                                </MudPaper>
-                            </MudItem>
-                        </MudGrid>
+                        
+                        @foreach (var currencyType in Enum.GetValues<CurrencyType>())
+                        {
+                            @if (currencySummaries.ContainsKey(currencyType) && 
+                                 (currencySummaries[currencyType].TotalCustomerDebt > 0 || currencySummaries[currencyType].TotalStoreDebt > 0))
+                            {
+                                <MudText Typo="Typo.subtitle1" Class="mt-3 mb-2">
+                                    <strong>@currencyType.GetDisplayName() (@currencyType.GetSymbol())</strong>
+                                </MudText>
+                                <MudGrid>
+                                    <MudItem xs="12" sm="4">
+                                        <MudPaper Elevation="0" Class="pa-3">
+                                            <MudText Typo="Typo.subtitle1"><strong>Toplam Giden:</strong></MudText>
+                                            <MudText Typo="Typo.h6" Color="Color.Error">
+                                                @currencySummaries[currencyType].TotalCustomerDebt.ToString("N2") @currencyType.GetDisplayName()
+                                            </MudText>
+                                        </MudPaper>
+                                    </MudItem>
+                                    <MudItem xs="12" sm="4">
+                                        <MudPaper Elevation="0" Class="pa-3">
+                                            <MudText Typo="Typo.subtitle1"><strong>Toplam Gelen:</strong></MudText>
+                                            <MudText Typo="Typo.h6" Color="Color.Success">
+                                                @currencySummaries[currencyType].TotalStoreDebt.ToString("N2") @currencyType.GetDisplayName()
+                                            </MudText>
+                                        </MudPaper>
+                                    </MudItem>
+                                    <MudItem xs="12" sm="4">
+                                        <MudPaper Elevation="0" Class="pa-3">
+                                            <MudText Typo="Typo.subtitle1"><strong>Net Durum:</strong></MudText>
+                                            @{
+                                                decimal netBalance = currencySummaries[currencyType].TotalCustomerDebt - currencySummaries[currencyType].TotalStoreDebt;
+                                            }
+                                            @if (netBalance > 0)
+                                            {
+                                                <MudText Typo="Typo.h6" Color="Color.Error">
+                                                    @netBalance.ToString("N2") @currencyType.GetDisplayName() (Giden)
+                                                </MudText>
+                                            }
+                                            else if (netBalance < 0)
+                                            {
+                                                <MudText Typo="Typo.h6" Color="Color.Success">
+                                                    @Math.Abs(netBalance).ToString("N2") @currencyType.GetDisplayName() (Gelen)
+                                                </MudText>
+                                            }
+                                            else
+                                            {
+                                                <MudText Typo="Typo.h6">
+                                                    0.00 @currencyType.GetDisplayName() (Eşit)
+                                                </MudText>
+                                            }
+                                        </MudPaper>
+                                    </MudItem>
+                                </MudGrid>
+                                <MudDivider Class="my-3" />
+                            }
+                        }
                     </MudPaper>
                 }
             </MudTabPanel>
@@ -170,11 +195,9 @@
     private List<Transaction> transactions;
     private Dictionary<int, string> customerNames = new Dictionary<int, string>();
     private bool isLoading = true;
-    private TransactionType? filterType = null; // -1: All, 0: CustomerDebt, 1: StoreDebt
+    private TransactionType? filterType = null; 
 
-    private decimal totalCustomerDebtTL = 0;
-    private decimal totalStoreDebtTL = 0;
-    private decimal netBalanceTL = 0;
+    private Dictionary<CurrencyType, CurrencySummary> currencySummaries = new Dictionary<CurrencyType, CurrencySummary>();
     
     private List<CustomerDebtInfo> customersWithLongDebt = new List<CustomerDebtInfo>();
 
@@ -185,98 +208,70 @@
 
     protected override async Task OnInitializedAsync()
     {
-        await LoadData();
-    }
-
-    private async Task LoadData()
-    {
         isLoading = true;
-        
         transactions = await DatabaseService.GetTransactionsAsync();
         
         var customers = await DatabaseService.GetCustomersAsync();
-        customerNames = customers.ToDictionary(c => c.Id, c => c.Name);
+        foreach (var customer in customers)
+        {
+            customerNames[customer.Id] = customer.Name;
+        }
         
         CalculateTotals();
-        await CalculateCustomerDebtDurations();
+        await CalculateCustomersWithLongDebt();
         
         isLoading = false;
     }
     
-    private async Task CalculateCustomerDebtDurations()
+    private async Task CalculateCustomersWithLongDebt()
     {
-        customersWithLongDebt.Clear();
-        
         var customers = await DatabaseService.GetCustomersAsync();
+        customersWithLongDebt.Clear();
         
         foreach (var customer in customers)
         {
-            // Get all transactions for this customer
-            var customerTransactions = await DatabaseService.GetCustomerTransactionsAsync(customer.Id);
+            var customerTransactions = transactions.Where(t => t.CustomerId == customer.Id && t.CurrencyType == CurrencyType.TurkishLira).ToList();
             
-            if (customerTransactions.Count == 0)
-                continue;
-                
-            // Group transactions by currency type
-            var transactionsByCurrency = customerTransactions
-                .GroupBy(t => t.CurrencyType)
-                .ToDictionary(g => g.Key, g => g.ToList());
-                
-            // Check if customer has debt in TL
-            if (transactionsByCurrency.ContainsKey(CurrencyType.TurkishLira))
+            if (customerTransactions.Count > 0)
             {
-                var tlTransactions = transactionsByCurrency[CurrencyType.TurkishLira];
+                decimal customerBalance = 0;
+                DateTime earliestDebtDate = DateTime.MaxValue;
                 
-                // Calculate current balance
-                decimal balance = 0;
-                foreach (var transaction in tlTransactions)
+                foreach (var transaction in customerTransactions.OrderBy(t => t.Date))
                 {
                     if (transaction.Type == TransactionType.CustomerDebt)
-                        balance += transaction.Amount;
+                    {
+                        customerBalance += transaction.Amount;
+                        if (customerBalance > 0 && earliestDebtDate == DateTime.MaxValue)
+                        {
+                            earliestDebtDate = transaction.Date;
+                        }
+                    }
                     else
-                        balance -= transaction.Amount;
+                    {
+                        customerBalance -= transaction.Amount;
+                        if (customerBalance <= 0)
+                        {
+                            earliestDebtDate = DateTime.MaxValue;
+                        }
+                    }
                 }
                 
-                // If customer has a positive balance (debt), find the earliest transaction that contributed to the debt
-                if (balance > 0)
+                if (customerBalance > 0 && 
+                    earliestDebtDate != DateTime.MaxValue && 
+                    (DateTime.Now - earliestDebtDate).TotalDays >= 30)
                 {
-                    // Calculate running balance from oldest to newest transaction
-                    var orderedTransactions = tlTransactions.OrderBy(t => t.Date).ToList();
-                    decimal runningBalance = 0;
-                    DateTime? earliestDebtDate = null;
-                    
-                    foreach (var transaction in orderedTransactions)
+                    customersWithLongDebt.Add(new CustomerDebtInfo
                     {
-                        if (transaction.Type == TransactionType.CustomerDebt)
-                            runningBalance += transaction.Amount;
-                        else
-                            runningBalance -= transaction.Amount;
-                            
-                        // If balance becomes positive and we haven't set the earliest debt date yet
-                        if (runningBalance > 0 && earliestDebtDate == null)
-                            earliestDebtDate = transaction.Date;
-                            
-                        // If balance becomes zero or negative, reset the earliest debt date
-                        if (runningBalance <= 0)
-                            earliestDebtDate = null;
-                    }
-                    
-                    // If we found a valid earliest debt date
-                    if (earliestDebtDate.HasValue)
-                    {
-                        customersWithLongDebt.Add(new CustomerDebtInfo
-                        {
-                            CustomerId = customer.Id,
-                            CustomerName = customer.Name,
-                            Balance = balance,
-                            EarliestDebtDate = earliestDebtDate.Value
-                        });
-                    }
+                        CustomerId = customer.Id,
+                        CustomerName = customer.Name,
+                        Balance = customerBalance,
+                        EarliestDebtDate = earliestDebtDate
+                    });
                 }
             }
         }
         
-        // Sort by earliest debt date (oldest first)
         customersWithLongDebt = customersWithLongDebt
             .OrderBy(c => c.EarliestDebtDate)
             .ToList();
@@ -284,25 +279,26 @@
     
     private void CalculateTotals()
     {
-        totalCustomerDebtTL = 0;
-        totalStoreDebtTL = 0;
+        currencySummaries.Clear();
+        foreach (var currencyType in Enum.GetValues<CurrencyType>())
+        {
+            currencySummaries[currencyType] = new CurrencySummary();
+        }
         
         if (transactions != null)
         {
-            foreach (var transaction in transactions.Where(t => t.CurrencyType == CurrencyType.TurkishLira))
+            foreach (var transaction in transactions)
             {
                 if (transaction.Type == TransactionType.CustomerDebt)
                 {
-                    totalCustomerDebtTL += transaction.Amount;
+                    currencySummaries[transaction.CurrencyType].TotalCustomerDebt += transaction.Amount;
                 }
                 else
                 {
-                    totalStoreDebtTL += transaction.Amount;
+                    currencySummaries[transaction.CurrencyType].TotalStoreDebt += transaction.Amount;
                 }
             }
         }
-        
-        netBalanceTL = totalCustomerDebtTL - totalStoreDebtTL;
     }
 
     private void ViewTransactionDetails(Transaction transaction)
@@ -341,5 +337,11 @@
         public string CustomerName { get; set; }
         public decimal Balance { get; set; }
         public DateTime EarliestDebtDate { get; set; }
+    }
+    
+    private class CurrencySummary
+    {
+        public decimal TotalCustomerDebt { get; set; } = 0;
+        public decimal TotalStoreDebt { get; set; } = 0;
     }
 }
