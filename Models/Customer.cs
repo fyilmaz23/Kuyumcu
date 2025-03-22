@@ -16,6 +16,11 @@ namespace Kuyumcu.Models
         [MaxLength(10, ErrorMessage = "Telefon numarası en fazla 10 karakter olabilir")]
         public string PhoneNumber { get; set; }
         
+        /// <summary>
+        /// Kaydın silinip silinmediğini belirtir (Soft delete için)
+        /// </summary>
+        public bool IsDeleted { get; set; } = false;
+        
         public override string ToString()
         {
             return Name;

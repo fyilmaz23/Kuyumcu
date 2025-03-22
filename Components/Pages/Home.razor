@@ -1,6 +1,12 @@
 @page "/"
+@page "/home"
+@using Kuyumcu.Models
+@using Kuyumcu.Services
 @inject DatabaseService DatabaseService
 @inject NavigationManager NavigationManager
+@inject IDialogService DialogService
+@inject IJSRuntime JSRuntime
+@inject GoogleDriveService GoogleDriveService
 
 <MudContainer Class="mt-4">
     <MudPaper Elevation="0" Class="mb-4">
@@ -8,22 +14,29 @@
             <MudItem xs="12">
                 <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
                     <MudText Typo="Typo.h4">Kuyumcu Yönetim Paneli</MudText>
-                    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" 
-                              OnClick="@(() => ShowCustomerModal(new Customer()))">
-                        Yeni Müşteri
-                    </MudButton>
+                    <MudStack Row="true" Spacing="2">
+                        <MudButton Variant="Variant.Filled" Color="Color.Secondary" StartIcon="@Icons.Material.Filled.Backup" 
+                        OnClick="@(() => BackupToGoogleDrive())" Disabled="@isBackupInProgress">
+                            @(isBackupInProgress ? "Yedekleniyor..." : "Yedek Al")
+                        </MudButton>
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" 
+                        OnClick="@(() => ShowCustomerModal(new Customer()))">
+                            Yeni Müşteri
+                        </MudButton>
+                    </MudStack>
                 </MudStack>
             </MudItem>
         </MudGrid>
     </MudPaper>
 
     <MudPaper Elevation="1">
-        <MudTabs Elevation="0" Rounded="true" ApplyEffectsToContainer="true" PanelClass="pa-0">
-            <MudTabPanel Text="Müşteriler" Icon="@Icons.Material.Filled.People" OnClick="@(() => SetActiveTab("customers"))" Selected="@(activeTab == "customers")">
+        <MudTabs Elevation="0" Rounded="true" ApplyEffectsToContainer="true" PanelClass="pa-6">
+
+            <MudTabPanel Text="Müşteriler" Icon="@Icons.Material.Filled.People" >
                 <MudStack Class="pa-4" Spacing="2">
                     <MudTextField T="string" Label="Müşteri ara..." Variant="Variant.Outlined" Adornment="Adornment.Start"
-                                 AdornmentIcon="@Icons.Material.Filled.Search" @bind-Value="searchTerm" 
-                                 Immediate="true" OnKeyUp="@(() => Search())" />
+                    AdornmentIcon="@Icons.Material.Filled.Search" @bind-Value="searchTerm"
+                    Immediate="true" OnKeyUp="@(() => Search())" />
                 </MudStack>
 
                 @if (isLoadingCustomers)
@@ -37,7 +50,7 @@
                 else
                 {
                     <MudTable Items="@filteredCustomers" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@isLoadingCustomers"
-                              LoadingProgressColor="Color.Primary">
+                    LoadingProgressColor="Color.Primary">
                         <HeaderContent>
                             <MudTh>İsim</MudTh>
                             <MudTh>Telefon</MudTh>
@@ -53,16 +66,15 @@
                                     var balance = customerBalances[context.Id];
                                     if (balance > 0)
                                     {
-                                        <MudChip  T="string" Color="Color.Error" Size="Size.Small">@($"{balance.ToString("C2")} TL Borçlu")</MudChip>
-
+                                        <MudChip T="string" Color="Color.Error" Size="Size.Small">@($"{balance.ToString("C2")} TL Borçlu")</MudChip>
                                     }
                                     else if (balance < 0)
                                     {
-                                                    <MudChip  T="string" Color="Color.Success" Size="Size.Small">@($"{Math.Abs(balance).ToString("C2")} TL Alacaklı")</MudChip>
+                                        <MudChip T="string" Color="Color.Success" Size="Size.Small">@($"{Math.Abs(balance).ToString("C2")} TL Alacaklı")</MudChip>
                                     }
                                     else
                                     {
-                                                    <MudChip  T="string" Color="Color.Default" Size="Size.Small" >Hesap Sıfır</MudChip>
+                                        <MudChip T="string" Color="Color.Default" Size="Size.Small">Hesap Sıfır</MudChip>
                                     }
                                 }
                                 else
@@ -73,19 +85,141 @@
                             <MudTd DataLabel="İşlemler">
                                 <MudStack Row="true">
                                     <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
-                                                  OnClick="@(() => EditCustomer(context))" />
+                                    OnClick="@(() => ShowCustomerModal(context))" />
                                     <MudIconButton Icon="@Icons.Material.Filled.Visibility" Color="Color.Info" Size="Size.Small"
-                                                  OnClick="@(() => NavigateToCustomerDetail(context.Id))" />
+                                    OnClick="@(() => NavigateToCustomerDetail(context.Id))" />
                                     <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small"
-                                                  OnClick="@(() => DeleteCustomer(context))" />
+                                    OnClick="@(() => DeleteCustomer(context))" />
                                 </MudStack>
                             </MudTd>
                         </RowTemplate>
                     </MudTable>
                 }
             </MudTabPanel>
-            
-            <MudTabPanel Text="İşlemler" Icon="@Icons.Material.Filled.Receipt" OnClick="@(() => SetActiveTab("transactions"))" Selected="@(activeTab == "transactions")">
+            <MudTabPanel Text="Hızlı Kayıt" Icon="@Icons.Material.Filled.Speed" >
+                <MudGrid Class="pa-4">
+                    <MudItem xs="12" md="6">
+                        <MudCard>
+                            <MudCardHeader>
+                                <CardHeaderContent>
+                                    <MudText Typo="Typo.h6">@(currentQuickEntry.Id == 0 ? "Yeni Hızlı Kayıt" : "Hızlı Kayıt Düzenle")</MudText>
+                                </CardHeaderContent>
+                            </MudCardHeader>
+                            <MudCardContent>
+                                <EditForm Model="@currentQuickEntry" OnValidSubmit="SaveQuickEntryAsync">
+                                    <DataAnnotationsValidator />
+                                    <MudGrid>
+                                        <MudItem xs="12">
+                                            <MudTextField @bind-Value="currentQuickEntry.FullName" Label="Ad Soyad" 
+                                            Required="true" For="@(() => currentQuickEntry.FullName)" />
+                                        </MudItem>
+                                        <MudItem xs="12">
+                                            <MudTextField @bind-Value="currentQuickEntry.TcKimlikNo" Label="TC Kimlik No" 
+                                             For="@(() => currentQuickEntry.TcKimlikNo)" 
+                                            InputType="InputType.Number" />
+                                        </MudItem>
+                                        <MudItem xs="12">
+                                            <MudNumericField @bind-Value="currentQuickEntry.Tutar" Label="Tutar (₺)"
+                                            Required="true" For="@(() => currentQuickEntry.Tutar)" />
+                                        </MudItem>
+                                        <MudItem xs="12">
+                                            <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" 
+                                            Color="Color.Primary" FullWidth="true">Kaydet</MudButton>
+                                        </MudItem>
+                                    </MudGrid>
+                                </EditForm>
+                            </MudCardContent>
+                        </MudCard>
+                    </MudItem>
+                    <MudItem xs="12" md="6">
+                        <MudCard>
+                            <MudCardHeader>
+                                <CardHeaderContent>
+                                    <MudText Typo="Typo.h6">Hızlı Kayıtlar</MudText>
+                                </CardHeaderContent>
+                                <CardHeaderActions>
+                                    <MudIconButton Icon="@Icons.Material.Filled.Refresh" Color="Color.Default" 
+                                    OnClick="@(async () => await LoadQuickEntries())" />
+                                </CardHeaderActions>
+                            </MudCardHeader>
+                            <MudCardContent Style="max-height: 300px; overflow-y: auto;">
+                                @if (isLoadingQuickEntries)
+                                {
+                                    <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
+                                }
+                                else if (quickEntries == null || quickEntries.Count == 0)
+                                {
+                                    <MudAlert Severity="Severity.Info">Henüz hızlı kayıt bulunmamaktadır.</MudAlert>
+                                }
+                                else
+                                {
+                                    <MudList T="string" Dense="true">
+                                        @foreach (var entry in quickEntries)
+                                        {
+                                            <MudListItem Class="py-2">
+                                                <div class="d-flex justify-space-between align-center" style="width: 100%;">
+                                                    <div class="mr-2">
+                                                        <MudText Typo="Typo.body1"><strong>@entry.FullName</strong></MudText>
+                                                        @if(!string.IsNullOrWhiteSpace(entry.TcKimlikNo))
+                                                        {
+                                                            <MudText Typo="Typo.caption">TC: @entry.TcKimlikNo &nbsp; </MudText>
+                                                        }
+                                                        <MudText Typo="Typo.caption">@entry.CreatedDate.ToString("dd.MM.yyyy HH:mm")</MudText>
+                                                    </div>
+                                                    <div class="d-flex align-center">
+                                                        <MudText Typo="Typo.h6" Color="Color.Primary" Class="mx-3" Style="min-width: 80px; text-align: right;">
+                                                            @entry.Tutar.ToString("C2")
+                                                        </MudText>
+                                                        <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Info" Size="Size.Small"
+                                                        OnClick="@(() => EditQuickEntry(entry))" Class="mr-2" />
+                                                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small"
+                                                        OnClick="@(() => DeleteQuickEntryAsync(entry))" Class="mr-2" />
+                                                        <MudCheckBox T="bool" Value="@entry.IsProcessed" 
+                                                        ValueChanged="@((val) => UpdateProcessedStatus(entry, val))"
+                                                        Color="@(entry.IsProcessed ? Color.Success : Color.Default)" 
+                                                        Class="ml-2" />
+                                                    </div>
+                                                </div>
+                                            </MudListItem>
+                                            <MudDivider />
+                                        }
+                                    </MudList>
+                                }
+                            </MudCardContent>
+                            <MudCardActions>
+                                <MudPaper Elevation="0" Class="pa-4 d-flex flex-grow-1 gap-4 flex-wrap">
+                                    <MudPaper Elevation="2" Class="pa-2 d-flex gap-2 align-center">
+                                        <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" />
+                                        <div>
+                                            <MudText Typo="Typo.caption">İşlenenler</MudText>
+                                            <MudText Typo="Typo.body1" Color="Color.Success"><strong>@GetProcessedTotalAmount().ToString("C2")</strong></MudText>
+                                        </div>
+                                    </MudPaper>
+                                    
+                                    <MudPaper Elevation="2" Class="pa-2 d-flex gap-2 align-center">
+                                        <MudIcon Icon="@Icons.Material.Filled.Pending" Color="Color.Warning" />
+                                        <div>
+                                            <MudText Typo="Typo.caption">İşlenmeyenler</MudText>
+                                            <MudText Typo="Typo.body1" Color="Color.Warning"><strong>@GetUnprocessedTotalAmount().ToString("C2")</strong></MudText>
+                                        </div>
+                                    </MudPaper>
+                                    
+                                    <MudPaper Elevation="2" Class="pa-2 d-flex gap-2 align-center">
+                                        <MudIcon Icon="@Icons.Material.Filled.Calculate" Color="Color.Primary" />
+                                        <div>
+                                            <MudText Typo="Typo.caption">Toplam</MudText>
+                                            <MudText Typo="Typo.body1" Color="Color.Primary"><strong>@GetTotalAmount().ToString("C2")</strong></MudText>
+                                        </div>
+                                    </MudPaper>
+                                </MudPaper>
+                            </MudCardActions>
+                        </MudCard>
+                    </MudItem>
+                </MudGrid>
+            </MudTabPanel>
+
+
+            <MudTabPanel Text="İşlemler" Icon="@Icons.Material.Filled.Receipt">
                 <MudStack Class="pa-4" Spacing="2">
                     <MudGrid>
                         <MudItem xs="12" sm="4">
@@ -106,13 +240,17 @@
                         <MudItem xs="12" sm="4">
                             <MudSelect T="CurrencyType?" Label="Para Birimi" @bind-Value="filterCurrencyType" Variant="Variant.Outlined">
                                 <MudSelectItem T="CurrencyType?" Value="@((CurrencyType?)null)">Tümü</MudSelectItem>
+                                <MudSelectItem T="CurrencyType?" Value="@(CurrencyType.FullGold)">Tam Altın</MudSelectItem>
+                                <MudSelectItem T="CurrencyType?" Value="@(CurrencyType.HalfGold)">Yarım Altın</MudSelectItem>
+                                <MudSelectItem T="CurrencyType?" Value="@(CurrencyType.QuarterGold)">Çeyrek Altın</MudSelectItem>
                                 <MudSelectItem T="CurrencyType?" Value="@(CurrencyType.TurkishLira)">Türk Lirası</MudSelectItem>
                                 <MudSelectItem T="CurrencyType?" Value="@(CurrencyType.Dollar)">Dolar</MudSelectItem>
                                 <MudSelectItem T="CurrencyType?" Value="@(CurrencyType.Euro)">Euro</MudSelectItem>
-                                <MudSelectItem T="CurrencyType?" Value="@(CurrencyType.Gold24K)">Gram Altın</MudSelectItem>
-                                <MudSelectItem T="CurrencyType?" Value="@(CurrencyType.QuarterGold)">Çeyrek Altın</MudSelectItem>
-                                <MudSelectItem T="CurrencyType?" Value="@(CurrencyType.HalfGold)">Yarım Altın</MudSelectItem>
-                                <MudSelectItem T="CurrencyType?" Value="@(CurrencyType.FullGold)">Tam Altın</MudSelectItem>
+                                <MudSelectItem T="CurrencyType?" Value="@(CurrencyType.Riyal)">Riyal</MudSelectItem>
+                                <MudSelectItem T="CurrencyType?" Value="@(CurrencyType.Sterlin)">Sterlin</MudSelectItem>
+                                <MudSelectItem T="CurrencyType?" Value="@(CurrencyType.Gold24K)">24 Ayar Gram</MudSelectItem>
+                                <MudSelectItem T="CurrencyType?" Value="@(CurrencyType.Gold22K)">22 Ayar Gram</MudSelectItem>
+                                <MudSelectItem T="CurrencyType?" Value="@(CurrencyType.Gold14K)">14 Ayar Gram</MudSelectItem>
                             </MudSelect>
                         </MudItem>
                     </MudGrid>
@@ -129,7 +267,7 @@
                 else
                 {
                     <MudTable Items="@filteredTransactions" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@isLoadingTransactions"
-                              LoadingProgressColor="Color.Primary">
+                    LoadingProgressColor="Color.Primary">
                         <HeaderContent>
                             <MudTh>Müşteri</MudTh>
                             <MudTh>Tarih</MudTh>
@@ -152,7 +290,7 @@
                                 }
                                 else
                                 {
-                                            <MudChip T="string" Color="Color.Success" Size="Size.Small" Text="Müşteri Ödemesi" />
+                                    <MudChip T="string" Color="Color.Success" Size="Size.Small" Text="Müşteri Ödemesi" />
                                 }
                             </MudTd>
                             <MudTd DataLabel="Miktar">@context.Amount.ToString("N2")</MudTd>
@@ -166,42 +304,52 @@
     </MudPaper>
 </MudContainer>
 
-    <MudDialog Visible=showCustomerModal>
-        <DialogContent>
-            <MudContainer Style="max-height: 500px; overflow-y: auto">
-                <MudText Typo="Typo.h6" Class="mb-4">@(currentCustomer.Id == 0 ? "Yeni Müşteri" : "Müşteri Düzenle")</MudText>
-                <EditForm Model="@currentCustomer" OnValidSubmit="SaveCustomer">
-                    <DataAnnotationsValidator />
-                    <MudGrid>
-                        <MudItem xs="12">
-                            <MudTextField @bind-Value="currentCustomer.Name" Label="Müşteri Adı" Variant="Variant.Outlined"
-                                         Required="true" RequiredError="Müşteri adı gereklidir" />
-                            <ValidationMessage For="@(() => currentCustomer.Name)" />
-                        </MudItem>
-                        <MudItem xs="12">
-                            <MudTextField @bind-Value="currentCustomer.PhoneNumber" Label="Telefon" Variant="Variant.Outlined"/>
-                            <ValidationMessage For="@(() => currentCustomer.PhoneNumber)" />
-                        </MudItem>
-                    </MudGrid>
-                    <MudDivider Class="my-4" />
-                    <MudStack Row="true" Justify="Justify.FlexEnd">
-                        <MudButton Variant="Variant.Text" Color="Color.Default" OnClick="CloseCustomerModal">İptal</MudButton>
-                        <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary">Kaydet</MudButton>
-                    </MudStack>
-                </EditForm>
-            </MudContainer>
-        </DialogContent>
-    </MudDialog>
-
+<MudDialog @bind-Visible="showCustomerModal">
+    <DialogContent>
+        <MudContainer Style="max-height: 500px; overflow-y: auto">
+            <MudText Typo="Typo.h6" Class="mb-4">@(currentCustomer.Id == 0 ? "Yeni Müşteri" : "Müşteri Düzenle")</MudText>
+            <EditForm Model="@currentCustomer" OnValidSubmit="SaveCustomer">
+                <DataAnnotationsValidator />
+                <MudGrid>
+                    <MudItem xs="12">
+                        <MudTextField @bind-Value="currentCustomer.Name" Label="Müşteri Adı" Variant="Variant.Outlined"
+                                      Required="true" RequiredError="Müşteri adı gereklidir" />
+                        <ValidationMessage For="@(() => currentCustomer.Name)" />
+                    </MudItem>
+                    <MudItem xs="12">
+                        <MudTextField @bind-Value="currentCustomer.PhoneNumber" Label="Telefon" Variant="Variant.Outlined" />
+                        <ValidationMessage For="@(() => currentCustomer.PhoneNumber)" />
+                    </MudItem>
+                </MudGrid>
+                <MudDivider Class="my-4" />
+                <MudStack Row="true" Justify="Justify.FlexEnd">
+                    <MudButton Variant="Variant.Text" Color="Color.Default" OnClick="CloseCustomerModal">İptal</MudButton>
+                    <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary">Kaydet</MudButton>
+                </MudStack>
+            </EditForm>
+        </MudContainer>
+    </DialogContent>
+</MudDialog>
 @code {
+
+    private bool showCustomerModal;
+    private bool isBackupInProgress = false;
+    private string backupResult = string.Empty;
+
     // Active tab
     private string activeTab = "customers";
+
+    // QuickEntry related properties
+    private List<QuickEntry> quickEntries;
+    private QuickEntry currentQuickEntry = new QuickEntry();
+    private bool isLoadingQuickEntries = false;
 
     // Customers variables
     private List<Customer> customers;
     private List<Customer> filteredCustomers;
     private string searchTerm = "";
-    private bool isLoadingCustomers = true;
+    private bool isLoadingCustomers = false;
+    private Customer currentCustomer = new Customer();
     private Dictionary<int, decimal> customerBalances = new Dictionary<int, decimal>();
 
     // Transactions variables
@@ -210,30 +358,124 @@
     private string filterType = "all";
     private TransactionType? filterTransactionType = null;
     private CurrencyType? filterCurrencyType = null;
-    private bool isLoadingTransactions = true;
+    private bool isLoadingTransactions = false;
 
-    // Customer modal
-    private bool showCustomerModal = false;
-    private Customer currentCustomer = new Customer();
 
     protected override async Task OnInitializedAsync()
     {
-        await LoadCustomers();
-        await LoadTransactions();
+        await LoadQuickEntries();
+        if (activeTab == "customers")
+            await LoadCustomers();
+        else if (activeTab == "transactions")
+            await LoadTransactions();
     }
 
+    private async Task SetActiveTab(string tab)
+    {
+        activeTab = tab;
+
+        if (tab == "customers" && (customers == null || customers.Count == 0))
+            await LoadCustomers();
+        else if (tab == "transactions" && (transactions == null || transactions.Count == 0))
+            await LoadTransactions();
+        else if (tab == "quickentries" && (quickEntries == null || quickEntries.Count == 0))
+            await LoadQuickEntries();
+    }
+
+    // QuickEntry methods
+    private async Task LoadQuickEntries()
+    {
+        isLoadingQuickEntries = true;
+        try
+        {
+            quickEntries = await DatabaseService.GetQuickEntriesAsync();
+        }
+        finally
+        {
+            isLoadingQuickEntries = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task SaveQuickEntryAsync()
+    {
+        if (currentQuickEntry.Id != 0)
+        {
+            // Düzenleme işlemi - CreatedDate'i koruyoruz
+            var existingEntry = await DatabaseService.GetQuickEntryAsync(currentQuickEntry.Id);
+            currentQuickEntry.CreatedDate = existingEntry.CreatedDate;
+        }
+        else
+        {
+            // Yeni kayıt - CreatedDate'i şu anki zaman olarak ayarlıyoruz
+            currentQuickEntry.CreatedDate = DateTime.Now;
+        }
+        
+        await DatabaseService.SaveQuickEntryAsync(currentQuickEntry);
+        await LoadQuickEntries();
+        
+        // Form'u temizle
+        ResetQuickEntryForm();
+    }
+    
+    private void ResetQuickEntryForm()
+    {
+        currentQuickEntry = new QuickEntry
+        {
+            Id = 0
+        };
+    }
+
+    private async Task DeleteQuickEntryAsync(QuickEntry entry)
+    {
+        bool? result = await DialogService.ShowMessageBox(
+            "Silme Onayı",
+            "Bu kaydı silmek istediğinize emin misiniz?",
+            yesText: "Evet", cancelText: "Hayır");
+
+        if (result == true)
+        {
+            await DatabaseService.DeleteQuickEntryAsync(entry);
+            await LoadQuickEntries();
+        }
+    }
+
+    private async Task EditQuickEntry(QuickEntry entry)
+    {
+        // Düzenlenecek kaydın bilgilerini forma yükle
+        currentQuickEntry = new QuickEntry
+        {
+            Id = entry.Id,
+            FullName = entry.FullName,
+            TcKimlikNo = entry.TcKimlikNo,
+            Tutar = entry.Tutar,
+            IsProcessed = entry.IsProcessed,
+            CreatedDate = entry.CreatedDate
+        };
+        
+        // Formun bulunduğu konuma kaydır
+        await JSRuntime.InvokeVoidAsync("scrollToTop");
+    }
+
+    private async Task UpdateProcessedStatus(QuickEntry entry, bool value)
+    {
+        entry.IsProcessed = value;
+        await DatabaseService.UpdateQuickEntryAsync(entry);
+    }
+
+    // Customer methods
     private async Task LoadCustomers()
     {
         isLoadingCustomers = true;
         customers = await DatabaseService.GetCustomersAsync();
         filteredCustomers = customers;
-        
+
         // Load balances
         foreach (var customer in customers)
         {
             var customerTransactions = await DatabaseService.GetCustomerTransactionsAsync(customer.Id);
             decimal balance = 0;
-            
+
             foreach (var transaction in customerTransactions)
             {
                 if (transaction.CurrencyType == CurrencyType.TurkishLira)
@@ -248,11 +490,65 @@
                     }
                 }
             }
-            
+
             customerBalances[customer.Id] = balance;
         }
-        
+
         isLoadingCustomers = false;
+    }
+
+
+    private void ShowCustomerModal(Customer customer)
+    {
+        currentCustomer = new Customer
+            {
+                Id = customer.Id,
+                Name = customer.Name,
+                PhoneNumber = customer.PhoneNumber
+            };
+        showCustomerModal = true;
+    }
+
+    private void CloseCustomerModal()
+    {
+        showCustomerModal = false;
+    }
+
+    private async Task SaveCustomer()
+    {
+        await DatabaseService.SaveCustomerAsync(currentCustomer);
+        showCustomerModal = false;
+        await LoadCustomers();
+    }
+
+    private void EditCustomer(Customer customer)
+    {
+        currentCustomer = new Customer
+            {
+                Id = customer.Id,
+                Name = customer.Name,
+                PhoneNumber = customer.PhoneNumber
+            };
+        showCustomerModal = true;
+    }
+
+    private async Task DeleteCustomer(Customer customer)
+    {
+        bool? result = await DialogService.ShowMessageBox(
+            "Silme Onayı",
+            $"{customer.Name} isimli müşteriyi silmek istediğinize emin misiniz?",
+            yesText: "Evet", cancelText: "Hayır");
+            
+        if (result == true)
+        {
+            await DatabaseService.DeleteCustomerAsync(customer);
+            await LoadCustomers();
+        }
+    }
+
+    private void NavigateToCustomerDetail(int customerId)
+    {
+        NavigationManager.NavigateTo($"/customer/{customerId}");
     }
 
     private async Task LoadTransactions()
@@ -303,11 +599,6 @@
         return result.OrderByDescending(t => t.Date).ToList();
     }
 
-    private void SetActiveTab(string tab)
-    {
-        activeTab = tab;
-    }
-
     private void Search()
     {
         if (string.IsNullOrWhiteSpace(searchTerm))
@@ -330,62 +621,61 @@
 
     private string GetCurrencyName(CurrencyType currencyType)
     {
-        return currencyType switch
+        return currencyType.GetDisplayName();
+    }
+
+    private decimal GetProcessedTotalAmount()
+    {
+        return quickEntries?.Where(e => e.IsProcessed).Sum(e => e.Tutar) ?? 0;
+    }
+
+    private decimal GetUnprocessedTotalAmount()
+    {
+        return quickEntries?.Where(e => !e.IsProcessed).Sum(e => e.Tutar) ?? 0;
+    }
+
+    private decimal GetTotalAmount()
+    {
+        return quickEntries?.Sum(e => e.Tutar) ?? 0;
+    }
+
+    private async Task BackupToGoogleDrive()
+    {
+        try
         {
-            CurrencyType.TurkishLira => "TL",
-            CurrencyType.Dollar => "USD",
-            CurrencyType.Euro => "EUR",
-            CurrencyType.Gold24K => "Gram Altın",
-            CurrencyType.QuarterGold => "Çeyrek Altın",
-            CurrencyType.HalfGold => "Yarım Altın",
-            CurrencyType.FullGold => "Tam Altın",
-            _ => currencyType.ToString()
-        };
-    }
-
-    private void ShowCustomerModal(Customer customer)
-    {
-        currentCustomer = new Customer
-        {
-            Id = customer.Id,
-            Name = customer.Name,
-            PhoneNumber = customer.PhoneNumber
-        };
-        showCustomerModal = true;
-    }
-
-    private void CloseCustomerModal()
-    {
-        showCustomerModal = false;
-    }
-
-    private async Task SaveCustomer()
-    {
-        await DatabaseService.SaveCustomerAsync(currentCustomer);
-        CloseCustomerModal();
-        await LoadCustomers();
-    }
-
-    private void EditCustomer(Customer customer)
-    {
-        ShowCustomerModal(customer);
-    }
-
-    private async Task DeleteCustomer(Customer customer)
-    {
-        var customerTransactions = await DatabaseService.GetCustomerTransactionsAsync(customer.Id);
-        if (customerTransactions.Count > 0)
-        {
-            // TODO: Show error message
-            return;
+            isBackupInProgress = true;
+            StateHasChanged();
+            
+            backupResult = await GoogleDriveService.BackupDatabaseAsync();
+            
+            await DialogService.ShowMessageBox(
+                "Yedekleme", 
+                backupResult,
+                yesText: "Tamam");
         }
-
-        await DatabaseService.DeleteCustomerAsync(customer);
-        await LoadCustomers();
+        catch (Exception ex)
+        {
+            await DialogService.ShowMessageBox(
+                "Hata", 
+                $"Yedekleme sırasında bir hata oluştu: {ex.Message}",
+                yesText: "Tamam");
+        }
+        finally
+        {
+            isBackupInProgress = false;
+            StateHasChanged();
+        }
     }
 
-    private void NavigateToCustomerDetail(int customerId)
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        NavigationManager.NavigateTo($"/customer/{customerId}");
+        if (firstRender)
+        {
+            await JSRuntime.InvokeVoidAsync("eval", @"
+                window.scrollToTop = function() {
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                }
+            ");
+        }
     }
 }

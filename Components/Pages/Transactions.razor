@@ -33,93 +33,136 @@
     {
         <MudProgressCircular Color="Color.Primary" Indeterminate="true" Class="my-7" Size="Size.Large" />
     }
-    else if (transactions == null || transactions.Count == 0)
-    {
-        <MudAlert Severity="Severity.Info" Class="ma-4">Henüz işlem kaydı bulunmamaktadır.</MudAlert>
-    }
-    else if (filteredTransactions.Count == 0)
-    {
-        <MudAlert Severity="Severity.Info" Class="ma-4">Seçilen kriterlere uygun işlem bulunamadı.</MudAlert>
-    }
     else
     {
-        <MudTable Items="@filteredTransactions" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@isLoading" 
-                  LoadingProgressColor="Color.Primary">
-            <HeaderContent>
-                <MudTh>Tarih</MudTh>
-                <MudTh>Müşteri</MudTh>
-                <MudTh>Tür</MudTh>
-                <MudTh>Tutar</MudTh>
-                <MudTh>Para/Değer</MudTh>
-                <MudTh>Açıklama</MudTh>
-                <MudTh>İşlemler</MudTh>
-            </HeaderContent>
-            <RowTemplate>
-                <MudTd DataLabel="Tarih">@context.Date.ToString("dd.MM.yyyy HH:mm")</MudTd>
-                <MudTd DataLabel="Müşteri">
-                    @if (customerNames.ContainsKey(context.CustomerId))
-                    {
-                        <MudLink Href="@($"/customer/{context.CustomerId}")">@customerNames[context.CustomerId]</MudLink>
-                    }
-                    else
-                    {
-                        <MudText>Bilinmeyen Müşteri</MudText>
-                    }
-                </MudTd>
-                <MudTd DataLabel="Tür">
-                    @if (context.Type == TransactionType.CustomerDebt)
-                    {
-                        <MudChip T="string" Color="Color.Error" Size="Size.Small">Giden</MudChip>
-                    }
-                    else
-                    {
-                        <MudChip T="string" Color="Color.Success" Size="Size.Small" >Gelen</MudChip>
-                    }
-                </MudTd>
-                <MudTd DataLabel="Tutar">@context.Amount.ToString("N2")</MudTd>
-                <MudTd DataLabel="Para/Değer">@context.CurrencyType.GetDisplayName() (@context.CurrencyType.GetSymbol())</MudTd>
-                <MudTd DataLabel="Açıklama">@(context.Description ?? "-")</MudTd>
-                <MudTd DataLabel="İşlemler">
-                    <MudIconButton Icon="@Icons.Material.Filled.Visibility" Color="Color.Info" Size="Size.Small"
-                                  OnClick="@(() => ViewTransactionDetails(context))" />
-                </MudTd>
-            </RowTemplate>
-        </MudTable>
-        
-        <MudPaper Elevation="2" Class="mt-4 pa-4">
-            <MudText Typo="Typo.h6" Class="mb-3">Özet</MudText>
-            <MudGrid>
-                <MudItem xs="12" sm="4">
-                    <MudPaper Elevation="0" Class="pa-3">
-                        <MudText Typo="Typo.subtitle1"><strong>Toplam Giden (TL):</strong></MudText>
-                        <MudText Typo="Typo.h6" Color="Color.Error">@totalCustomerDebtTL.ToString("C2") TL</MudText>
+        <MudTabs Elevation="2" Rounded="true" ApplyEffectsToContainer="true" PanelClass="pa-6">
+            <MudTabPanel Text="Tüm İşlemler">
+                @if (transactions == null || transactions.Count == 0)
+                {
+                    <MudAlert Severity="Severity.Info" Class="ma-4">Henüz işlem kaydı bulunmamaktadır.</MudAlert>
+                }
+                else if (filteredTransactions.Count == 0)
+                {
+                    <MudAlert Severity="Severity.Info" Class="ma-4">Seçilen kriterlere uygun işlem bulunamadı.</MudAlert>
+                }
+                else
+                {
+                    <MudTable Items="@filteredTransactions" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@isLoading" 
+                            LoadingProgressColor="Color.Primary">
+                        <HeaderContent>
+                            <MudTh>Tarih</MudTh>
+                            <MudTh>Müşteri</MudTh>
+                            <MudTh>Tür</MudTh>
+                            <MudTh>Tutar</MudTh>
+                            <MudTh>Para/Değer</MudTh>
+                            <MudTh>Açıklama</MudTh>
+                            <MudTh>İşlemler</MudTh>
+                        </HeaderContent>
+                        <RowTemplate>
+                            <MudTd DataLabel="Tarih">@context.Date.ToString("dd.MM.yyyy HH:mm")</MudTd>
+                            <MudTd DataLabel="Müşteri">
+                                @if (customerNames.ContainsKey(context.CustomerId))
+                                {
+                                    <MudLink Href="@($"/customer/{context.CustomerId}")">@customerNames[context.CustomerId]</MudLink>
+                                }
+                                else
+                                {
+                                    <MudText>Bilinmeyen Müşteri</MudText>
+                                }
+                            </MudTd>
+                            <MudTd DataLabel="Tür">
+                                @if (context.Type == TransactionType.CustomerDebt)
+                                {
+                                    <MudChip T="string" Color="Color.Error" Size="Size.Small">Giden</MudChip>
+                                }
+                                else
+                                {
+                                    <MudChip T="string" Color="Color.Success" Size="Size.Small" >Gelen</MudChip>
+                                }
+                            </MudTd>
+                            <MudTd DataLabel="Tutar">@context.Amount.ToString("N2")</MudTd>
+                            <MudTd DataLabel="Para/Değer">@context.CurrencyType.GetDisplayName() (@context.CurrencyType.GetSymbol())</MudTd>
+                            <MudTd DataLabel="Açıklama">@(context.Description ?? "-")</MudTd>
+                            <MudTd DataLabel="İşlemler">
+                                <MudIconButton Icon="@Icons.Material.Filled.Visibility" Color="Color.Info" Size="Size.Small"
+                                            OnClick="@(() => ViewTransactionDetails(context))" />
+                            </MudTd>
+                        </RowTemplate>
+                    </MudTable>
+                    
+                    <MudPaper Elevation="2" Class="mt-4 pa-4">
+                        <MudText Typo="Typo.h6" Class="mb-3">Özet</MudText>
+                        <MudGrid>
+                            <MudItem xs="12" sm="4">
+                                <MudPaper Elevation="0" Class="pa-3">
+                                    <MudText Typo="Typo.subtitle1"><strong>Toplam Giden (TL):</strong></MudText>
+                                    <MudText Typo="Typo.h6" Color="Color.Error">@totalCustomerDebtTL.ToString("C2") TL</MudText>
+                                </MudPaper>
+                            </MudItem>
+                            <MudItem xs="12" sm="4">
+                                <MudPaper Elevation="0" Class="pa-3">
+                                    <MudText Typo="Typo.subtitle1"><strong>Toplam Gelen (TL):</strong></MudText>
+                                    <MudText Typo="Typo.h6" Color="Color.Success">@totalStoreDebtTL.ToString("C2") TL</MudText>
+                                </MudPaper>
+                            </MudItem>
+                            <MudItem xs="12" sm="4">
+                                <MudPaper Elevation="0" Class="pa-3">
+                                    <MudText Typo="Typo.subtitle1"><strong>Net Durum (TL):</strong></MudText>
+                                    @if (netBalanceTL > 0)
+                                    {
+                                        <MudText Typo="Typo.h6" Color="Color.Error">@netBalanceTL.ToString("C2") TL (Giden)</MudText>
+                                    }
+                                    else if (netBalanceTL < 0)
+                                    {
+                                        <MudText Typo="Typo.h6" Color="Color.Success">@Math.Abs(netBalanceTL).ToString("C2") TL (Gelen)</MudText>
+                                    }
+                                    else
+                                    {
+                                        <MudText Typo="Typo.h6">0.00 TL (Eşit)</MudText>
+                                    }
+                                </MudPaper>
+                            </MudItem>
+                        </MudGrid>
                     </MudPaper>
-                </MudItem>
-                <MudItem xs="12" sm="4">
-                    <MudPaper Elevation="0" Class="pa-3">
-                        <MudText Typo="Typo.subtitle1"><strong>Toplam Gelen (TL):</strong></MudText>
-                        <MudText Typo="Typo.h6" Color="Color.Success">@totalStoreDebtTL.ToString("C2") TL</MudText>
-                    </MudPaper>
-                </MudItem>
-                <MudItem xs="12" sm="4">
-                    <MudPaper Elevation="0" Class="pa-3">
-                        <MudText Typo="Typo.subtitle1"><strong>Net Durum (TL):</strong></MudText>
-                        @if (netBalanceTL > 0)
-                        {
-                            <MudText Typo="Typo.h6" Color="Color.Error">@netBalanceTL.ToString("C2") TL (Giden)</MudText>
-                        }
-                        else if (netBalanceTL < 0)
-                        {
-                            <MudText Typo="Typo.h6" Color="Color.Success">@Math.Abs(netBalanceTL).ToString("C2") TL (Gelen)</MudText>
-                        }
-                        else
-                        {
-                            <MudText Typo="Typo.h6">0.00 TL (Eşit)</MudText>
-                        }
-                    </MudPaper>
-                </MudItem>
-            </MudGrid>
-        </MudPaper>
+                }
+            </MudTabPanel>
+            <MudTabPanel Text="Uzun Süreli Borçlar">
+                @if (isLoading)
+                {
+                    <MudProgressCircular Color="Color.Primary" Indeterminate="true" Class="my-7" Size="Size.Large" />
+                }
+                else if (customersWithLongDebt == null || customersWithLongDebt.Count == 0)
+                {
+                    <MudAlert Severity="Severity.Info" Class="ma-4">Borçlu müşteri bulunmamaktadır.</MudAlert>
+                }
+                else
+                {
+                    <MudTable Items="@customersWithLongDebt" Hover="true" Breakpoint="Breakpoint.Sm">
+                        <HeaderContent>
+                            <MudTh>Müşteri</MudTh>
+                            <MudTh>Borç Başlangıç Tarihi</MudTh>
+                            <MudTh>Borç Süresi</MudTh>
+                            <MudTh>Bakiye (TL)</MudTh>
+                            <MudTh>İşlemler</MudTh>
+                        </HeaderContent>
+                        <RowTemplate>
+                            <MudTd DataLabel="Müşteri">
+                                <MudLink Href="@($"/customer/{context.CustomerId}")">@context.CustomerName</MudLink>
+                            </MudTd>
+                            <MudTd DataLabel="Borç Başlangıç Tarihi">@context.EarliestDebtDate.ToString("dd.MM.yyyy HH:mm")</MudTd>
+                            <MudTd DataLabel="Borç Süresi">@GetDebtDurationText(context.EarliestDebtDate)</MudTd>
+                            <MudTd DataLabel="Bakiye (TL)">
+                                <MudText Color="Color.Error">@context.Balance.ToString("C2") TL</MudText>
+                            </MudTd>
+                            <MudTd DataLabel="İşlemler">
+                                <MudIconButton Icon="@Icons.Material.Filled.Visibility" Color="Color.Info" Size="Size.Small"
+                                            OnClick="@(() => ViewCustomerDetails(context.CustomerId))" />
+                            </MudTd>
+                        </RowTemplate>
+                    </MudTable>
+                }
+            </MudTabPanel>
+        </MudTabs>
     }
 </MudContainer>
 
@@ -132,10 +175,12 @@
     private decimal totalCustomerDebtTL = 0;
     private decimal totalStoreDebtTL = 0;
     private decimal netBalanceTL = 0;
+    
+    private List<CustomerDebtInfo> customersWithLongDebt = new List<CustomerDebtInfo>();
 
     private List<Transaction> filteredTransactions => transactions?
         .Where(t => filterType == null || t.Type == filterType)
-        .OrderByDescending(t => t.Date)
+        .OrderBy(t => t.Date)
         .ToList();
 
     protected override async Task OnInitializedAsync()
@@ -153,8 +198,88 @@
         customerNames = customers.ToDictionary(c => c.Id, c => c.Name);
         
         CalculateTotals();
+        await CalculateCustomerDebtDurations();
         
         isLoading = false;
+    }
+    
+    private async Task CalculateCustomerDebtDurations()
+    {
+        customersWithLongDebt.Clear();
+        
+        var customers = await DatabaseService.GetCustomersAsync();
+        
+        foreach (var customer in customers)
+        {
+            // Get all transactions for this customer
+            var customerTransactions = await DatabaseService.GetCustomerTransactionsAsync(customer.Id);
+            
+            if (customerTransactions.Count == 0)
+                continue;
+                
+            // Group transactions by currency type
+            var transactionsByCurrency = customerTransactions
+                .GroupBy(t => t.CurrencyType)
+                .ToDictionary(g => g.Key, g => g.ToList());
+                
+            // Check if customer has debt in TL
+            if (transactionsByCurrency.ContainsKey(CurrencyType.TurkishLira))
+            {
+                var tlTransactions = transactionsByCurrency[CurrencyType.TurkishLira];
+                
+                // Calculate current balance
+                decimal balance = 0;
+                foreach (var transaction in tlTransactions)
+                {
+                    if (transaction.Type == TransactionType.CustomerDebt)
+                        balance += transaction.Amount;
+                    else
+                        balance -= transaction.Amount;
+                }
+                
+                // If customer has a positive balance (debt), find the earliest transaction that contributed to the debt
+                if (balance > 0)
+                {
+                    // Calculate running balance from oldest to newest transaction
+                    var orderedTransactions = tlTransactions.OrderBy(t => t.Date).ToList();
+                    decimal runningBalance = 0;
+                    DateTime? earliestDebtDate = null;
+                    
+                    foreach (var transaction in orderedTransactions)
+                    {
+                        if (transaction.Type == TransactionType.CustomerDebt)
+                            runningBalance += transaction.Amount;
+                        else
+                            runningBalance -= transaction.Amount;
+                            
+                        // If balance becomes positive and we haven't set the earliest debt date yet
+                        if (runningBalance > 0 && earliestDebtDate == null)
+                            earliestDebtDate = transaction.Date;
+                            
+                        // If balance becomes zero or negative, reset the earliest debt date
+                        if (runningBalance <= 0)
+                            earliestDebtDate = null;
+                    }
+                    
+                    // If we found a valid earliest debt date
+                    if (earliestDebtDate.HasValue)
+                    {
+                        customersWithLongDebt.Add(new CustomerDebtInfo
+                        {
+                            CustomerId = customer.Id,
+                            CustomerName = customer.Name,
+                            Balance = balance,
+                            EarliestDebtDate = earliestDebtDate.Value
+                        });
+                    }
+                }
+            }
+        }
+        
+        // Sort by earliest debt date (oldest first)
+        customersWithLongDebt = customersWithLongDebt
+            .OrderBy(c => c.EarliestDebtDate)
+            .ToList();
     }
     
     private void CalculateTotals()
@@ -183,5 +308,38 @@
     private void ViewTransactionDetails(Transaction transaction)
     {
         NavigationManager.NavigateTo($"/customer/{transaction.CustomerId}");
+    }
+    
+    private void ViewCustomerDetails(int customerId)
+    {
+        NavigationManager.NavigateTo($"/customer/{customerId}");
+    }
+    
+    private string GetDebtDurationText(DateTime debtDate)
+    {
+        TimeSpan duration = DateTime.Now - debtDate;
+        
+        if (duration.TotalDays >= 365)
+        {
+            int years = (int)(duration.TotalDays / 365);
+            return $"{years} yıl, {(int)((duration.TotalDays % 365) / 30)} ay";
+        }
+        else if (duration.TotalDays >= 30)
+        {
+            int months = (int)(duration.TotalDays / 30);
+            return $"{months} ay, {(int)(duration.TotalDays % 30)} gün";
+        }
+        else
+        {
+            return $"{(int)duration.TotalDays} gün";
+        }
+    }
+    
+    private class CustomerDebtInfo
+    {
+        public int CustomerId { get; set; }
+        public string CustomerName { get; set; }
+        public decimal Balance { get; set; }
+        public DateTime EarliestDebtDate { get; set; }
     }
 }

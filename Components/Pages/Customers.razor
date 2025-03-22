@@ -1,6 +1,8 @@
 @page "/customers"
 @inject DatabaseService DatabaseService
 @inject NavigationManager NavigationManager
+@inject IDialogService Dialog
+
 
 <MudContainer Class="mt-4">
     <MudPaper Elevation="0" Class="mb-4">
@@ -35,65 +37,65 @@
 
     @if (isLoading)
     {
-        <MudProgressCircular Color="Color.Primary" Indeterminate="true" Class="my-7" Size="Size.Large" />
+            <MudProgressCircular Color="Color.Primary" Indeterminate="true" Class="my-7" Size="Size.Large" />
     }
     else if (customers == null || customers.Count == 0)
     {
-        <MudAlert Severity="Severity.Info" Class="ma-4">Henüz müşteri kaydı bulunmamaktadır.</MudAlert>
+            <MudAlert Severity="Severity.Info" Class="ma-4">Henüz müşteri kaydı bulunmamaktadır.</MudAlert>
     }
     else
     {
-        <MudTable Items="@filteredCustomers" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@isLoading"
-                  LoadingProgressColor="Color.Primary">
-            <HeaderContent>
-                <MudTh>İsim</MudTh>
-                <MudTh>Telefon</MudTh>
-                <MudTh>Borç Durumu</MudTh>
-                <MudTh>İşlemler</MudTh>
-            </HeaderContent>
-            <RowTemplate>
-                <MudTd DataLabel="İsim">@context.Name</MudTd>
-                <MudTd DataLabel="Telefon">@context.PhoneNumber</MudTd>
-                <MudTd DataLabel="Borç Durumu">
+            <MudTable Items="@filteredCustomers" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@isLoading"
+                      LoadingProgressColor="Color.Primary">
+                <HeaderContent>
+                    <MudTh>İsim</MudTh>
+                    <MudTh>Telefon</MudTh>
+                    <MudTh>Borç Durumu</MudTh>
+                    <MudTh>İşlemler</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="İsim">@context.Name</MudTd>
+                    <MudTd DataLabel="Telefon">@context.PhoneNumber</MudTd>
+                    <MudTd DataLabel="Borç Durumu">
                     @if (customerBalances.ContainsKey(context.Id))
                     {
                         var balance = customerBalances[context.Id];
                         if (balance > 0)
                         {
-                            <MudChip T="string" Color="Color.Error" Size="Size.Small">@($"{balance.ToString("C2")} TL Borçlu")</MudChip>
+                                        <MudChip T="string" Color="Color.Error" Size="Size.Small">@($"{balance.ToString("C2")} TL Borçlu")</MudChip>
 
                         }
                         else if (balance < 0)
                         {
-                            <MudChip T="string" Color="Color.Success" Size="Size.Small">@($"{Math.Abs(balance).ToString("C2")} TL Alacaklı")</MudChip>
+                                        <MudChip T="string" Color="Color.Success" Size="Size.Small">@($"{Math.Abs(balance).ToString("C2")} TL Alacaklı")</MudChip>
 
                         }
                         else
                         {
-                            <MudChip T="string" Color="Color.Default" Size="Size.Small">Hesap Sıfır</MudChip>
+                                        <MudChip T="string" Color="Color.Default" Size="Size.Small">Hesap Sıfır</MudChip>
                         }
                     }
                     else
                     {
-                        <MudProgressCircular Size="Size.Small" Indeterminate="true" />
+                                <MudProgressCircular Size="Size.Small" Indeterminate="true" />
                     }
-                </MudTd>
-                <MudTd DataLabel="İşlemler">
-                    <MudStack Row="true">
-                        <MudIconButton Icon="@Icons.Material.Filled.Visibility" Color="Color.Info" Size="Size.Small"
-                                       OnClick="@(() => ViewCustomerTransactions(context))" />
-                        <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
-                                       OnClick="@(() => ShowCustomerModal(context))" />
-                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small"
-                                       OnClick="@(() => DeleteCustomer(context))" />
-                    </MudStack>
-                </MudTd>
-            </RowTemplate>
-        </MudTable>
+                    </MudTd>
+                    <MudTd DataLabel="İşlemler">
+                        <MudStack Row="true">
+                            <MudIconButton Icon="@Icons.Material.Filled.Visibility" Color="Color.Info" Size="Size.Small"
+                                           OnClick="@(() => ViewCustomerTransactions(context))" />
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
+                                           OnClick="@(() => ShowCustomerModal(context))" />
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small"
+                                           OnClick="@(() => DeleteCustomer(context))" />
+                        </MudStack>
+                    </MudTd>
+                </RowTemplate>
+            </MudTable>
     }
 </MudContainer>
 
-<MudDialog Visible=showCustomerModal>
+<MudDialog @bind-Visible="showCustomerModal">
     <DialogContent>
         <MudContainer Style="max-height: 500px; overflow-y: auto">
             <MudText Typo="Typo.h6" Class="mb-4">@(currentCustomer.Id == 0 ? "Yeni Müşteri" : "Müşteri Düzenle")</MudText>
@@ -127,7 +129,7 @@
     private bool isLoading = true;
     private string searchTerm = "";
 
-    private bool showCustomerModal = false;
+    private bool showCustomerModal;
     private Customer currentCustomer = new Customer();
 
     protected override async Task OnInitializedAsync()
@@ -200,15 +202,23 @@
 
     private async Task DeleteCustomer(Customer customer)
     {
-        var transactions = await DatabaseService.GetCustomerTransactionsAsync(customer.Id);
-        if (transactions.Count > 0)
-        {
-            // TODO: Show error message
-            return;
-        }
+        // var transactions = await DatabaseService.GetCustomerTransactionsAsync(customer.Id);
+        // if (transactions.Count > 0)
+        // {
+        //     // TODO: Show error message
+        //     return;
+        // }
+        var confirmResult = await Dialog.ShowMessageBox(
+           "Emin misiniz?",
+           $"{customer.Name} sistemden silinecek",
+           yesText: "Evet",
+           noText: "Hayır");
 
-        await DatabaseService.DeleteCustomerAsync(customer);
-        await LoadCustomers();
+        if (confirmResult == true)
+        {
+            await DatabaseService.DeleteCustomerAsync(customer);
+            await LoadCustomers();
+        }
     }
 
     private void ViewCustomerTransactions(Customer customer)

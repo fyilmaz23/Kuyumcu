@@ -20,6 +20,7 @@ public static class MauiProgram
 		builder.Services.AddSingleton<DatabaseService>();
         builder.Services.AddSingleton<BackupService>();
         builder.Services.AddSingleton<PrintService>();
+        builder.Services.AddSingleton<GoogleDriveService>();
         builder.Services.AddMudServices();
 
 #if DEBUG
@@ -32,6 +33,15 @@ public static class MauiProgram
         // Veritabanı yedekleme servisini başlat
         var backupService = app.Services.GetService<BackupService>();
         backupService?.Start();
+        
+        // Veritabanı şemasını güncelle
+        Task.Run(async () => {
+            var dbService = app.Services.GetService<DatabaseService>();
+            if (dbService != null)
+            {
+                await dbService.UpdateDatabaseSchemaAsync();
+            }
+        });
 
 		return app;
 	}

@@ -26,6 +26,11 @@ namespace Kuyumcu.Models
         
         [MaxLength(255)]
         public string? Description { get; set; }
+        
+        /// <summary>
+        /// Kaydın silinip silinmediğini belirtir (Soft delete için)
+        /// </summary>
+        public bool IsDeleted { get; set; } = false;
 
         public string GetFormattedAmount()
         {

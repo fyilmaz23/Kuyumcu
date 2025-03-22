@@ -10,7 +10,7 @@ namespace Kuyumcu.Services
     public class PrintService
     {
         private const int ThermalPaperWidth = 58; // 58mm thermal printer width
-        private const int CharactersPerLine = 32; // Typical characters for 58mm printer
+        private const int CharactersPerLine = 30; // Reduced from 32 for better fit
         
         // Yazıcı adı belirtilmezse varsayılan yazıcı kullanılır
         private string? _printerName;
@@ -28,7 +28,7 @@ namespace Kuyumcu.Services
                 PrintDocument printDoc = new PrintDocument();
                 
                 // Özel sayfa boyutu ayarlama (58mm termal yazıcı)
-                printDoc.DefaultPageSettings.PaperSize = new PaperSize("Custom", 220, 800); // ~58mm width
+                printDoc.DefaultPageSettings.PaperSize = new PaperSize("Custom", 200, 800); // Reduced from 220 to 200 width
                 
                 // Yazıcıyı doğrudan belirle (diyalog göstermeden)
                 if (!string.IsNullOrEmpty(_printerName))
@@ -61,12 +61,13 @@ namespace Kuyumcu.Services
             System.Drawing.Font titleFont = new System.Drawing.Font("Arial", 10, FontStyle.Bold);
             int yPos = 10;
             int leftMargin = 5;
+            int rightMargin = 10; // New right margin to prevent text from being cut off
             StringFormat centerFormat = new StringFormat { Alignment = StringAlignment.Center };
             
             // Title
             float titleWidth = e.PageBounds.Width - (leftMargin * 2);
             RectangleF titleRect = new RectangleF(leftMargin, yPos, titleWidth, 20);
-            graphics.DrawString("MÜŞTERİ DURUM MAKBUZU", titleFont, Brushes.Black, titleRect, centerFormat);
+            graphics.DrawString("BİLGİ FİŞİ", titleFont, Brushes.Black, titleRect, centerFormat);
             yPos += 25;
             
             // Date and Time
@@ -74,13 +75,13 @@ namespace Kuyumcu.Services
             graphics.DrawString($"Tarih: {dateTime}", regularFont, Brushes.Black, leftMargin, yPos);
             yPos += 20;
             
+            // Customer Info
+            graphics.DrawString($"Müşteri: {customer.Name}", boldFont, Brushes.Black, leftMargin, yPos);
+            yPos += 15;
             // Separator
             DrawSeparator(graphics, leftMargin, yPos, e.PageBounds.Width - (leftMargin * 2));
             yPos += 10;
             
-            // Customer Info
-            graphics.DrawString($"Müşteri: {customer.Name}", boldFont, Brushes.Black, leftMargin, yPos);
-            yPos += 15;
             
             //if (!string.IsNullOrEmpty(customer.PhoneNumber))
             //{
@@ -88,9 +89,9 @@ namespace Kuyumcu.Services
             //    yPos += 15;
             //}
             
-            // Transaction Summary
-            graphics.DrawString("GÜNCEL DURUM", boldFont, Brushes.Black, leftMargin, yPos);
-            yPos += 20;
+            //// Transaction Summary
+            //graphics.DrawString("GÜNCEL DURUM", boldFont, Brushes.Black, leftMargin, yPos);
+            //yPos += 20;
             
             if (transactions != null && transactions.Any())
             {
@@ -118,7 +119,7 @@ namespace Kuyumcu.Services
                     
                     // Calculate text width to align values to the right
                     System.Drawing.SizeF textSize = graphics.MeasureString(balanceText, regularFont);
-                    float rightPos = e.PageBounds.Width - leftMargin - textSize.Width;
+                    float rightPos = e.PageBounds.Width - rightMargin - textSize.Width;
                     
                     graphics.DrawString(balanceText, regularFont, balanceBrush, rightPos, yPos);
                     yPos += 15;
@@ -139,6 +140,27 @@ namespace Kuyumcu.Services
             System.Drawing.SizeF footerSize = graphics.MeasureString(footerText, regularFont);
             float footerX = (e.PageBounds.Width - footerSize.Width) / 2;
             graphics.DrawString(footerText, regularFont, Brushes.Black, footerX, yPos);
+            
+            // Bilgilendirme notu ekle
+            yPos += 20;
+            System.Drawing.Font disclaimerFont = new System.Drawing.Font("Arial", 6); // Daha küçük yazı boyutu
+            
+            // Bilgilendirme notunu iki satıra böl
+            string disclaimerLine1 = "*Bu belge yalnızca bilgilendirme amaçlıdır,";
+            string disclaimerLine2 = "resmi bir alacak/borç senedi niteliği taşımaz.";
+            
+            // İlk satırı yazdır
+            System.Drawing.SizeF disclaimerSize1 = graphics.MeasureString(disclaimerLine1, disclaimerFont);
+            float disclaimerX1 = (e.PageBounds.Width - disclaimerSize1.Width) / 2;
+            graphics.DrawString(disclaimerLine1, disclaimerFont, Brushes.Black, disclaimerX1, yPos);
+            
+            // İkinci satır için y pozisyonunu artır
+            yPos += 10;
+            
+            // İkinci satırı yazdır
+            System.Drawing.SizeF disclaimerSize2 = graphics.MeasureString(disclaimerLine2, disclaimerFont);
+            float disclaimerX2 = (e.PageBounds.Width - disclaimerSize2.Width) / 2;
+            graphics.DrawString(disclaimerLine2, disclaimerFont, Brushes.Black, disclaimerX2, yPos);
             
             // No more pages to print
             e.HasMorePages = false;
