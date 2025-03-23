@@ -14,18 +14,25 @@
     <MudPaper Elevation="1" Class="pa-4 mb-4">
         <MudGrid>
             <MudItem xs="12" sm="4">
-                    <MudSelect T="TransactionType?" Label="İşlem Türü" @bind-Value="filterType" Variant="Variant.Outlined">
-                                <MudSelectItem T="TransactionType?" Value="@((TransactionType?)null)">Tümü</MudSelectItem>
-                                <MudSelectItem T="TransactionType?" Value="@(TransactionType.CustomerDebt)">Sadece Müşteri Borçları</MudSelectItem>
-                                <MudSelectItem T="TransactionType?" Value="@(TransactionType.StoreDebt)">Sadece Kuyumcu Borçları</MudSelectItem>
-                            </MudSelect>
+                <MudSelect T="TransactionType?" Label="İşlem Türü" Value="filterType" Variant="Variant.Outlined"
+                ValueChanged="@(async (value) => await OnFilterTypeChanged(value))">
+                    <MudSelectItem T="TransactionType?" Value="@((TransactionType?)null)">Tümü</MudSelectItem>
+                    <MudSelectItem T="TransactionType?" Value="@(TransactionType.CustomerDebt)">Sadece Müşteri Borçları</MudSelectItem>
+                    <MudSelectItem T="TransactionType?" Value="@(TransactionType.StoreDebt)">Sadece Kuyumcu Borçları</MudSelectItem>
+                </MudSelect>
             </MudItem>
-            <MudItem xs="12" sm="8" Class="d-flex justify-end">
-                <MudButton Variant="Variant.Outlined" Color="Color.Secondary" StartIcon="@Icons.Material.Filled.ArrowBack" 
-                          OnClick="@(() => NavigationManager.NavigateTo("/"))">
-                    Ana Sayfa
-                </MudButton>
-            </MudItem>
+        @*     <MudItem xs="12" sm="8" Class="d-flex justify-end">
+                <MudStack Row="true" Spacing="2">
+                    <MudTextField T="string" Value="@searchTerm" ValueChanged="@(s => OnSearch(s))"
+                    Placeholder="İşlem ara..." Adornment="Adornment.Start"
+                    AdornmentIcon="@Icons.Material.Filled.Search" IconSize="Size.Medium"
+                    Immediate="true" Class="mt-0"></MudTextField>
+                    <MudButton Variant="Variant.Outlined" Color="Color.Secondary" StartIcon="@Icons.Material.Filled.ArrowBack" 
+                    OnClick="@(() => NavigationManager.NavigateTo("/"))">
+                        Ana Sayfa
+                    </MudButton>
+                </MudStack>
+            </MudItem> *@
         </MudGrid>
     </MudPaper>
 
@@ -41,20 +48,25 @@
                 {
                     <MudAlert Severity="Severity.Info" Class="ma-4">Henüz işlem kaydı bulunmamaktadır.</MudAlert>
                 }
-                else if (filteredTransactions.Count == 0)
+                @*   else if (filteredTransactions.Count == 0)
                 {
                     <MudAlert Severity="Severity.Info" Class="ma-4">Seçilen kriterlere uygun işlem bulunamadı.</MudAlert>
-                }
+                } *@
                 else
                 {
-                    <MudTable Items="@filteredTransactions" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@isLoading" 
-                            LoadingProgressColor="Color.Primary">
+                    <MudTable T="Transaction" ServerData="@ServerReload"
+                    Dense="true" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@isLoading" 
+                    LoadingProgressColor="Color.Primary" @ref="table">
+                        <ToolBarContent>
+                            <MudText Typo="Typo.h6">İşlemler Listesi</MudText>
+                            <MudSpacer />
+                        </ToolBarContent>
                         <HeaderContent>
-                            <MudTh>Tarih</MudTh>
+                            <MudTh><MudTableSortLabel SortLabel="date" T="Transaction" InitialDirection="MudBlazor.SortDirection.Descending">Tarih</MudTableSortLabel></MudTh>
                             <MudTh>Müşteri</MudTh>
-                            <MudTh>Tür</MudTh>
-                            <MudTh>Tutar</MudTh>
-                            <MudTh>Para/Değer</MudTh>
+                            <MudTh><MudTableSortLabel SortLabel="type" T="Transaction">Tür</MudTableSortLabel></MudTh>
+                            <MudTh><MudTableSortLabel SortLabel="amount" T="Transaction">Tutar</MudTableSortLabel></MudTh>
+                            <MudTh><MudTableSortLabel SortLabel="currency" T="Transaction">Para/Değer</MudTableSortLabel></MudTh>
                             <MudTh>Açıklama</MudTh>
                             <MudTh>İşlemler</MudTh>
                         </HeaderContent>
@@ -85,18 +97,21 @@
                             <MudTd DataLabel="Açıklama">@(context.Description ?? "-")</MudTd>
                             <MudTd DataLabel="İşlemler">
                                 <MudIconButton Icon="@Icons.Material.Filled.Visibility" Color="Color.Info" Size="Size.Small"
-                                            OnClick="@(() => ViewTransactionDetails(context))" />
+                                OnClick="@(() => ViewTransactionDetails(context))" />
                             </MudTd>
                         </RowTemplate>
+                        <PagerContent>
+                            <MudTablePager PageSizeOptions="new int[] {10, 25, 50, 100}" />
+                        </PagerContent>
                     </MudTable>
-                    
+
                     <MudPaper Elevation="2" Class="mt-4 pa-4">
                         <MudText Typo="Typo.h6" Class="mb-3">Özet</MudText>
-                        
+
                         @foreach (var currencyType in Enum.GetValues<CurrencyType>())
                         {
                             @if (currencySummaries.ContainsKey(currencyType) && 
-                                 (currencySummaries[currencyType].TotalCustomerDebt > 0 || currencySummaries[currencyType].TotalStoreDebt > 0))
+                                (currencySummaries[currencyType].TotalCustomerDebt > 0 || currencySummaries[currencyType].TotalStoreDebt > 0))
                             {
                                 <MudText Typo="Typo.subtitle1" Class="mt-3 mb-2">
                                     <strong>@currencyType.GetDisplayName() (@currencyType.GetSymbol())</strong>
@@ -181,7 +196,7 @@
                             </MudTd>
                             <MudTd DataLabel="İşlemler">
                                 <MudIconButton Icon="@Icons.Material.Filled.Visibility" Color="Color.Info" Size="Size.Small"
-                                            OnClick="@(() => ViewCustomerDetails(context.CustomerId))" />
+                                OnClick="@(() => ViewCustomerDetails(context.CustomerId))" />
                             </MudTd>
                         </RowTemplate>
                     </MudTable>
@@ -189,34 +204,98 @@
             </MudTabPanel>
         </MudTabs>
     }
-</MudContainer>
+    </MudContainer>
 
-@code {
+    @code {
+
     private List<Transaction> transactions;
     private Dictionary<int, string> customerNames = new Dictionary<int, string>();
     private bool isLoading = true;
     private TransactionType? filterType = null; 
+    private string searchTerm = string.Empty;
 
     private Dictionary<CurrencyType, CurrencySummary> currencySummaries = new Dictionary<CurrencyType, CurrencySummary>();
-    
+
     private List<CustomerDebtInfo> customersWithLongDebt = new List<CustomerDebtInfo>();
 
-    private List<Transaction> filteredTransactions => transactions?
-        .Where(t => filterType == null || t.Type == filterType)
-        .OrderBy(t => t.Date)
-        .ToList();
+    private MudTable<Transaction> table;
+
+    private async Task<TableData<Transaction>> ServerReload(TableState state, CancellationToken cancellationToken = default)
+    {
+
+        try
+        {
+
+            // Convert MudBlazor sort direction to our SortDirection
+
+            var sortDirection = Helper.HelperMethods.GetSortDirection(state?.SortDirection);
+
+            var transactions = await DatabaseService.GetTransactionsPaginationAsync(
+                state.Page, 
+                state.PageSize, 
+                state?.SortLabel, 
+                sortDirection,
+                searchTerm,
+                filterType);
+                
+            int totalItems = await DatabaseService.GetTransactionCountAsync(searchTerm, filterType);
+
+            // Update customer names for displayed transactions if needed
+            foreach (var transaction in transactions)
+            {
+                if (transaction.CustomerId > 0 && !customerNames.ContainsKey(transaction.CustomerId))
+                {
+                    var customer = await DatabaseService.GetCustomerAsync(transaction.CustomerId);
+                    if (customer != null)
+                    {
+                        customerNames[transaction.CustomerId] = customer.Name;
+                    }
+                }
+            }
+
+            // Only load all transactions for summary if needed
+            if (transactions.Count > 0 && (currencySummaries.Count == 0 || customersWithLongDebt.Count == 0))
+            {
+                // Load all transactions for summaries
+                this.transactions = await DatabaseService.GetTransactionsAsync();
+                
+                // Update currency summaries
+                CalculateTotals();
+                await CalculateCustomersWithLongDebt();
+            }
+            
+            
+            return new TableData<Transaction>
+            {
+                Items = transactions,
+                TotalItems = totalItems
+            };
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex);
+            return new TableData<Transaction>
+            {
+                Items = new List<Transaction>(),
+                TotalItems = 0
+            };
+        }
+    }
 
     protected override async Task OnInitializedAsync()
     {
         isLoading = true;
-        transactions = await DatabaseService.GetTransactionsAsync();
         
+        // Load all customers for names lookup
         var customers = await DatabaseService.GetCustomersAsync();
         foreach (var customer in customers)
         {
             customerNames[customer.Id] = customer.Name;
         }
         
+        // Initial load will be handled by ServerReload when the table is initialized
+        // Just load all transactions for summary calculations
+        transactions = await DatabaseService.GetTransactionsAsync();
         CalculateTotals();
         await CalculateCustomersWithLongDebt();
         
@@ -300,7 +379,6 @@
             }
         }
     }
-
     private void ViewTransactionDetails(Transaction transaction)
     {
         NavigationManager.NavigateTo($"/customer/{transaction.CustomerId}");
@@ -329,6 +407,18 @@
         {
             return $"{(int)duration.TotalDays} gün";
         }
+    }
+    
+    private async Task OnSearch(string text)
+    {
+        searchTerm = text;
+        await table.ReloadServerData();
+    }
+    
+    private async Task OnFilterTypeChanged(TransactionType? filterType)
+    {
+        this.filterType = filterType;
+        await table.ReloadServerData();
     }
     
     private class CustomerDebtInfo

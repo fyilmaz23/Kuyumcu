@@ -1,4 +1,5 @@
 @page "/customers"
+@using Kuyumcu.Components.Helper
 @inject DatabaseService DatabaseService
 @inject NavigationManager NavigationManager
 @inject IDialogService Dialog
@@ -17,17 +18,17 @@
         <MudGrid>
             <MudItem xs="12" sm="6">
                 <MudTextField T="string" Label="Müşteri ara..." Variant="Variant.Outlined" Adornment="Adornment.Start"
-                              AdornmentIcon="@Icons.Material.Filled.Search" @bind-Value="searchTerm"
-                              Immediate="true" OnKeyUp="@(() => Search())" />
+                AdornmentIcon="@Icons.Material.Filled.Search" @bind-Value="searchTerm"
+                Immediate="true" OnKeyUp="@(() => Search())" />
             </MudItem>
             <MudItem xs="12" sm="6" Class="d-flex justify-end">
                 <MudStack Row="true" Spacing="2">
                     <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
-                               OnClick="@(() => ShowCustomerModal(new Customer()))">
+                    OnClick="@(() => ShowCustomerModal(new Customer()))">
                         Yeni Müşteri
                     </MudButton>
                     <MudButton Variant="Variant.Outlined" Color="Color.Secondary" StartIcon="@Icons.Material.Filled.ArrowBack"
-                               OnClick="GoBack">
+                    OnClick="GoBack">
                         Ana Sayfa
                     </MudButton>
                 </MudStack>
@@ -37,98 +38,82 @@
 
     @if (isLoading)
     {
-            <MudProgressCircular Color="Color.Primary" Indeterminate="true" Class="my-7" Size="Size.Large" />
+        <MudProgressCircular Color="Color.Primary" Indeterminate="true" Class="my-7" Size="Size.Large" />
     }
     else if (customers == null || customers.Count == 0)
     {
-            <MudAlert Severity="Severity.Info" Class="ma-4">Henüz müşteri kaydı bulunmamaktadır.</MudAlert>
+        <MudAlert Severity="Severity.Info" Class="ma-4">Henüz müşteri kaydı bulunmamaktadır.</MudAlert>
     }
     else
     {
-            <MudTable Items="@filteredCustomers" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@isLoading"
-                      LoadingProgressColor="Color.Primary">
-                <HeaderContent>
-                    <MudTh>İsim</MudTh>
-                    <MudTh>Telefon</MudTh>
-                    <MudTh>Borç Durumu</MudTh>
-                    <MudTh>İşlemler</MudTh>
-                </HeaderContent>
-                <RowTemplate>
-                    <MudTd DataLabel="İsim">@context.Name</MudTd>
-                    <MudTd DataLabel="Telefon">@context.PhoneNumber</MudTd>
-                    <MudTd DataLabel="Borç Durumu">
-                    @if (customerBalances.ContainsKey(context.Id))
-                    {
-                        var balance = customerBalances[context.Id];
-                        if (balance > 0)
-                        {
-                                        <MudChip T="string" Color="Color.Error" Size="Size.Small">@($"{balance.ToString("C2")} TL Borçlu")</MudChip>
-
-                        }
-                        else if (balance < 0)
-                        {
-                                        <MudChip T="string" Color="Color.Success" Size="Size.Small">@($"{Math.Abs(balance).ToString("C2")} TL Alacaklı")</MudChip>
-
-                        }
-                        else
-                        {
-                                        <MudChip T="string" Color="Color.Default" Size="Size.Small">Hesap Sıfır</MudChip>
-                        }
-                    }
-                    else
-                    {
-                                <MudProgressCircular Size="Size.Small" Indeterminate="true" />
-                    }
-                    </MudTd>
-                    <MudTd DataLabel="İşlemler">
-                        <MudStack Row="true">
-                            <MudIconButton Icon="@Icons.Material.Filled.Visibility" Color="Color.Info" Size="Size.Small"
-                                           OnClick="@(() => ViewCustomerTransactions(context))" />
-                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
-                                           OnClick="@(() => ShowCustomerModal(context))" />
-                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small"
-                                           OnClick="@(() => DeleteCustomer(context))" />
-                        </MudStack>
-                    </MudTd>
-                </RowTemplate>
-            </MudTable>
+        <MudTable T="Customer" ServerData="@ServerReload"
+        Dense="true" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@isLoading" 
+        OnRowClick="RowClickEvent" LoadingProgressColor="Color.Primary" 
+        Elevation="0" @ref="table">
+            <HeaderContent>
+                <MudTh><MudTableSortLabel SortLabel="name" T="Customer">İsim</MudTableSortLabel></MudTh>
+                <MudTh><MudTableSortLabel SortLabel="phone" T="Customer">Telefon</MudTableSortLabel></MudTh>
+                <MudTh>İşlemler</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="İsim">@context.Name</MudTd>
+                <MudTd DataLabel="Telefon">@context.PhoneNumber.FormatPhoneNumber()</MudTd>
+                <MudTd DataLabel="İşlemler">
+                    <MudStack Row="true">
+                        <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
+                        OnClick="@(() => ShowCustomerModal(context))" />
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small"
+                        OnClick="@(() => DeleteCustomer(context))" />
+                    </MudStack>
+                </MudTd>
+            </RowTemplate>
+            <PagerContent>
+                <MudTablePager PageSizeOptions="new int[] {10, 25, 50, 100}" />
+            </PagerContent>
+        </MudTable>
     }
-</MudContainer>
+    </MudContainer>
 
-<MudDialog @bind-Visible="showCustomerModal">
-    <DialogContent>
-        <MudContainer Style="max-height: 500px; overflow-y: auto">
-            <MudText Typo="Typo.h6" Class="mb-4">@(currentCustomer.Id == 0 ? "Yeni Müşteri" : "Müşteri Düzenle")</MudText>
-            <EditForm Model="@currentCustomer" OnValidSubmit="SaveCustomer">
-                <DataAnnotationsValidator />
-                <MudGrid>
-                    <MudItem xs="12">
-                        <MudTextField @bind-Value="currentCustomer.Name" Label="Müşteri Adı" Variant="Variant.Outlined"
-                                      Required="true" RequiredError="Müşteri adı gereklidir" />
-                        <ValidationMessage For="@(() => currentCustomer.Name)" />
-                    </MudItem>
-                    <MudItem xs="12">
-                        <MudTextField @bind-Value="currentCustomer.PhoneNumber" Label="Telefon" Variant="Variant.Outlined" />
-                        <ValidationMessage For="@(() => currentCustomer.PhoneNumber)" />
-                    </MudItem>
-                </MudGrid>
-                <MudDivider Class="my-4" />
-                <MudStack Row="true" Justify="Justify.FlexEnd">
-                    <MudButton Variant="Variant.Text" Color="Color.Default" OnClick="CloseCustomerModal">İptal</MudButton>
-                    <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary">Kaydet</MudButton>
-                </MudStack>
-            </EditForm>
-        </MudContainer>
-    </DialogContent>
-</MudDialog>
+    <MudDialog @bind-Visible="showCustomerModal">
+        <DialogContent>
+            <MudContainer Style="max-height: 500px; overflow-y: auto">
+                <MudText Typo="Typo.h6" Class="mb-4">@(currentCustomer.Id == 0 ? "Yeni Müşteri" : "Müşteri Düzenle")</MudText>
+                <EditForm Model="@currentCustomer" OnValidSubmit="SaveCustomer">
+                    <DataAnnotationsValidator />
+                    <MudGrid>
+                        <MudItem xs="12">
+                            <MudTextField @bind-Value="currentCustomer.Name" Label="Müşteri Adı" Variant="Variant.Outlined"
+                            Required="true" RequiredError="Müşteri adı gereklidir" />
+                            <ValidationMessage For="@(() => currentCustomer.Name)" />
+                        </MudItem>
+                        <MudItem xs="12">
+                            <MudTextField @bind-Value="currentCustomer.PhoneNumber" Mask=@mask2 Label="Telefon"
+                            Variant="Variant.Outlined" Immediate MaxLength="10" />
+                            <ValidationMessage For="@(() => currentCustomer.PhoneNumber)" />
+                        </MudItem>
+                    </MudGrid>
+                    <MudDivider Class="my-4" />
+                    <MudStack Row="true" Justify="Justify.FlexEnd">
+                        <MudButton Variant="Variant.Text" Color="Color.Default" OnClick="CloseCustomerModal">İptal</MudButton>
+                        <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary">Kaydet</MudButton>
+                    </MudStack>
+                </EditForm>
+            </MudContainer>
+        </DialogContent>
+    </MudDialog>
 
-@code {
+    @code {
     private List<Customer> customers;
     private List<Customer> filteredCustomers;
-    private Dictionary<int, decimal> customerBalances = new Dictionary<int, decimal>();
     private bool isLoading = true;
     private string searchTerm = "";
-
+    private MudTable<Customer> table;
+    private PatternMask mask2 = new PatternMask("XXX-XXX-XX-XX")
+        {
+            MaskChars = new[] { new MaskChar('X', @"[0-9]") },
+            Placeholder = '_',
+            CleanDelimiters = true,
+        };
     private bool showCustomerModal;
     private Customer currentCustomer = new Customer();
 
@@ -147,33 +132,47 @@
         isLoading = true;
         customers = await DatabaseService.GetCustomersAsync();
         filteredCustomers = customers;
-        await LoadCustomerBalances();
         isLoading = false;
     }
 
-    private async Task LoadCustomerBalances()
+ 
+    private async Task<TableData<Customer>> ServerReload(TableState state, CancellationToken cancellationToken)
     {
-        customerBalances.Clear();
-        foreach (var customer in customers)
+        try
         {
-            var balance = await DatabaseService.GetCustomerBalanceAsync(customer.Id);
-            customerBalances[customer.Id] = balance;
+
+            var customers = await DatabaseService.GetCustomersPaginationAsync(state.Page, state.PageSize, state?.SortLabel, Helper.HelperMethods.GetSortDirection(state?.SortDirection), searchTerm);
+            int totalItems = await DatabaseService.GetCustomerCountAsync(searchTerm);
+
+            return new TableData<Customer>
+            {
+                Items = customers,
+                TotalItems = totalItems
+            };
         }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex);
+            // Handle errors
+            return new TableData<Customer>
+            {
+                Items = new List<Customer>(),
+                TotalItems = 0
+            };
+        }
+    }
+
+    private async Task OnSearch(string text)
+    {
+        searchTerm = text;
+        await table.ReloadServerData();
     }
 
     private void Search()
     {
-        if (string.IsNullOrWhiteSpace(searchTerm))
-        {
-            filteredCustomers = customers;
-        }
-        else
-        {
-            filteredCustomers = customers
-                .Where(c => c.Name.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
-                           (c.PhoneNumber?.Contains(searchTerm) ?? false))
-                .ToList();
-        }
+        // Legacy method, replaced by server-side filtering
+        // Keep for compatibility
+        table?.ReloadServerData();
     }
 
     private void ShowCustomerModal(Customer customer)
@@ -190,14 +189,14 @@
     private void CloseCustomerModal()
     {
         showCustomerModal = false;
-        currentCustomer = new Customer();
     }
 
     private async Task SaveCustomer()
     {
         await DatabaseService.SaveCustomerAsync(currentCustomer);
         CloseCustomerModal();
-        await LoadCustomers();
+        // await table.ReloadServerData();
+        NavigationManager.NavigateTo($"/customer/{currentCustomer.Id}");
     }
 
     private async Task DeleteCustomer(Customer customer)
@@ -217,12 +216,18 @@
         if (confirmResult == true)
         {
             await DatabaseService.DeleteCustomerAsync(customer);
-            await LoadCustomers();
+            await table.ReloadServerData();
         }
     }
 
     private void ViewCustomerTransactions(Customer customer)
     {
         NavigationManager.NavigateTo($"/customer/{customer.Id}");
+    }
+    private void RowClickEvent(TableRowClickEventArgs<Customer> customer)
+    {
+        if (customer?.Item != null)
+            NavigationManager.NavigateTo($"/customer/{customer.Item.Id}");
+
     }
 }

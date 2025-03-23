@@ -1,9 +1,11 @@
 @page "/customer/{CustomerId:int}"
+@inject IJSRuntime JSRuntime
 @inject DatabaseService DatabaseService
 @inject NavigationManager NavigationManager
 @inject IDialogService Dialog
 @inject PrintService PrintService
 @using System.Globalization
+@using Kuyumcu.Components.Helper
 
 <MudContainer Class="mt-4">
     <MudPaper Elevation="0" Class="mb-4">
@@ -21,162 +23,162 @@
 
 @if (isLoading)
 {
-    <MudProgressCircular Color="Color.Primary" Indeterminate="true" Class="my-7" Size="Size.Large" />
+        <MudProgressCircular Color="Color.Primary" Indeterminate="true" Class="my-7" Size="Size.Large" />
 }
 else if (customer == null)
 {
-    <MudAlert Severity="Severity.Error">Müşteri bulunamadı!</MudAlert>
+        <MudAlert Severity="Severity.Error">Müşteri bulunamadı!</MudAlert>
 }
 else
 {
-    <MudPaper Elevation="1" Class="pa-4 mb-4">
-        <MudText Typo="Typo.h5">@customer.Name</MudText>
-        <MudGrid>
-            <MudItem xs="12" md="6">
-                <MudText><b>Telefon:</b> @customer.PhoneNumber</MudText>
-            </MudItem>
-        </MudGrid>
+        <MudPaper Elevation="1" Class="pa-4 mb-4">
+            <MudText Typo="Typo.h5">@customer.Name</MudText>
+            <MudGrid>
+                <MudItem xs="12" md="6">
+                <MudText><b>Telefon:</b> @customer.PhoneNumber.FormatPhoneNumber()</MudText>
+                </MudItem>
+            </MudGrid>
 
         @if (groupedTransactions != null && groupedTransactions.Any())
         {
-            <MudText Class="mt-4 mb-2"><b>Güncel Durum (Tüm Para Birimleri):</b></MudText>
-            <MudGrid>
+                    <MudText Class="mt-4 mb-2"><b>Güncel Durum (Tüm Para Birimleri):</b></MudText>
+                    <MudGrid>
                 @foreach (var group in groupedTransactions)
                 {
-                    <MudItem xs="12" sm="6" md="4">
-                        <MudPaper Elevation="1" Class="pa-2" Style="@(group.Balance == 0 ? "" : group.Balance > 0 ? "background-color: rgba(244,67,54,0.1)" : "background-color: rgba(76,175,80,0.1)")">
-                            <MudStack Row="true" Justify="Justify.SpaceBetween">
-                                <MudText><b>@group.Key.GetDisplayName():</b></MudText>
+                                <MudItem xs="12" sm="6" md="4">
+                                    <MudPaper Elevation="1" Class="pa-2" Style="@(group.Balance == 0 ? "" : group.Balance > 0 ? "background-color: rgba(244,67,54,0.1)" : "background-color: rgba(76,175,80,0.1)")">
+                                        <MudStack Row="true" Justify="Justify.SpaceBetween">
+                                            <MudText><b>@group.Key.GetDisplayName():</b></MudText>
                                 @if (group.Balance == 0)
                                 {
-                                    <MudText>Hesap Sıfır</MudText>
+                                                    <MudText>Hesap Sıfır</MudText>
                                 }
                                 else if (group.Balance > 0)
                                 {
-                                    <MudText Color="Color.Error">@group.Balance.ToString("0.##") @group.Key.GetSymbol() (Giden)</MudText>
+                                                    <MudText Color="Color.Error">@group.Balance.ToString("0.##") @group.Key.GetSymbol() (Giden)</MudText>
                                 }
                                 else
                                 {
-                                    <MudText Color="Color.Success">@Math.Abs(group.Balance).ToString("0.##") @group.Key.GetSymbol() (Gelen)</MudText>
+                                                    <MudText Color="Color.Primary">@Math.Abs(group.Balance).ToString("0.##") @group.Key.GetSymbol() (Gelen)</MudText>
                                 }
-                            </MudStack>
-                        </MudPaper>
-                    </MudItem>
+                                        </MudStack>
+                                    </MudPaper>
+                                </MudItem>
                 }
-            </MudGrid>
+                    </MudGrid>
 
-            <MudStack Row="true" Justify="Justify.FlexEnd" Class="mt-3">
-                <MudStack Row="true" AlignItems="AlignItems.Center">
-                    <MudSelect T="string" Label="Yazıcı" @bind-Value="selectedPrinter" Variant="Variant.Outlined"
-                               AnchorOrigin="Origin.BottomCenter" Style="min-width: 200px;">
+                    <MudStack Row="true" Justify="Justify.FlexEnd" Class="mt-3">
+                        <MudStack Row="true" AlignItems="AlignItems.Center">
+                            <MudSelect T="string" Label="Yazıcı" @bind-Value="selectedPrinter" Variant="Variant.Outlined"
+                                       AnchorOrigin="Origin.BottomCenter" Style="min-width: 200px;">
                         @foreach (var printer in availablePrinters)
                         {
-                            <MudSelectItem Value="@printer">@printer</MudSelectItem>
+                                        <MudSelectItem Value="@printer">@printer</MudSelectItem>
                         }
-                    </MudSelect>
-                    <MudButton Variant="Variant.Filled"
-                               Color="Color.Primary"
-                               StartIcon="@Icons.Material.Filled.Print"
-                               OnClick="PrintCustomerReceipt">Yazdır</MudButton>
+                            </MudSelect>
+                            <MudButton Variant="Variant.Filled"
+                                       Color="Color.Primary"
+                                       StartIcon="@Icons.Material.Filled.Print"
+                                       OnClick="PrintCustomerReceipt">Yazdır</MudButton>
+                        </MudStack>
+                    </MudStack>
+        }
+            </MudPaper>
+
+        <MudPaper Elevation="0" Class="mb-4">
+            <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
+                <MudText Typo="Typo.h5">İşlemler</MudText>
+                <MudStack Row="true">
+                    <MudButton Variant="Variant.Filled" Color="Color.Error" StartIcon="@Icons.Material.Filled.Add"
+                               OnClick="() => ShowTransactionModal(TransactionType.CustomerDebt)">Giden Ekle</MudButton>
+                    <MudButton Variant="Variant.Filled" Color="Color.Success" StartIcon="@Icons.Material.Filled.Add"
+                               OnClick="() => ShowTransactionModal(TransactionType.StoreDebt)">Gelen Ekle</MudButton>
                 </MudStack>
             </MudStack>
-        }
         </MudPaper>
-
-    <MudPaper Elevation="0" Class="mb-4">
-        <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
-            <MudText Typo="Typo.h5">İşlemler</MudText>
-            <MudStack Row="true">
-                <MudButton Variant="Variant.Filled" Color="Color.Error" StartIcon="@Icons.Material.Filled.Add"
-                           OnClick="() => ShowTransactionModal(TransactionType.CustomerDebt)">Giden Ekle</MudButton>
-                <MudButton Variant="Variant.Filled" Color="Color.Success" StartIcon="@Icons.Material.Filled.Add"
-                           OnClick="() => ShowTransactionModal(TransactionType.StoreDebt)">Gelen Ekle</MudButton>
-            </MudStack>
-        </MudStack>
-    </MudPaper>
 
     @if (transactions == null || transactions.Count == 0)
     {
-        <MudAlert Severity="Severity.Info">Bu müşteriye ait işlem kaydı bulunmamaktadır.</MudAlert>
+                <MudAlert Severity="Severity.Info">Bu müşteriye ait işlem kaydı bulunmamaktadır.</MudAlert>
     }
     else
     {
-        <MudGrid>
+                <MudGrid>
             @{
                 var groupCount = 0;
             }
             @foreach (var currencyGroup in groupedTransactions)
             {
-                <MudItem xs="12" md="4">
-                    <MudCard Class="mud-height-full mb-4">
-                        <MudCardHeader>
-                            <CardHeaderContent>
-                                <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
-                                    <MudText Typo="Typo.h6">@currencyGroup.Key.GetDisplayName() (@currencyGroup.Key.GetSymbol())</MudText>
-                                    <MudStack Row="true">
-                                        <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Error"
-                                                   OnClick="() => ShowTransactionModal(TransactionType.CustomerDebt, currencyGroup.Key)">Giden</MudButton>
-                                        <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Success"
-                                                   OnClick="() => ShowTransactionModal(TransactionType.StoreDebt, currencyGroup.Key)">Gelen</MudButton>
-                                    </MudStack>
-                                </MudStack>
-                            </CardHeaderContent>
-                        </MudCardHeader>
-                        <MudCardContent>
-                            <MudTable Items="@currencyGroup.Transactions" Hover="true" Breakpoint="Breakpoint.Sm">
-                                <HeaderContent>
-                                    <MudTh>Tarih</MudTh>
-                                    <MudTh>Tür</MudTh>
-                                    <MudTh>Tutar</MudTh>
-                                    <MudTh>İşlemler</MudTh>
-                                </HeaderContent>
-                                <RowTemplate>
-                                    <MudTd DataLabel="Tarih">@context.Date.ToString("dd.MM.yyyy HH:mm")</MudTd>
-                                    <MudTd DataLabel="Tür">
+                            <MudItem xs="12" md="4">
+                                <MudCard Class="mud-height-full mb-4">
+                                    <MudCardHeader>
+                                        <CardHeaderContent>
+                                            <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
+                                                <MudText Typo="Typo.h6">@currencyGroup.Key.GetDisplayName() (@currencyGroup.Key.GetSymbol())</MudText>
+                                                <MudStack Row="true">
+                                                    <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Error"
+                                                               OnClick="() => ShowTransactionModal(TransactionType.CustomerDebt, currencyGroup.Key)">Giden</MudButton>
+                                                    <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Success"
+                                                               OnClick="() => ShowTransactionModal(TransactionType.StoreDebt, currencyGroup.Key)">Gelen</MudButton>
+                                                </MudStack>
+                                            </MudStack>
+                                        </CardHeaderContent>
+                                    </MudCardHeader>
+                                    <MudCardContent>
+                                        <MudTable Items="@currencyGroup.Transactions" Hover="true" Breakpoint="Breakpoint.Sm">
+                                            <HeaderContent>
+                                                <MudTh>Tarih</MudTh>
+                                                <MudTh>Tür</MudTh>
+                                                <MudTh>Tutar</MudTh>
+                                                <MudTh>İşlemler</MudTh>
+                                            </HeaderContent>
+                                            <RowTemplate>
+                                                <MudTd DataLabel="Tarih">@context.Date.ToString("dd.MM.yyyy HH:mm")</MudTd>
+                                                <MudTd DataLabel="Tür">
                                         @if (context.Type == TransactionType.CustomerDebt)
                                         {
-                                            <MudChip T="string" Color="Color.Error" Size="Size.Small">Giden</MudChip>
+                                                            <MudChip T="string" Color="Color.Error" Size="Size.Small">Giden</MudChip>
                                         }
                                         else
                                         {
-                                            <MudChip T="string" Color="Color.Success" Size="Size.Small">Gelen</MudChip>
+                                                            <MudChip T="string" Color="Color.Success" Size="Size.Small">Gelen</MudChip>
                                         }
-                                    </MudTd>
-                                    <MudTd DataLabel="Tutar">@context.Amount @context.CurrencyType.GetSymbol()</MudTd>
-                                    <MudTd DataLabel="İşlemler">
-                                        <MudStack Row="true">
-                                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Warning" Size="Size.Small"
-                                                           OnClick="() => EditTransaction(context)" />
-                                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small"
-                                                           OnClick="() => DeleteTransaction(context)" />
-                                        </MudStack>
-                                    </MudTd>
-                                </RowTemplate>
-                            </MudTable>
+                                                </MudTd>
+                                                <MudTd DataLabel="Tutar">@context.Amount @context.CurrencyType.GetSymbol()</MudTd>
+                                                <MudTd DataLabel="İşlemler">
+                                                    <MudStack Row="true">
+                                                        <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Warning" Size="Size.Small"
+                                                                       OnClick="() => EditTransaction(context)" />
+                                                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small"
+                                                                       OnClick="() => DeleteTransaction(context)" />
+                                                    </MudStack>
+                                                </MudTd>
+                                            </RowTemplate>
+                                        </MudTable>
 
-                            <MudAlert Severity="@(currencyGroup.Balance == 0 ? Severity.Info : currencyGroup.Balance < 0 ? Severity.Success : Severity.Error)"
-                                      Class="mt-3">
-                                <MudText>
-                                    <b>Kalan: </b>
+                                        <MudAlert Severity="@(currencyGroup.Balance == 0 ? Severity.Normal : currencyGroup.Balance < 0 ? Severity.Success : Severity.Error)"
+                                                  Class="mt-3">
+                                            <MudText>
+                                                <b>Kalan: </b>
                                     @if (currencyGroup.Balance == 0)
                                     {
-                                        <span>Hesap Sıfır</span>
+                                                        <span>Hesap Sıfır</span>
                                     }
                                     else if (currencyGroup.Balance > 0)
                                     {
-                                        <span>@currencyGroup.Balance.ToString("0.##") (Giden)</span>
+                                                        <span>@currencyGroup.Balance.ToString("0.##") (Giden)</span>
                                     }
                                     else if (currencyGroup.Balance < 0)
                                     {
-                                        <span>@Math.Abs(currencyGroup.Balance).ToString("0.##") (Gelen)</span>
+                                                        <span>@Math.Abs(currencyGroup.Balance).ToString("0.##") (Gelen)</span>
                                     }
-                                </MudText>
-                            </MudAlert>
-                        </MudCardContent>
-                    </MudCard>
-                </MudItem>
+                                            </MudText>
+                                        </MudAlert>
+                                    </MudCardContent>
+                                </MudCard>
+                            </MudItem>
             }
-            </MudGrid>
+                    </MudGrid>
     }
 }
 
@@ -198,27 +200,31 @@ else
 
                 @if (currentTransaction.Id != 0)
                 {
-                    <MudSelect T="TransactionType" Label="İşlem Türü" @bind-Value="currentTransaction.Type" Variant="Variant.Outlined" Class="mb-3">
-                        <MudSelectItem T="TransactionType" Value="@(TransactionType.CustomerDebt)">Giden</MudSelectItem>
-                        <MudSelectItem T="TransactionType" Value="@(TransactionType.StoreDebt)">Gelen</MudSelectItem>
-                    </MudSelect>
+                        <MudSelect T="TransactionType" Label="İşlem Türü" @bind-Value="currentTransaction.Type" Variant="Variant.Outlined" Class="mb-3">
+                            <MudSelectItem T="TransactionType" Value="@(TransactionType.CustomerDebt)">Giden</MudSelectItem>
+                            <MudSelectItem T="TransactionType" Value="@(TransactionType.StoreDebt)">Gelen</MudSelectItem>
+                        </MudSelect>
                 }
                 <MudStack Class="pa-4" Spacing="2">
                     <MudGrid>
                         <MudItem xs="12" sm="6">
-                            <MudTextField T="decimal" Label="Tutar" @bind-Value="currentTransaction.Amount"
-                                          Variant="Variant.Outlined" Required="true" RequiredError="Tutar gereklidir" Class="mb-3" />
+                            <MudTextField T="decimal" Label="Tutar" @bind-Value="currentTransaction.Amount" 
+                                          id="amountInput" @onfocus="SelectInputTextAsync"
+                                          Variant="Variant.Outlined" Required="true" 
+                                          RequiredError="Tutar gereklidir"
+                                          For="@(() => currentTransaction.Amount)"
+                                          Class="mb-3" />
                         </MudItem>
                         <MudItem xs="12" sm="6">
                             <MudSelect T="CurrencyType" Label="Para Birimi" @bind-Value="currentTransaction.CurrencyType" Variant="Variant.Outlined" Class="mb-3">
-                                <MudSelectItem T="CurrencyType" Value="@(CurrencyType.FullGold)">Tam Altın</MudSelectItem>
-                                <MudSelectItem T="CurrencyType" Value="@(CurrencyType.HalfGold)">Yarım Altın</MudSelectItem>
-                                <MudSelectItem T="CurrencyType" Value="@(CurrencyType.QuarterGold)">Çeyrek Altın</MudSelectItem>
                                 <MudSelectItem T="CurrencyType" Value="@(CurrencyType.TurkishLira)">Türk Lirası</MudSelectItem>
                                 <MudSelectItem T="CurrencyType" Value="@(CurrencyType.Dollar)">Dolar</MudSelectItem>
                                 <MudSelectItem T="CurrencyType" Value="@(CurrencyType.Euro)">Euro</MudSelectItem>
                                 <MudSelectItem T="CurrencyType" Value="@(CurrencyType.Riyal)">Riyal</MudSelectItem>
                                 <MudSelectItem T="CurrencyType" Value="@(CurrencyType.Sterlin)">Sterlin</MudSelectItem>
+                                <MudSelectItem T="CurrencyType" Value="@(CurrencyType.FullGold)">Tam Altın</MudSelectItem>
+                                <MudSelectItem T="CurrencyType" Value="@(CurrencyType.HalfGold)">Yarım Altın</MudSelectItem>
+                                <MudSelectItem T="CurrencyType" Value="@(CurrencyType.QuarterGold)">Çeyrek Altın</MudSelectItem>
                                 <MudSelectItem T="CurrencyType" Value="@(CurrencyType.Gold24K)">24 Ayar Gram</MudSelectItem>
                                 <MudSelectItem T="CurrencyType" Value="@(CurrencyType.Gold22K)">22 Ayar Gram</MudSelectItem>
                                 <MudSelectItem T="CurrencyType" Value="@(CurrencyType.Gold14K)">14 Ayar Gram</MudSelectItem>
@@ -227,15 +233,15 @@ else
                     </MudGrid>
                      <MudGrid>
                         <MudItem xs="12" sm="6">
+                            <MudDatePicker Label="dd.MM.yyyy" OpenTo="OpenTo.Year" PickerVariant="PickerVariant.Dialog" Editable="true" Class="mb-3" @bind-Date="currentTransactionDate" Mask="@(new DateMask("dd.MM.yyyy"))" DateFormat="dd.MM.yyyy" Placeholder="dd.MM.yyyy" Variant="Variant.Outlined" />
 
-                <MudDatePicker Label="Tarih" @bind-Date="currentTransactionDate" Variant="Variant.Outlined" Class="mb-3" />
                             </MudItem>
                         <MudItem xs="12" sm="6">
-                <MudTimePicker Label="Saat" @bind-Time="currentTransactionTime" Variant="Variant.Outlined" Class="mb-3" />
+                            <MudTimePicker Label="Saat" @bind-Time="currentTransactionTime" PickerVariant="PickerVariant.Dialog" Variant="Variant.Outlined" Class="mb-3" Editable />
                         </MudItem>
                             </MudGrid>
                 </MudStack>
-              
+
 
 
                 <MudTextField T="string" Label="Açıklama (Opsiyonel)" @bind-Value="currentTransaction.Description"
@@ -309,6 +315,24 @@ else
         }
     }
 
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await JSRuntime.InvokeVoidAsync("eval", @"
+                window.selectInputText = function(id) {
+                    var element = document.getElementById(id);
+                    if (element) {
+                        setTimeout(function() {
+                            element.select();
+                        }, 50);
+                    }
+                }
+            ");
+        }
+        await base.OnAfterRenderAsync(firstRender);
+    }
+
     private async Task LoadCustomerData()
     {
         isLoading = true;
@@ -338,7 +362,7 @@ else
                     Key = g.Key,
                     Transactions = g.OrderBy(t => t.Date).ToList(),
                     Balance = g.Where(t => t.Type == TransactionType.CustomerDebt).Sum(t => t.Amount) -
-                              g.Where(t => t.Type == TransactionType.StoreDebt).Sum(t => t.Amount)
+                                  g.Where(t => t.Type == TransactionType.StoreDebt).Sum(t => t.Amount)
                 })
             .OrderBy(g => g.Key.ToString())
             .ToList();
@@ -425,18 +449,19 @@ else
         }
 
         // Create transaction summary
-        string transactionType = currentTransaction.Type == TransactionType.CustomerDebt ? "Giden" : "Gelen";
-        string currencySymbol = currentTransaction.CurrencyType.GetDisplayName();
-        string formattedAmount = currentTransaction.Amount.ToString("0.##");
         string formattedDate = currentTransaction.Date.ToString("dd.MM.yyyy HH:mm");
+        string transactionType = currentTransaction.Type == TransactionType.CustomerDebt ? "Giden" : "Gelen";
+        string formattedAmount = currentTransaction.Amount.ToString("0.##");
+        string currencyDisplay = currentTransaction.CurrencyType.GetDisplayName();
+        string currencySymbol = currentTransaction.CurrencyType.GetSymbol();
 
 
 
         string summary = $"{formattedDate}\n" +
 
-                        $"{transactionType}\n" +
+                        $"{transactionType}:\n" +
 
-                        $"{formattedAmount} {currencySymbol}";
+                        $"{formattedAmount} {currencySymbol} {currencyDisplay}";
 
         // Add description to summary if available
         if (!string.IsNullOrWhiteSpace(currentTransaction.Description))
@@ -462,8 +487,36 @@ else
 
     private async Task DeleteTransaction(Transaction transaction)
     {
-        await DatabaseService.DeleteTransactionAsync(transaction);
-        await LoadCustomerData();
+        string formattedDate = currentTransaction.Date.ToString("dd.MM.yyyy HH:mm");
+        string transactionType = currentTransaction.Type == TransactionType.CustomerDebt ? "Giden" : "Gelen";
+        string formattedAmount = currentTransaction.Amount.ToString("0.##");
+        string currencyDisplay = currentTransaction.CurrencyType.GetDisplayName();
+        string currencySymbol = currentTransaction.CurrencyType.GetSymbol();
+
+
+
+        string summary = $"{formattedDate}\n" +
+
+                        $"{transactionType}:\n" +
+
+                        $"{formattedAmount} {currencySymbol} {currencyDisplay}";
+        // Show confirmation dialog
+        var confirmResult = await Dialog.ShowMessageBox(
+            "Aşağıdaki işlemi silmek istediğinize emin misiniz?",
+            $"{summary}",
+            yesText: "Evet",
+            noText: "Hayır");
+
+        if (confirmResult == true)
+        {
+            await DatabaseService.DeleteTransactionAsync(transaction);
+            await LoadCustomerData();
+        }
+    }
+
+    private async Task SelectInputTextAsync()
+    {
+        await JSRuntime.InvokeVoidAsync("selectInputText", "amountInput");
     }
 
 }

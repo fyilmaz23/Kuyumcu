@@ -1,4 +1,6 @@
 using SQLite;
+using System.ComponentModel.DataAnnotations;
+using MaxLengthAttribute = System.ComponentModel.DataAnnotations.MaxLengthAttribute;
 
 namespace Kuyumcu.Models
 {
@@ -15,7 +17,9 @@ namespace Kuyumcu.Models
         
         [Indexed]
         public int CustomerId { get; set; }
-        
+
+        [Required(ErrorMessage = "Tutar alanı zorunludur")]
+        [Range(0.01, double.MaxValue, ErrorMessage = "Tutar sıfırdan büyük olmalıdır")]
         public decimal Amount { get; set; }
         
         public TransactionType Type { get; set; }

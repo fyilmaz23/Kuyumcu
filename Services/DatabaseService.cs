@@ -1,6 +1,7 @@
 using SQLite;
 using Kuyumcu.Models;
 using System.Collections.ObjectModel;
+using System;
 
 namespace Kuyumcu.Services
 {
@@ -132,6 +133,81 @@ namespace Kuyumcu.Services
                 .ToListAsync();
         }
 
+        public async Task<List<Customer>> GetCustomersAsync(int page, int pageSize, string sortField, SortDirection sortDirection)
+        {
+            return await GetCustomersPaginationAsync(page, pageSize, sortField, sortDirection, null);
+        }
+
+        public async Task<List<Customer>> GetCustomersPaginationAsync(int page, int pageSize, string sortField, SortDirection? sortDirection, string searchTerm)
+        {
+            await InitializeAsync();
+            
+            // Default sorting is by Name
+            var query = _database.Table<Customer>().Where(c => !c.IsDeleted);
+            
+            // Apply search filter if provided
+            if (!string.IsNullOrWhiteSpace(searchTerm))
+            {
+                searchTerm = searchTerm.ToLower();
+                // Use LIKE operator for case-insensitive search
+                query = query.Where(c => 
+                    c.Name.ToLower().Contains(searchTerm) || 
+                    (c.PhoneNumber != null && c.PhoneNumber.ToLower().Contains(searchTerm)));
+            }
+            
+            // Apply sorting
+            if (!string.IsNullOrEmpty(sortField))
+            {
+                switch (sortField.ToLower())
+                {
+                    case "name":
+                        query = sortDirection == SortDirection.Ascending
+                            ? query.OrderBy(c => c.Name)
+                            : query.OrderByDescending(c => c.Name);
+                        break;
+                    case "phone":
+                        query = sortDirection == SortDirection.Ascending
+                            ? query.OrderBy(c => c.PhoneNumber)
+                            : query.OrderByDescending(c => c.PhoneNumber);
+                        break;
+                    default:
+                        query = query.OrderBy(c => c.Name);
+                        break;
+                }
+            }
+            else
+            {
+                query = query.OrderBy(c => c.Name);
+            }
+            
+            // Apply pagination - SQLite.Net PCL pagination
+            return await query
+                .Skip(page * pageSize)
+                .Take(pageSize)
+                .ToListAsync();
+        }
+
+        public async Task<int> GetCustomerCountAsync()
+        {
+            return await GetCustomerCountAsync(null);
+        }
+
+        public async Task<int> GetCustomerCountAsync(string searchTerm)
+        {
+            await InitializeAsync();
+            var query = _database.Table<Customer>().Where(c => !c.IsDeleted);
+            
+            if (!string.IsNullOrWhiteSpace(searchTerm))
+            {
+                searchTerm = searchTerm.ToLower();
+                query = query.Where(c => 
+                    c.Name.ToLower().Contains(searchTerm) || 
+                    (c.PhoneNumber != null && c.PhoneNumber.ToLower().Contains(searchTerm)));
+            }
+            
+            return await query.CountAsync();
+        }
+
         public async Task<Customer> GetCustomerAsync(int id)
         {
             await InitializeAsync();
@@ -175,10 +251,103 @@ namespace Kuyumcu.Services
         public async Task<List<Transaction>> GetTransactionsAsync()
         {
             await InitializeAsync();
-            return await _database.Table<Transaction>()
-                .Where(t => !t.IsDeleted)
-                .OrderByDescending(t => t.Date)
+            return await _database.Table<Transaction>().ToListAsync();
+        }
+
+        public async Task<List<Transaction>> GetTransactionsAsync(int page, int pageSize, string sortField, SortDirection? sortDirection)
+        {
+            return await GetTransactionsPaginationAsync(page, pageSize, sortField, sortDirection, null);
+        }
+
+        public async Task<List<Transaction>> GetTransactionsPaginationAsync(int page, int pageSize, string sortField, SortDirection? sortDirection, string searchTerm, TransactionType? filterType = null)
+        {
+            await InitializeAsync();
+            
+            // Base query for transactions
+            var query = _database.Table<Transaction>();
+            
+            // Apply filter by type if requested
+            if (filterType.HasValue)
+            {
+                query = query.Where(t => t.Type == filterType.Value);
+            }
+            
+            // Apply search filter if provided
+            if (!string.IsNullOrWhiteSpace(searchTerm))
+            {
+                searchTerm = searchTerm.ToLower();
+                // Search by description
+                query = query.Where(t => 
+                    (t.Description != null && t.Description.ToLower().Contains(searchTerm)));
+                
+                // Note: Ideally we'd search by customer name too, but that requires a join
+                // which might be complicated with SQLite.NET PCL. We'll handle that in the UI.
+            }
+            
+            // Apply sorting
+            if (!string.IsNullOrEmpty(sortField))
+            {
+                switch (sortField.ToLower())
+                {
+                    case "date":
+                        query = sortDirection == SortDirection.Ascending
+                            ? query.OrderBy(t => t.Date)
+                            : query.OrderByDescending(t => t.Date);
+                        break;
+                    case "amount":
+                        query = sortDirection == SortDirection.Ascending
+                            ? query.OrderBy(t => t.Amount)
+                            : query.OrderByDescending(t => t.Amount);
+                        break;
+                    case "type":
+                        query = sortDirection == SortDirection.Ascending
+                            ? query.OrderBy(t => t.Type)
+                            : query.OrderByDescending(t => t.Type);
+                        break;
+                    case "currency":
+                        query = sortDirection == SortDirection.Ascending
+                            ? query.OrderBy(t => t.CurrencyType)
+                            : query.OrderByDescending(t => t.CurrencyType);
+                        break;
+                    default:
+                        // Default sorting is by date descending
+                        query = query.OrderByDescending(t => t.Date);
+                        break;
+                }
+            }
+            else
+            {
+                // Default sorting is by date descending
+                query = query.OrderByDescending(t => t.Date);
+            }
+            
+            // Apply pagination - SQLite.Net PCL pagination
+            return await query
+                .Skip(page * pageSize)
+                .Take(pageSize)
                 .ToListAsync();
+        }
+
+        public async Task<int> GetTransactionCountAsync(string searchTerm = null, TransactionType? filterType = null)
+        {
+            await InitializeAsync();
+            var query = _database.Table<Transaction>();
+            
+            // Apply filter by type if requested
+            if (filterType.HasValue)
+            {
+                query = query.Where(t => t.Type == filterType.Value);
+            }
+            
+            // Apply search filter if provided
+            if (!string.IsNullOrWhiteSpace(searchTerm))
+            {
+                searchTerm = searchTerm.ToLower();
+                query = query.Where(t => 
+                    (t.Description != null && t.Description.ToLower().Contains(searchTerm)));
+            }
+            
+            return await query.CountAsync();
         }
 
         public async Task<List<Transaction>> GetCustomerTransactionsAsync(int customerId)
@@ -278,5 +447,11 @@ namespace Kuyumcu.Services
             await InitializeAsync();
             return await _database.DeleteAsync(entry);
         }
+    }
+
+    public enum SortDirection
+    {
+        Ascending,
+        Descending
     }
 }

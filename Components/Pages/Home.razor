@@ -1,5 +1,6 @@
 @page "/"
 @page "/home"
+@using Kuyumcu.Components.Helper
 @using Kuyumcu.Models
 @using Kuyumcu.Services
 @inject DatabaseService DatabaseService
@@ -34,67 +35,39 @@
 
             <MudTabPanel Text="Müşteriler" Icon="@Icons.Material.Filled.People">
                 <MudStack Class="pa-4" Spacing="2">
-                    <MudTextField T="string" Label="Müşteri ara..." Variant="Variant.Outlined" Adornment="Adornment.Start"
-                                  AdornmentIcon="@Icons.Material.Filled.Search" @bind-Value="searchTerm"
-                                  Immediate="true" OnKeyUp="@(() => Search())" />
-                </MudStack>
-
-                @if (isLoadingCustomers)
-                {
-                    <MudProgressCircular Color="Color.Primary" Indeterminate="true" Class="my-7" Size="Size.Large" />
-                }
-                else if (customers == null || customers.Count == 0)
-                {
-                    <MudAlert Severity="Severity.Info" Class="ma-4">Henüz müşteri kaydı bulunmamaktadır.</MudAlert>
-                }
-                else
-                {
-                    <MudTable Items="@filteredCustomers" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@isLoadingCustomers"
-                              LoadingProgressColor="Color.Primary">
+                    <MudTable T="Customer" ServerData="@ServerReloadCustomers"
+                              Dense Hover="true" Breakpoint="Breakpoint.Sm" Loading="@isLoadingCustomers" OnRowClick="RowClickEvent"
+                              LoadingProgressColor="Color.Primary" @ref="customerTable">
+                        <ToolBarContent>
+                            <MudText Typo="Typo.h6">Müşteriler Listesi</MudText>
+                            <MudSpacer />
+                            <MudTextField T="string" Value="@searchTerm" ValueChanged="@(s => OnCustomerSearch(s))"
+                                          Placeholder="İsim veya telefon ara..." Adornment="Adornment.Start"
+                                          AdornmentIcon="@Icons.Material.Filled.Search" IconSize="Size.Medium"
+                                          Immediate="true" Class="mt-0"></MudTextField>
+                        </ToolBarContent>
                         <HeaderContent>
-                            <MudTh>İsim</MudTh>
-                            <MudTh>Telefon</MudTh>
-                            <MudTh>Borç Durumu</MudTh>
+                            <MudTh><MudTableSortLabel SortLabel="name" T="Customer">İsim</MudTableSortLabel></MudTh>
+                            <MudTh><MudTableSortLabel SortLabel="phone" T="Customer">Telefon</MudTableSortLabel></MudTh>
                             <MudTh>İşlemler</MudTh>
                         </HeaderContent>
                         <RowTemplate>
                             <MudTd DataLabel="İsim">@context.Name</MudTd>
-                            <MudTd DataLabel="Telefon">@context.PhoneNumber</MudTd>
-                            <MudTd DataLabel="Borç Durumu">
-                                @if (customerBalances.ContainsKey(context.Id))
-                                {
-                                    var balance = customerBalances[context.Id];
-                                    if (balance > 0)
-                                    {
-                                        <MudChip T="string" Color="Color.Error" Size="Size.Small">@($"{balance.ToString("C2")} TL Borçlu")</MudChip>
-                                    }
-                                    else if (balance < 0)
-                                    {
-                                        <MudChip T="string" Color="Color.Success" Size="Size.Small">@($"{Math.Abs(balance).ToString("C2")} TL Alacaklı")</MudChip>
-                                    }
-                                    else
-                                    {
-                                        <MudChip T="string" Color="Color.Default" Size="Size.Small">Hesap Sıfır</MudChip>
-                                    }
-                                }
-                                else
-                                {
-                                    <MudProgressCircular Size="Size.Small" Indeterminate="true" />
-                                }
-                            </MudTd>
+                            <MudTd DataLabel="Telefon">@context.PhoneNumber.FormatPhoneNumber()</MudTd>
                             <MudTd DataLabel="İşlemler">
                                 <MudStack Row="true">
                                     <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
                                                    OnClick="@(() => ShowCustomerModal(context))" />
-                                    <MudIconButton Icon="@Icons.Material.Filled.Visibility" Color="Color.Info" Size="Size.Small"
-                                                   OnClick="@(() => NavigateToCustomerDetail(context.Id))" />
                                     <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small"
                                                    OnClick="@(() => DeleteCustomer(context))" />
                                 </MudStack>
                             </MudTd>
                         </RowTemplate>
+                        <PagerContent>
+                            <MudTablePager PageSizeOptions="new int[] { 10, 25, 50, 100 }" />
+                        </PagerContent>
                     </MudTable>
-                }
+                </MudStack>
             </MudTabPanel>
             <MudTabPanel Text="Hızlı Kayıt" Icon="@Icons.Material.Filled.Speed">
                 <MudGrid Class="pa-4">
@@ -114,9 +87,9 @@
                                                           Required="true" For="@(() => currentQuickEntry.FullName)" />
                                         </MudItem>
                                         <MudItem xs="12">
-                                            <MudTextField @bind-Value="currentQuickEntry.TcKimlikNo" Label="TC Kimlik No"
+                                            <MudTextField T="string" @bind-Value="currentQuickEntry.TcKimlikNo" Label="TC Kimlik No"
                                                           For="@(() => currentQuickEntry.TcKimlikNo)"
-                                                          InputType="InputType.Number" />
+                                                          Counter="11" Immediate MaxLength="11" />
                                         </MudItem>
                                         <MudItem xs="12">
                                             <MudNumericField @bind-Value="currentQuickEntry.Tutar" Label="Tutar (₺)"
@@ -221,84 +194,46 @@
 
             <MudTabPanel Text="İşlemler" Icon="@Icons.Material.Filled.Receipt">
                 <MudStack Class="pa-4" Spacing="2">
-                    <MudGrid>
-                        <MudItem xs="12" sm="4">
-                            <MudSelect T="string" Label="Filtre Türü" @bind-Value="filterType" Variant="Variant.Outlined">
-                                <MudSelectItem T="string" Value="@("all")">Tümü</MudSelectItem>
-                                <MudSelectItem T="string" Value="@("today")">Bugün</MudSelectItem>
-                                <MudSelectItem T="string" Value="@("thisWeek")">Bu Hafta</MudSelectItem>
-                                <MudSelectItem T="string" Value="@("thisMonth")">Bu Ay</MudSelectItem>
-                            </MudSelect>
-                        </MudItem>
-                        <MudItem xs="12" sm="4">
-                            <MudSelect T="TransactionType?" Label="İşlem Türü" @bind-Value="filterTransactionType" Variant="Variant.Outlined">
-                                <MudSelectItem T="TransactionType?" Value="@((TransactionType?)null)">Tümü</MudSelectItem>
-                                <MudSelectItem T="TransactionType?" Value="@(TransactionType.CustomerDebt)">Müşteri Borcu</MudSelectItem>
-                                <MudSelectItem T="TransactionType?" Value="@(TransactionType.StoreDebt)">Müşteri Ödemesi</MudSelectItem>
-                            </MudSelect>
-                        </MudItem>
-                        <MudItem xs="12" sm="4">
-                            <MudSelect T="CurrencyType?" Label="Para Birimi" @bind-Value="filterCurrencyType" Variant="Variant.Outlined">
-                                <MudSelectItem T="CurrencyType?" Value="@((CurrencyType?)null)">Tümü</MudSelectItem>
-                                <MudSelectItem T="CurrencyType?" Value="@(CurrencyType.FullGold)">Tam Altın</MudSelectItem>
-                                <MudSelectItem T="CurrencyType?" Value="@(CurrencyType.HalfGold)">Yarım Altın</MudSelectItem>
-                                <MudSelectItem T="CurrencyType?" Value="@(CurrencyType.QuarterGold)">Çeyrek Altın</MudSelectItem>
-                                <MudSelectItem T="CurrencyType?" Value="@(CurrencyType.TurkishLira)">Türk Lirası</MudSelectItem>
-                                <MudSelectItem T="CurrencyType?" Value="@(CurrencyType.Dollar)">Dolar</MudSelectItem>
-                                <MudSelectItem T="CurrencyType?" Value="@(CurrencyType.Euro)">Euro</MudSelectItem>
-                                <MudSelectItem T="CurrencyType?" Value="@(CurrencyType.Riyal)">Riyal</MudSelectItem>
-                                <MudSelectItem T="CurrencyType?" Value="@(CurrencyType.Sterlin)">Sterlin</MudSelectItem>
-                                <MudSelectItem T="CurrencyType?" Value="@(CurrencyType.Gold24K)">24 Ayar Gram</MudSelectItem>
-                                <MudSelectItem T="CurrencyType?" Value="@(CurrencyType.Gold22K)">22 Ayar Gram</MudSelectItem>
-                                <MudSelectItem T="CurrencyType?" Value="@(CurrencyType.Gold14K)">14 Ayar Gram</MudSelectItem>
-                            </MudSelect>
-                        </MudItem>
-                    </MudGrid>
-                </MudStack>
-
-                @if (isLoadingTransactions)
-                {
-                    <MudProgressCircular Color="Color.Primary" Indeterminate="true" Class="my-7" Size="Size.Large" />
-                }
-                else if (filteredTransactions == null || filteredTransactions.Count == 0)
-                {
-                    <MudAlert Severity="Severity.Info" Class="ma-4">Seçilen kriterlere uygun işlem bulunamadı.</MudAlert>
-                }
-                else
-                {
-                    <MudTable Items="@filteredTransactions" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@isLoadingTransactions"
-                              LoadingProgressColor="Color.Primary">
+                    <MudTable T="Transaction" ServerData="@ServerReloadTransactions"
+                              Dense="true" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@isLoadingTransactions"
+                              LoadingProgressColor="Color.Primary" @ref="transactionTable">
+                        <ToolBarContent>
+                            <MudText Typo="Typo.h6">İşlemler Listesi</MudText>
+                        </ToolBarContent>
                         <HeaderContent>
+                            <MudTh><MudTableSortLabel SortLabel="date" T="Transaction" InitialDirection="MudBlazor.SortDirection.Descending">Tarih</MudTableSortLabel></MudTh>
                             <MudTh>Müşteri</MudTh>
-                            <MudTh>Tarih</MudTh>
-                            <MudTh>Tür</MudTh>
-                            <MudTh>Miktar</MudTh>
-                            <MudTh>Para Birimi</MudTh>
+                            <MudTh><MudTableSortLabel SortLabel="type" T="Transaction">Tür</MudTableSortLabel></MudTh>
+                            <MudTh><MudTableSortLabel SortLabel="amount" T="Transaction">Miktar</MudTableSortLabel></MudTh>
+                            <MudTh><MudTableSortLabel SortLabel="currencyType" T="Transaction">Para Birimi</MudTableSortLabel></MudTh>
                             <MudTh>Açıklama</MudTh>
                         </HeaderContent>
                         <RowTemplate>
+                            <MudTd DataLabel="Tarih">@context.Date.ToString("dd.MM.yyyy HH:mm")</MudTd>
                             <MudTd DataLabel="Müşteri">
                                 <MudLink Href="@($"/customer/{context.CustomerId}")">
                                     @GetCustomerName(context.CustomerId)
                                 </MudLink>
                             </MudTd>
-                            <MudTd DataLabel="Tarih">@context.Date.ToString("dd.MM.yyyy HH:mm")</MudTd>
                             <MudTd DataLabel="Tür">
                                 @if (context.Type == TransactionType.CustomerDebt)
                                 {
-                                    <MudChip T="string" Color="Color.Error" Size="Size.Small" Text="Müşteri Borcu" />
+                                    <MudChip T="string" Color="Color.Error" Size="Size.Small" Text="Giden" />
                                 }
                                 else
                                 {
-                                    <MudChip T="string" Color="Color.Success" Size="Size.Small" Text="Müşteri Ödemesi" />
+                                    <MudChip T="string" Color="Color.Success" Size="Size.Small" Text="Gelen" />
                                 }
                             </MudTd>
                             <MudTd DataLabel="Miktar">@context.Amount.ToString("N2")</MudTd>
                             <MudTd DataLabel="Para Birimi">@GetCurrencyName(context.CurrencyType)</MudTd>
                             <MudTd DataLabel="Açıklama">@context.Description</MudTd>
                         </RowTemplate>
+                        <PagerContent>
+                            <MudTablePager PageSizeOptions="new int[] { 10, 25, 50, 100 }" />
+                        </PagerContent>
                     </MudTable>
-                }
+                </MudStack>
             </MudTabPanel>
         </MudTabs>
     </MudPaper>
@@ -317,7 +252,9 @@
                         <ValidationMessage For="@(() => currentCustomer.Name)" />
                     </MudItem>
                     <MudItem xs="12">
-                        <MudTextField @bind-Value="currentCustomer.PhoneNumber" Label="Telefon" Variant="Variant.Outlined" />
+
+                        <MudTextField @bind-Value="currentCustomer.PhoneNumber" Mask=@mask2 Label="Telefon"
+                                      Variant="Variant.Outlined" Immediate MaxLength="10" />
                         <ValidationMessage For="@(() => currentCustomer.PhoneNumber)" />
                     </MudItem>
                 </MudGrid>
@@ -331,13 +268,17 @@
     </DialogContent>
 </MudDialog>
 @code {
-
-
-
     private bool showCustomerModal;
     private bool isBackupInProgress = false;
     private string backupResult = string.Empty;
-    int activeIndex = 1;
+    int activeIndex = 0;
+
+    public PatternMask mask2 = new PatternMask("XXX-XXX-XX-XX")
+        {
+            MaskChars = new[] { new MaskChar('X', @"[0-9]") },
+            Placeholder = '_',
+            CleanDelimiters = true,
+        };
 
     // Active tab
 
@@ -352,16 +293,14 @@
     private string searchTerm = "";
     private bool isLoadingCustomers = false;
     private Customer currentCustomer = new Customer();
-    private Dictionary<int, decimal> customerBalances = new Dictionary<int, decimal>();
+    private MudTable<Customer> customerTable;
 
     // Transactions variables
     private List<Transaction> transactions;
-    private List<Transaction> filteredTransactions => GetFilteredTransactions();
-    private string filterType = "all";
-    private TransactionType? filterTransactionType = null;
-    private CurrencyType? filterCurrencyType = null;
+    private string transactionSearchTerm = "";
     private bool isLoadingTransactions = false;
-
+    private MudTable<Transaction> transactionTable;
+    private Dictionary<int, string> transactionCustomerNames = new Dictionary<int, string>();
 
     protected override async Task OnInitializedAsync()
     {
@@ -373,7 +312,6 @@
     }
     private async Task SetActiveTab(int index)
     {
-
         activeIndex = index;
         if (activeIndex == 0)
             await LoadCustomers();
@@ -383,6 +321,39 @@
             await LoadTransactions();
     }
 
+    // Server-side pagination for customers
+    private async Task<TableData<Customer>> ServerReloadCustomers(TableState state, CancellationToken cancellationToken)
+    {
+        try
+        {
+
+            var customers = await DatabaseService.GetCustomersPaginationAsync(state.Page, state.PageSize, state?.SortLabel, Helper.HelperMethods.GetSortDirection(state?.SortDirection), searchTerm);
+            int totalItems = await DatabaseService.GetCustomerCountAsync(searchTerm);
+
+            // Update balances for customers if necessary
+            return new TableData<Customer>
+            {
+                Items = customers,
+                TotalItems = totalItems
+            };
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex);
+            // Handle errors
+            return new TableData<Customer>
+            {
+                Items = new List<Customer>(),
+                TotalItems = 0
+            };
+        }
+    }
+
+    private async Task OnCustomerSearch(string text)
+    {
+        searchTerm = text;
+        await customerTable.ReloadServerData();
+    }
 
     // QuickEntry methods
     private async Task LoadQuickEntries()
@@ -469,34 +440,26 @@
     private async Task LoadCustomers()
     {
         isLoadingCustomers = true;
-        customers = await DatabaseService.GetCustomersAsync();
-        filteredCustomers = customers;
-
-        // Load balances
-        foreach (var customer in customers)
+        
+        
+        // Sayfalama kullanıldığı için müşteri listesinin 
+        // tamamını burada yüklemeye gerek yok, 
+        // sadece customerTable.ReloadServerData() çağırıyoruz
+        if (customerTable != null)
         {
-            var customerTransactions = await DatabaseService.GetCustomerTransactionsAsync(customer.Id);
-            decimal balance = 0;
-
-            foreach (var transaction in customerTransactions)
-            {
-                if (transaction.CurrencyType == CurrencyType.TurkishLira)
-                {
-                    if (transaction.Type == TransactionType.CustomerDebt)
-                    {
-                        balance += transaction.Amount;
-                    }
-                    else
-                    {
-                        balance -= transaction.Amount;
-                    }
-                }
-            }
-
-            customerBalances[customer.Id] = balance;
+            await customerTable.ReloadServerData();
         }
-
+        
         isLoadingCustomers = false;
+    }
+
+    private void Search()
+    {
+        // Legacy method, server-side filtering ile değişti
+        if (customerTable != null)
+        {
+            customerTable.ReloadServerData();
+        }
     }
 
 
@@ -521,6 +484,7 @@
         await DatabaseService.SaveCustomerAsync(currentCustomer);
         showCustomerModal = false;
         await LoadCustomers();
+        NavigateToCustomerDetail(currentCustomer.Id);
     }
 
     private void EditCustomer(Customer customer)
@@ -560,64 +524,66 @@
         isLoadingTransactions = false;
     }
 
-    private List<Transaction> GetFilteredTransactions()
+    private async Task<TableData<Transaction>> ServerReloadTransactions(TableState state, CancellationToken cancellationToken)
     {
-        if (transactions == null)
-            return new List<Transaction>();
-
-        var result = transactions.AsQueryable();
-
-        // Apply date filter
-        if (filterType == "today")
+        try
         {
-            var today = DateTime.Today;
-            result = result.Where(t => t.Date.Date == today);
-        }
-        else if (filterType == "thisWeek")
-        {
-            var startOfWeek = DateTime.Today.AddDays(-(int)DateTime.Today.DayOfWeek);
-            var endOfWeek = startOfWeek.AddDays(7);
-            result = result.Where(t => t.Date.Date >= startOfWeek && t.Date.Date < endOfWeek);
-        }
-        else if (filterType == "thisMonth")
-        {
-            var startOfMonth = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1);
-            var endOfMonth = startOfMonth.AddMonths(1);
-            result = result.Where(t => t.Date.Date >= startOfMonth && t.Date.Date < endOfMonth);
-        }
+            var transactions = await DatabaseService.GetTransactionsPaginationAsync(state.Page, state.PageSize, state?.SortLabel, Helper.HelperMethods.GetSortDirection(state?.SortDirection), transactionSearchTerm);
+            int totalItems = await DatabaseService.GetTransactionCountAsync(transactionSearchTerm);
 
-        // Apply transaction type filter
-        if (filterTransactionType.HasValue)
-        {
-            result = result.Where(t => t.Type == filterTransactionType.Value);
-        }
+            // Müşteri adlarını yükleyelim
+            foreach (var transaction in transactions)
+            {
+                if (transaction.CustomerId > 0 && !transactionCustomerNames.ContainsKey(transaction.CustomerId))
+                {
+                    var customer = await DatabaseService.GetCustomerAsync(transaction.CustomerId);
+                    if (customer != null)
+                    {
+                        transactionCustomerNames[transaction.CustomerId] = customer.Name;
+                    }
+                }
+            }
 
-        // Apply currency type filter
-        if (filterCurrencyType.HasValue)
-        {
-            result = result.Where(t => t.CurrencyType == filterCurrencyType.Value);
+            return new TableData<Transaction>
+            {
+                Items = transactions,
+                TotalItems = totalItems
+            };
         }
-
-        return result.OrderByDescending(t => t.Date).ToList();
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex);
+            // Handle errors
+            return new TableData<Transaction>
+            {
+                Items = new List<Transaction>(),
+                TotalItems = 0
+            };
+        }
     }
 
-    private void Search()
+    private async Task OnTransactionSearch(string text)
     {
-        if (string.IsNullOrWhiteSpace(searchTerm))
-        {
-            filteredCustomers = customers;
-        }
-        else
-        {
-            filteredCustomers = customers
-                .Where(c => c.Name.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
-                           c.PhoneNumber.Contains(searchTerm, StringComparison.OrdinalIgnoreCase))
-                .ToList();
-        }
+        transactionSearchTerm = text;
+        await transactionTable.ReloadServerData();
+    }
+
+    private void RowClickEvent(TableRowClickEventArgs<Customer> customer)
+    {
+        if (customer?.Item != null)
+            NavigationManager.NavigateTo($"/customer/{customer.Item.Id}");
+
     }
 
     private string GetCustomerName(int customerId)
     {
+        // Önce transactionCustomerNames sözlüğünde var mı diye kontrol edelim
+        if (transactionCustomerNames.ContainsKey(customerId))
+        {
+            return transactionCustomerNames[customerId];
+        }
+        
+        // Sözlükte yoksa customers listesinde arayalım
         return customers?.FirstOrDefault(c => c.Id == customerId)?.Name ?? "Bilinmeyen Müşteri";
     }
 
