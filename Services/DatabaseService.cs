@@ -251,7 +251,7 @@ namespace Kuyumcu.Services
         public async Task<List<Transaction>> GetTransactionsAsync()
         {
             await InitializeAsync();
-            return await _database.Table<Transaction>().ToListAsync();
+            return await _database.Table<Transaction>().Where(c => !c.IsDeleted).ToListAsync();
         }
 
         public async Task<List<Transaction>> GetTransactionsAsync(int page, int pageSize, string sortField, SortDirection? sortDirection)
@@ -264,7 +264,7 @@ namespace Kuyumcu.Services
             await InitializeAsync();
             
             // Base query for transactions
-            var query = _database.Table<Transaction>();
+            var query = _database.Table<Transaction>().Where(c => !c.IsDeleted); ;
             
             // Apply filter by type if requested
             if (filterType.HasValue)
@@ -331,7 +331,7 @@ namespace Kuyumcu.Services
         public async Task<int> GetTransactionCountAsync(string searchTerm = null, TransactionType? filterType = null)
         {
             await InitializeAsync();
-            var query = _database.Table<Transaction>();
+            var query = _database.Table<Transaction>().Where(c => !c.IsDeleted);
             
             // Apply filter by type if requested
             if (filterType.HasValue)

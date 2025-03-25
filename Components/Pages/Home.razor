@@ -110,10 +110,10 @@
                                 <CardHeaderContent>
                                     <MudText Typo="Typo.h6">Hızlı Kayıtlar</MudText>
                                 </CardHeaderContent>
-                                <CardHeaderActions>
+                             @*    <CardHeaderActions>
                                     <MudIconButton Icon="@Icons.Material.Filled.Refresh" Color="Color.Default"
                                                    OnClick="@(async () => await LoadQuickEntries())" />
-                                </CardHeaderActions>
+                                </CardHeaderActions> *@
                             </MudCardHeader>
                             <MudCardContent Style="max-height: 300px; overflow-y: auto;">
                                 @if (isLoadingQuickEntries)

@@ -166,11 +166,11 @@ else
                                     }
                                     else if (currencyGroup.Balance > 0)
                                     {
-                                                        <span>@currencyGroup.Balance.ToString("0.##") (Giden)</span>
+                                        <span>@currencyGroup.Balance.ToString("0.##") @(currencyGroup.Key > CurrencyType.Riyal ? currencyGroup.Key.GetSymbol() + " " + currencyGroup.Key.GetDisplayName() : " " + currencyGroup.Key.GetDisplayName()) (Giden)</span>
                                     }
                                     else if (currencyGroup.Balance < 0)
                                     {
-                                                        <span>@Math.Abs(currencyGroup.Balance).ToString("0.##") (Gelen)</span>
+                                        <span>@Math.Abs(currencyGroup.Balance).ToString("0.##") @(currencyGroup.Key > CurrencyType.Riyal ? currencyGroup.Key.GetSymbol() + " " + currencyGroup.Key.GetDisplayName() : " " + currencyGroup.Key.GetDisplayName()) (Gelen)</span>
                                     }
                                             </MudText>
                                         </MudAlert>
@@ -487,11 +487,11 @@ else
 
     private async Task DeleteTransaction(Transaction transaction)
     {
-        string formattedDate = currentTransaction.Date.ToString("dd.MM.yyyy HH:mm");
-        string transactionType = currentTransaction.Type == TransactionType.CustomerDebt ? "Giden" : "Gelen";
-        string formattedAmount = currentTransaction.Amount.ToString("0.##");
-        string currencyDisplay = currentTransaction.CurrencyType.GetDisplayName();
-        string currencySymbol = currentTransaction.CurrencyType.GetSymbol();
+        string formattedDate = transaction.Date.ToString("dd.MM.yyyy HH:mm");
+        string transactionType = transaction.Type == TransactionType.CustomerDebt ? "Giden" : "Gelen";
+        string formattedAmount = transaction.Amount.ToString("0.##");
+        string currencyDisplay = transaction.CurrencyType.GetDisplayName();
+        string currencySymbol = transaction.CurrencyType.GetSymbol();
 
 
 
