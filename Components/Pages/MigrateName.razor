@@ -1,0 +1,80 @@
+@page "/migrate-name"
+@inject DatabaseService DatabaseService
+@inject NavigationManager NavigationManager
+@inject ISnackbar Snackbar
+
+<MudContainer Class="mt-4">
+    <MudPaper Elevation="1" Class="pa-4">
+        <MudText Typo="Typo.h5" Class="mb-4">Veritabanı Şema Güncellemesi</MudText>
+        <MudText Class="mb-4">
+            Bu işlem, Müşteri tablosundaki "İsim" alanını büyük-küçük harf duyarsız olacak şekilde güncelleyecektir.
+            Bu güncelleme, arama ve sıralama işlemlerinde büyük-küçük harf farkının dikkate alınmamasını sağlayacaktır.
+        </MudText>
+        
+        @if (!migrationComplete)
+        {
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" 
+                OnClick="RunMigration" Disabled="isLoading">
+                Veritabanını Güncelle
+            </MudButton>
+            
+            @if (isLoading)
+            {
+                <MudProgressLinear Color="Color.Primary" Indeterminate="true" Class="my-4" />
+            }
+        }
+        else
+        {
+            <MudAlert Severity="@(success ? Severity.Success : Severity.Error)" Class="mt-3">
+                @message
+            </MudAlert>
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary" 
+                OnClick="@(() => NavigationManager.NavigateTo("/"))" Class="mt-3">
+                Ana Sayfaya Dön
+            </MudButton>
+        }
+    </MudPaper>
+</MudContainer>
+
+@code {
+    private bool isLoading = false;
+    private bool migrationComplete = false;
+    private bool success = false;
+    private string message = "";
+    
+    private async Task RunMigration()
+    {
+        try
+        {
+            isLoading = true;
+            
+            var result = await DatabaseService.UpdateCustomerTableForCaseInsensitiveName();
+            
+            migrationComplete = true;
+            success = result;
+            message = result 
+                ? "Veritabanı güncelleme işlemi başarıyla tamamlandı." 
+                : "Veritabanı güncelleme işlemi sırasında bir hata oluştu.";
+            
+            if (result)
+            {
+                Snackbar.Add("Veritabanı başarıyla güncellendi.", Severity.Success);
+            }
+            else
+            {
+                Snackbar.Add("Veritabanı güncellenirken bir hata oluştu.", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            migrationComplete = true;
+            success = false;
+            message = $"Hata: {ex.Message}";
+            Snackbar.Add("Beklenmeyen bir hata oluştu: " + ex.Message, Severity.Error);
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+}

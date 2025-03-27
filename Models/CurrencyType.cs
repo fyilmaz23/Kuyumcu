@@ -14,7 +14,8 @@ namespace Kuyumcu.Models
         Gold24K,       // 24 Ayar Altın (gr)
         QuarterGold,   // Çeyrek Altın (adet)
         HalfGold,      // Yarım Altın (adet)
-        FullGold       // Tam Altın (adet)
+        FullGold,       // Tam Altın (adet)
+        Ziynet
     }
 
     public static class CurrencyTypeExtensions
@@ -34,6 +35,7 @@ namespace Kuyumcu.Models
                 CurrencyType.QuarterGold => "Çeyrek Altın",
                 CurrencyType.HalfGold => "Yarım Altın",
                 CurrencyType.FullGold => "Tam Altın",
+                CurrencyType.Ziynet => "Ziynet Altın",
                 _ => currencyType.ToString()
             };
         }
@@ -53,6 +55,7 @@ namespace Kuyumcu.Models
                 CurrencyType.QuarterGold => "adet",
                 CurrencyType.HalfGold => "adet",
                 CurrencyType.FullGold => "adet",
+                CurrencyType.Ziynet => "adet",
                 _ => ""
             };
         }

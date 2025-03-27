@@ -17,8 +17,8 @@
                 <MudSelect T="TransactionType?" Label="İşlem Türü" Value="filterType" Variant="Variant.Outlined"
                 ValueChanged="@(async (value) => await OnFilterTypeChanged(value))">
                     <MudSelectItem T="TransactionType?" Value="@((TransactionType?)null)">Tümü</MudSelectItem>
-                    <MudSelectItem T="TransactionType?" Value="@(TransactionType.CustomerDebt)">Sadece Müşteri Borçları</MudSelectItem>
-                    <MudSelectItem T="TransactionType?" Value="@(TransactionType.StoreDebt)">Sadece Kuyumcu Borçları</MudSelectItem>
+                    <MudSelectItem T="TransactionType?" Value="@(TransactionType.CustomerDebt)">Giden</MudSelectItem>
+                    <MudSelectItem T="TransactionType?" Value="@(TransactionType.StoreDebt)">Gelen</MudSelectItem>
                 </MudSelect>
             </MudItem>
         @*     <MudItem xs="12" sm="8" Class="d-flex justify-end">
@@ -92,7 +92,7 @@
                                     <MudChip T="string" Color="Color.Success" Size="Size.Small" >Gelen</MudChip>
                                 }
                             </MudTd>
-                            <MudTd DataLabel="Tutar">@context.Amount.ToString("N2")</MudTd>
+                            <MudTd DataLabel="Tutar">@Helper.HelperMethods.FormatPrice(context.Amount)</MudTd>
                             <MudTd DataLabel="Para/Değer">@context.CurrencyType.GetDisplayName() (@context.CurrencyType.GetSymbol())</MudTd>
                             <MudTd DataLabel="Açıklama">@(context.Description ?? "-")</MudTd>
                             <MudTd DataLabel="İşlemler">
@@ -101,7 +101,7 @@
                             </MudTd>
                         </RowTemplate>
                         <PagerContent>
-                            <MudTablePager PageSizeOptions="new int[] {10, 25, 50, 100}" />
+                            <MudTablePager RowsPerPageString="Sayfa başına:" InfoFormat="{first_item}-{last_item} / {all_items}" PageSizeOptions="new int[] {10, 25, 50, 100}" />
                         </PagerContent>
                     </MudTable>
 
@@ -121,7 +121,7 @@
                                         <MudPaper Elevation="0" Class="pa-3">
                                             <MudText Typo="Typo.subtitle1"><strong>Toplam Giden:</strong></MudText>
                                             <MudText Typo="Typo.h6" Color="Color.Error">
-                                                @currencySummaries[currencyType].TotalCustomerDebt.ToString("N2") @currencyType.GetDisplayName()
+                                                @Helper.HelperMethods.FormatPrice(currencySummaries[currencyType].TotalCustomerDebt) @currencyType.GetDisplayName()
                                             </MudText>
                                         </MudPaper>
                                     </MudItem>
@@ -129,7 +129,7 @@
                                         <MudPaper Elevation="0" Class="pa-3">
                                             <MudText Typo="Typo.subtitle1"><strong>Toplam Gelen:</strong></MudText>
                                             <MudText Typo="Typo.h6" Color="Color.Success">
-                                                @currencySummaries[currencyType].TotalStoreDebt.ToString("N2") @currencyType.GetDisplayName()
+                                                @Helper.HelperMethods.FormatPrice(currencySummaries[currencyType].TotalStoreDebt) @currencyType.GetDisplayName()
                                             </MudText>
                                         </MudPaper>
                                     </MudItem>
@@ -142,13 +142,13 @@
                                             @if (netBalance > 0)
                                             {
                                                 <MudText Typo="Typo.h6" Color="Color.Error">
-                                                    @netBalance.ToString("N2") @currencyType.GetDisplayName() (Giden)
+                                                    @Helper.HelperMethods.FormatPrice(netBalance) @currencyType.GetDisplayName() (Giden)
                                                 </MudText>
                                             }
                                             else if (netBalance < 0)
                                             {
                                                 <MudText Typo="Typo.h6" Color="Color.Success">
-                                                    @Math.Abs(netBalance).ToString("N2") @currencyType.GetDisplayName() (Gelen)
+                                                    @Helper.HelperMethods.FormatPrice(Math.Abs(netBalance)) @currencyType.GetDisplayName() (Gelen)
                                                 </MudText>
                                             }
                                             else
@@ -182,7 +182,8 @@
                             <MudTh>Müşteri</MudTh>
                             <MudTh>Borç Başlangıç Tarihi</MudTh>
                             <MudTh>Borç Süresi</MudTh>
-                            <MudTh>Bakiye (TL)</MudTh>
+                            <MudTh>Bakiye</MudTh>
+                            <MudTh>Para Birimi</MudTh>
                             <MudTh>İşlemler</MudTh>
                         </HeaderContent>
                         <RowTemplate>
@@ -191,9 +192,10 @@
                             </MudTd>
                             <MudTd DataLabel="Borç Başlangıç Tarihi">@context.EarliestDebtDate.ToString("dd.MM.yyyy HH:mm")</MudTd>
                             <MudTd DataLabel="Borç Süresi">@GetDebtDurationText(context.EarliestDebtDate)</MudTd>
-                            <MudTd DataLabel="Bakiye (TL)">
-                                <MudText Color="Color.Error">@context.Balance.ToString("C2") TL</MudText>
+                            <MudTd DataLabel="Bakiye">
+                                <MudText Color="Color.Error">@Helper.HelperMethods.FormatPrice(context.Balance)</MudText>
                             </MudTd>
+                            <MudTd DataLabel="Para Birimi">@context.CurrencyType.GetDisplayName() (@context.CurrencyType.GetSymbol())</MudTd>
                             <MudTd DataLabel="İşlemler">
                                 <MudIconButton Icon="@Icons.Material.Filled.Visibility" Color="Color.Info" Size="Size.Small"
                                 OnClick="@(() => ViewCustomerDetails(context.CustomerId))" />
@@ -238,6 +240,9 @@
                 searchTerm,
                 filterType);
                 
+            // Filter out "Emanet" transactions (IsDeposit=true)
+            transactions = transactions.Where(t => !t.IsDeposit).ToList();
+                
             int totalItems = await DatabaseService.GetTransactionCountAsync(searchTerm, filterType);
 
             // Update customer names for displayed transactions if needed
@@ -258,6 +263,9 @@
             {
                 // Load all transactions for summaries
                 this.transactions = await DatabaseService.GetTransactionsAsync();
+                
+                // Filter out "Emanet" transactions (IsDeposit=true)
+                this.transactions = this.transactions.Where(t => !t.IsDeposit).ToList();
                 
                 // Update currency summaries
                 CalculateTotals();
@@ -296,6 +304,10 @@
         // Initial load will be handled by ServerReload when the table is initialized
         // Just load all transactions for summary calculations
         transactions = await DatabaseService.GetTransactionsAsync();
+        
+        // Filter out "Emanet" transactions (IsDeposit=true)
+        transactions = transactions.Where(t => !t.IsDeposit).ToList();
+        
         CalculateTotals();
         await CalculateCustomersWithLongDebt();
         
@@ -309,44 +321,75 @@
         
         foreach (var customer in customers)
         {
-            var customerTransactions = transactions.Where(t => t.CustomerId == customer.Id && t.CurrencyType == CurrencyType.TurkishLira).ToList();
+            // Only consider non-Emanet transactions but include all currency types
+            var customerTransactions = transactions.Where(t => t.CustomerId == customer.Id && 
+                                                   !t.IsDeposit).ToList();
             
-            if (customerTransactions.Count > 0)
+            // Group transactions by currency type
+            var transactionsByCurrency = customerTransactions.GroupBy(t => t.CurrencyType);
+            
+            foreach (var currencyGroup in transactionsByCurrency)
             {
-                decimal customerBalance = 0;
-                DateTime earliestDebtDate = DateTime.MaxValue;
+                var currencyType = currencyGroup.Key;
+                var currencyTransactions = currencyGroup.ToList();
                 
-                foreach (var transaction in customerTransactions.OrderBy(t => t.Date))
+                if (currencyTransactions.Count > 0)
                 {
-                    if (transaction.Type == TransactionType.CustomerDebt)
+                    // Calculate total "Giden" (outgoing) amounts
+                    decimal totalGiden = currencyTransactions
+                        .Where(t => t.Type == TransactionType.CustomerDebt)
+                        .Sum(t => t.Amount);
+                    
+                    // Calculate total "Gelen" (incoming) amounts 
+                    decimal totalGelen = currencyTransactions
+                        .Where(t => t.Type == TransactionType.StoreDebt)
+                        .Sum(t => t.Amount);
+                    
+                    // Net balance (positive means customer owes money)
+                    decimal netBalance = totalGiden - totalGelen;
+                    
+                    // Only proceed if customer has more "Giden" than "Gelen"
+                    if (netBalance > 0)
                     {
-                        customerBalance += transaction.Amount;
-                        if (customerBalance > 0 && earliestDebtDate == DateTime.MaxValue)
+                        // Find the earliest debt transaction date where the running balance became positive
+                        DateTime earliestDebtDate = DateTime.MaxValue;
+                        decimal runningBalance = 0;
+                        
+                        foreach (var transaction in currencyTransactions.OrderBy(t => t.Date))
                         {
-                            earliestDebtDate = transaction.Date;
+                            if (transaction.Type == TransactionType.CustomerDebt)
+                            {
+                                runningBalance += transaction.Amount;
+                            }
+                            else
+                            {
+                                runningBalance -= transaction.Amount;
+                            }
+                            
+                            if (runningBalance > 0 && earliestDebtDate == DateTime.MaxValue)
+                            {
+                                earliestDebtDate = transaction.Date;
+                            }
+                            else if (runningBalance <= 0)
+                            {
+                                earliestDebtDate = DateTime.MaxValue;
+                            }
+                        }
+                        
+                        // Only add to long-term debt list if debt is older than 30 days
+                        if (earliestDebtDate != DateTime.MaxValue && 
+                            (DateTime.Now - earliestDebtDate).TotalDays >= 30)
+                        {
+                            customersWithLongDebt.Add(new CustomerDebtInfo
+                            {
+                                CustomerId = customer.Id,
+                                CustomerName = customer.Name,
+                                Balance = netBalance,
+                                EarliestDebtDate = earliestDebtDate,
+                                CurrencyType = currencyType
+                            });
                         }
                     }
-                    else
-                    {
-                        customerBalance -= transaction.Amount;
-                        if (customerBalance <= 0)
-                        {
-                            earliestDebtDate = DateTime.MaxValue;
-                        }
-                    }
-                }
-                
-                if (customerBalance > 0 && 
-                    earliestDebtDate != DateTime.MaxValue && 
-                    (DateTime.Now - earliestDebtDate).TotalDays >= 30)
-                {
-                    customersWithLongDebt.Add(new CustomerDebtInfo
-                    {
-                        CustomerId = customer.Id,
-                        CustomerName = customer.Name,
-                        Balance = customerBalance,
-                        EarliestDebtDate = earliestDebtDate
-                    });
                 }
             }
         }
@@ -427,6 +470,7 @@
         public string CustomerName { get; set; }
         public decimal Balance { get; set; }
         public DateTime EarliestDebtDate { get; set; }
+        public CurrencyType CurrencyType { get; set; } = CurrencyType.TurkishLira;
     }
     
     private class CurrencySummary

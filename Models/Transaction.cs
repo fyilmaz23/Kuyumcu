@@ -36,6 +36,11 @@ namespace Kuyumcu.Models
         /// </summary>
         public bool IsDeleted { get; set; } = false;
 
+        /// <summary>
+        /// Emanet olarak işaretlenmişse true olur (Sadece Gelen işlemler için)
+        /// </summary>
+        public bool IsDeposit { get; set; } = false;
+
         public string GetFormattedAmount()
         {
             return $"{Amount} {CurrencyType.GetSymbol()}";

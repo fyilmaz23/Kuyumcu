@@ -24,6 +24,7 @@
                                    OnClick="@(() => ShowCustomerModal(new Customer()))">
                             Yeni Müşteri
                         </MudButton>
+                        <a class="btn btn-danger d-none" href="/migrate-name">Db Update</a>
                     </MudStack>
                 </MudStack>
             </MudItem>
@@ -64,7 +65,7 @@
                             </MudTd>
                         </RowTemplate>
                         <PagerContent>
-                            <MudTablePager PageSizeOptions="new int[] { 10, 25, 50, 100 }" />
+                            <MudTablePager RowsPerPageString="Sayfa başına:" InfoFormat="{first_item}-{last_item} / {all_items}" PageSizeOptions="new int[] { 10, 25, 50, 100 }" />
                         </PagerContent>
                     </MudTable>
                 </MudStack>
@@ -225,12 +226,12 @@
                                     <MudChip T="string" Color="Color.Success" Size="Size.Small" Text="Gelen" />
                                 }
                             </MudTd>
-                            <MudTd DataLabel="Miktar">@context.Amount.ToString("N2")</MudTd>
+                            <MudTd DataLabel="Miktar">@Helper.HelperMethods.FormatPrice(context.Amount)</MudTd>
                             <MudTd DataLabel="Para Birimi">@GetCurrencyName(context.CurrencyType)</MudTd>
                             <MudTd DataLabel="Açıklama">@context.Description</MudTd>
                         </RowTemplate>
                         <PagerContent>
-                            <MudTablePager PageSizeOptions="new int[] { 10, 25, 50, 100 }" />
+                            <MudTablePager RowsPerPageString="Sayfa başına:" InfoFormat="{first_item}-{last_item} / {all_items}" PageSizeOptions="new int[] { 10, 25, 50, 100 }" />
                         </PagerContent>
                     </MudTable>
                 </MudStack>
@@ -481,6 +482,33 @@
 
     private async Task SaveCustomer()
     {
+        // Yeni müşteri ekliyorsak aynı isimde başka müşteri var mı kontrol et
+        if (currentCustomer.Id == 0 && !string.IsNullOrWhiteSpace(currentCustomer.Name))
+        {
+            var existingCustomer = await DatabaseService.GetCustomerByNameAsync(currentCustomer.Name);
+            if (existingCustomer != null)
+            {
+                // Varolan müşteri bulundu, uyarı göster
+                bool? result = await DialogService.ShowMessageBox(
+                    "Aynı İsimde Müşteri Bulundu",
+                    $"\"{currentCustomer.Name}\" adında bir müşteri zaten var. Ne yapmak istersiniz?",
+                    yesText: "Varolan Müşteriye Git",
+                    noText: "Yine de Kaydet",
+                    cancelText: "İptal");
+
+                if (result == true) // Varolan müşteriye git
+                {
+                    CloseCustomerModal();
+                    NavigationManager.NavigateTo($"/customer/{existingCustomer.Id}");
+                    return;
+                }
+                else if (result == null) // İptal
+                {
+                    return;
+                }
+                // Else: Yine de kaydet - devam et
+            }
+        }
         await DatabaseService.SaveCustomerAsync(currentCustomer);
         showCustomerModal = false;
         await LoadCustomers();
@@ -521,6 +549,7 @@
     {
         isLoadingTransactions = true;
         transactions = await DatabaseService.GetTransactionsAsync();
+        transactions = transactions.Where(t => !t.IsDeposit).ToList();
         isLoadingTransactions = false;
     }
 
@@ -529,6 +558,7 @@
         try
         {
             var transactions = await DatabaseService.GetTransactionsPaginationAsync(state.Page, state.PageSize, state?.SortLabel, Helper.HelperMethods.GetSortDirection(state?.SortDirection), transactionSearchTerm);
+            transactions = transactions.Where(t => !t.IsDeposit).ToList();
             int totalItems = await DatabaseService.GetTransactionCountAsync(transactionSearchTerm);
 
             // Müşteri adlarını yükleyelim

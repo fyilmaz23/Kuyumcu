@@ -24,6 +24,10 @@ namespace Kuyumcu.Components.Helper
 
             return $"({digits.Substring(0, 3)}) {digits.Substring(3, 3)} {digits.Substring(6, 2)} {digits.Substring(8, 2)}";
         }
+        public static string FormatPrice(decimal tutar)
+        {
+            return tutar % 1 == 0 ? $"{tutar:N0}" : $"{tutar:N2}";
+        }
         public static Kuyumcu.Services.SortDirection? GetSortDirection(MudBlazor.SortDirection? sort) => sort switch
         {
             MudBlazor.SortDirection.Descending => Kuyumcu.Services.SortDirection.Descending,

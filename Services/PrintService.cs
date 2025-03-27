@@ -67,7 +67,7 @@ namespace Kuyumcu.Services
             // Title
             float titleWidth = e.PageBounds.Width - (leftMargin * 2);
             RectangleF titleRect = new RectangleF(leftMargin, yPos, titleWidth, 20);
-            graphics.DrawString("BİLGİ FİŞİ", titleFont, Brushes.Black, titleRect, centerFormat);
+            graphics.DrawString("KUYUMCU MEHMET", titleFont, Brushes.Black, titleRect, centerFormat);
             yPos += 25;
             
             // Date and Time
@@ -136,7 +136,7 @@ namespace Kuyumcu.Services
             DrawSeparator(graphics, leftMargin, yPos, e.PageBounds.Width - (leftMargin * 2));
             yPos += 10;
             
-            string footerText = "Kuyumcu Mehmet - 0535 292 1730";
+            string footerText = "@kuyumcumehmetelazig";
             System.Drawing.SizeF footerSize = graphics.MeasureString(footerText, regularFont);
             float footerX = (e.PageBounds.Width - footerSize.Width) / 2;
             graphics.DrawString(footerText, regularFont, Brushes.Black, footerX, yPos);

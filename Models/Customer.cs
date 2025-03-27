@@ -11,6 +11,7 @@ namespace Kuyumcu.Models
         
         [Required(ErrorMessage = "İsim alanı zorunludur")]
         [MaxLength(100, ErrorMessage = "İsim en fazla 100 karakter olabilir")]
+        [Collation("NOCASE")]
         public string Name { get; set; }
         
         [MaxLength(10, ErrorMessage = "Telefon numarası en fazla 10 karakter olabilir")]

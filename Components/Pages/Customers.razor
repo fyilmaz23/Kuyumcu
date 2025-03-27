@@ -68,7 +68,7 @@
                 </MudTd>
             </RowTemplate>
             <PagerContent>
-                <MudTablePager PageSizeOptions="new int[] {10, 25, 50, 100}" />
+                    <MudTablePager RowsPerPageString="Sayfa başına:" InfoFormat="{first_item}-{last_item} / {all_items}" PageSizeOptions="new int[] {10, 25, 50, 100}" />
             </PagerContent>
         </MudTable>
     }
@@ -82,13 +82,14 @@
                     <DataAnnotationsValidator />
                     <MudGrid>
                         <MudItem xs="12">
-                            <MudTextField @bind-Value="currentCustomer.Name" Label="Müşteri Adı" Variant="Variant.Outlined"
+                            <MudTextField @bind-Value="currentCustomer.Name" Label="Müşteri Adı" AutoFocus Variant="Variant.Outlined"
                             Required="true" RequiredError="Müşteri adı gereklidir" />
                             <ValidationMessage For="@(() => currentCustomer.Name)" />
                         </MudItem>
                         <MudItem xs="12">
-                            <MudTextField @bind-Value="currentCustomer.PhoneNumber" Mask=@mask2 Label="Telefon"
-                            Variant="Variant.Outlined" Immediate MaxLength="10" />
+                            <input type="text" autocomplete="off" class="form-control" @bind-value="currentCustomer.PhoneNumber"></input>
+                           @*  <MudTextField @bind-Value="currentCustomer.PhoneNumber" Mask=@mask2 Label="Telefon" 
+                            Variant="Variant.Outlined" Immediate MaxLength="10" /> *@
                             <ValidationMessage For="@(() => currentCustomer.PhoneNumber)" />
                         </MudItem>
                     </MudGrid>
@@ -193,6 +194,34 @@
 
     private async Task SaveCustomer()
     {
+        // Yeni müşteri ekliyorsak aynı isimde başka müşteri var mı kontrol et
+        if (currentCustomer.Id == 0 && !string.IsNullOrWhiteSpace(currentCustomer.Name))
+        {
+            var existingCustomer = await DatabaseService.GetCustomerByNameAsync(currentCustomer.Name);
+            if (existingCustomer != null)
+            {
+                // Varolan müşteri bulundu, uyarı göster
+                bool? result = await Dialog.ShowMessageBox(
+                    "Aynı İsimde Müşteri Bulundu",
+                    $"\"{currentCustomer.Name}\" adında bir müşteri zaten var. Ne yapmak istersiniz?",
+                    yesText: "Varolan Müşteriye Git",
+                    noText: "Yine de Kaydet",
+                    cancelText: "İptal");
+
+                if (result == true) // Varolan müşteriye git
+                {
+                    CloseCustomerModal();
+                    NavigationManager.NavigateTo($"/customer/{existingCustomer.Id}");
+                    return;
+                }
+                else if (result == null) // İptal
+                {
+                    return;
+                }
+                // Else: Yine de kaydet - devam et
+            }
+        }
+
         await DatabaseService.SaveCustomerAsync(currentCustomer);
         CloseCustomerModal();
         // await table.ReloadServerData();

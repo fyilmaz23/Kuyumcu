@@ -52,7 +52,55 @@ namespace Kuyumcu.Services
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Veritabanı şeması güncellenirken hata oluştu: {ex.Message}");
+                Console.WriteLine($"UpdateDatabaseSchemaAsync hata: {ex.Message}");
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Customer tablosundaki Name alanının büyük/küçük harf duyarsız olması için tabloyu günceller
+        /// </summary>
+        public async Task<bool> UpdateCustomerTableForCaseInsensitiveName()
+        {
+            try
+            {
+                await InitializeAsync();
+                
+                // Mevcut Customer verilerini al
+                var existingCustomers = await _database.Table<Customer>().ToListAsync();
+                
+                // SQLite'da doğrudan kolonu değiştirme imkanı yok, yeni tablo oluşturup veri aktarmamız gerekiyor
+                await _database.ExecuteAsync("CREATE TABLE CustomerNew (" +
+                    "Id INTEGER PRIMARY KEY AUTOINCREMENT," +
+                    "Name TEXT COLLATE NOCASE NOT NULL," +
+                    "PhoneNumber TEXT," +
+                    "IsDeleted INTEGER NOT NULL DEFAULT 0)");
+                
+                // Eski tablodan yeni tabloya verileri kopyala
+                foreach (var customer in existingCustomers)
+                {
+                    await _database.ExecuteAsync(
+                        "INSERT INTO CustomerNew (Id, Name, PhoneNumber, IsDeleted) VALUES (?, ?, ?, ?)",
+                        customer.Id, customer.Name, customer.PhoneNumber, customer.IsDeleted ? 1 : 0);
+                }
+                
+                // Transaction tablolarında Foreign Key kullanılmadığı için bu işlemleri yapabiliriz
+                
+                // Eski tabloyu sil
+                await _database.ExecuteAsync("DROP TABLE Customer");
+                
+                // Yeni tabloyu rename et
+                await _database.ExecuteAsync("ALTER TABLE CustomerNew RENAME TO Customer");
+                
+                // Yeniden initialize edelim
+                _initialized = false;
+                await InitializeAsync();
+                
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"UpdateCustomerTableForCaseInsensitiveName hata: {ex.Message}");
                 return false;
             }
         }
@@ -213,6 +261,22 @@ namespace Kuyumcu.Services
             await InitializeAsync();
             return await _database.Table<Customer>()
                 .Where(c => c.Id == id && !c.IsDeleted)
+                .FirstOrDefaultAsync();
+        }
+        
+        /// <summary>
+        /// İsme göre müşteri arar (büyük/küçük harf duyarsız)
+        /// </summary>
+        /// <param name="name">Aranacak müşteri ismi</param>
+        /// <returns>Bulunan müşteri, yoksa null</returns>
+        public async Task<Customer> GetCustomerByNameAsync(string name)
+        {
+            if (string.IsNullOrWhiteSpace(name))
+                return null;
+                
+            await InitializeAsync();
+            return await _database.Table<Customer>()
+                .Where(c => c.Name.ToLower() == name.ToLower() && !c.IsDeleted)
                 .FirstOrDefaultAsync();
         }
 
