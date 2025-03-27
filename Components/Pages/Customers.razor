@@ -87,9 +87,8 @@
                             <ValidationMessage For="@(() => currentCustomer.Name)" />
                         </MudItem>
                         <MudItem xs="12">
-                            <input type="text" autocomplete="off" class="form-control" @bind-value="currentCustomer.PhoneNumber"></input>
-                           @*  <MudTextField @bind-Value="currentCustomer.PhoneNumber" Mask=@mask2 Label="Telefon" 
-                            Variant="Variant.Outlined" Immediate MaxLength="10" /> *@
+                            <MudTextField @bind-Value="currentCustomer.PhoneNumber" Mask=@mask2 Label="Telefon"
+                                          Variant="Variant.Outlined" Immediate MaxLength="10" autocomplete="new-password" />
                             <ValidationMessage For="@(() => currentCustomer.PhoneNumber)" />
                         </MudItem>
                     </MudGrid>

@@ -24,7 +24,7 @@
                                    OnClick="@(() => ShowCustomerModal(new Customer()))">
                             Yeni Müşteri
                         </MudButton>
-                        <a class="btn btn-danger d-none" href="/migrate-name">Db Update</a>
+                        @* <a class="btn btn-danger" href="/migrate-name">Db Update</a> *@
                     </MudStack>
                 </MudStack>
             </MudItem>
@@ -84,7 +84,7 @@
                                     <DataAnnotationsValidator />
                                     <MudGrid>
                                         <MudItem xs="12">
-                                            <MudTextField @bind-Value="currentQuickEntry.FullName" Label="Ad Soyad"
+                                            <MudTextField @bind-Value="currentQuickEntry.FullName" Label="Ad Soyad" autocomplete="new-password"
                                                           Required="true" For="@(() => currentQuickEntry.FullName)" />
                                         </MudItem>
                                         <MudItem xs="12">
@@ -255,7 +255,7 @@
                     <MudItem xs="12">
 
                         <MudTextField @bind-Value="currentCustomer.PhoneNumber" Mask=@mask2 Label="Telefon"
-                                      Variant="Variant.Outlined" Immediate MaxLength="10" />
+                                      Variant="Variant.Outlined" Immediate MaxLength="10" autocomplete="new-password" />
                         <ValidationMessage For="@(() => currentCustomer.PhoneNumber)" />
                     </MudItem>
                 </MudGrid>

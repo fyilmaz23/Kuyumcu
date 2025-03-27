@@ -13,8 +13,14 @@
             <MudItem xs="12">
                 <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
                     <MudText Typo="Typo.h4">Müşteri İşlemleri</MudText>
-                    <MudButton Variant="Variant.Outlined" Color="Color.Secondary" StartIcon="@Icons.Material.Filled.ArrowBack"
-                               OnClick="GoBack">Geri Dön</MudButton>
+                    <MudStack Row="true">
+                        @if (showHiddenTransactions || !hasHiddenTransactions)
+                        {
+                            <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Primary" Size="Size.Medium" Title="Tüm işlemler görünüyor" />
+                        }
+                        <MudButton Variant="Variant.Outlined" Color="Color.Secondary" StartIcon="@Icons.Material.Filled.ArrowBack"
+                                   OnClick="GoBack">Geri Dön</MudButton>
+                    </MudStack>
                 </MudStack>
             </MudItem>
         </MudGrid>
@@ -32,9 +38,15 @@ else if (customer == null)
 else
 {
     <MudPaper Elevation="1" Class="pa-4 mb-4">
-        <MudText Typo="Typo.h5">@customer.Name</MudText>
+
         <MudGrid>
-            <MudItem xs="12" md="6">
+            <MudItem xs="12" md="12">
+                <MudText Typo="Typo.h5" @onclick="ToggleHiddenTransactions"
+                         Color="@(hasHiddenTransactions ? Color.Primary : Color.Default)">
+                    @customer.Name
+                </MudText>
+            </MudItem>
+            <MudItem xs="12" md="12">
                 <MudText><b>Telefon:</b> @customer.PhoneNumber.FormatPhoneNumber()</MudText>
             </MudItem>
         </MudGrid>
@@ -154,7 +166,7 @@ else
                                 <RowTemplate>
                                     <MudTd DataLabel="Tarih">
                                         @context.Date.ToString("dd.MM.yyyy HH:mm")
-                                   
+
                                     </MudTd>
                                     <MudTd DataLabel="Tür">
                                         @if (context.Type == TransactionType.CustomerDebt)
@@ -229,7 +241,7 @@ else
                     <RowTemplate>
                         <MudTd DataLabel="Tarih">
                             @context.Date.ToString("dd.MM.yyyy HH:mm")
-                          
+
                         </MudTd>
                         <MudTd DataLabel="Tutar">@Helper.HelperMethods.FormatPrice(context.Amount)</MudTd>
                         <MudTd DataLabel="Para Birimi">@context.CurrencyType.GetDisplayName() (@context.CurrencyType.GetSymbol())</MudTd>
@@ -281,12 +293,16 @@ else
                     <MudGrid>
                         <MudItem xs="12" sm="6">
                             <MudTextField T="decimal" Label="Tutar" @bind-Value="currentTransaction.Amount"
-                                          id="amountInput" @onfocus="SelectInputTextAsync"
                                           Variant="Variant.Outlined" Required="true"
                                           RequiredError="Tutar gereklidir" Immediate
                                           HelperText="@Helper.HelperMethods.FormatPrice(currentTransaction.Amount)"
                                           For="@(() => currentTransaction.Amount)"
-                                          Class="mb-3" />
+                                          Class="mb-3"
+                                          UserAttributes="@(new Dictionary<string, object>() {
+                   { "id", "amountInput" },
+                   { "onfocus", (EventCallback.Factory.Create<FocusEventArgs>(this, SelectInputTextAsync)) },
+                   { "autocomplete", "off" },
+              })" />
                         </MudItem>
                         <MudItem xs="12" sm="6">
                             <MudSelect T="CurrencyType" Label="Para Birimi" @bind-Value="currentTransaction.CurrencyType" Variant="Variant.Outlined" Class="mb-3">
@@ -315,11 +331,18 @@ else
                         </MudItem>
                     </MudGrid>
                 </MudStack>
-                @if (currentTransaction.Type == TransactionType.StoreDebt)
-                {
-                    <MudCheckBox @bind-Value="currentTransaction.IsDeposit" Label="Emanet" Color="Color.Primary" Class="mb-3"></MudCheckBox>
+                <MudGrid>
+                    @if (currentTransaction.Type == TransactionType.StoreDebt)
+                    {
+                        <MudItem xs="12" sm="6">
+                            <MudCheckBox @bind-Value="currentTransaction.IsDeposit" Label="Emanet" Color="Color.Primary" Class="mb-3"></MudCheckBox>
 
-                }
+                        </MudItem>
+                    }
+                    <MudItem xs="12" sm="6">
+                        <MudCheckBox @bind-Value="currentTransaction.IsHidden" Label="Gizli" Color="Color.Default" Class="mb-3"></MudCheckBox>
+                    </MudItem>
+                </MudGrid>
                 <MudTextField T="string" Label="Açıklama (Opsiyonel)" @bind-Value="currentTransaction.Description"
                               Variant="Variant.Outlined" Lines="3" Class="mb-3" />
 
@@ -347,9 +370,13 @@ else
     private void Submit() => showTransactionModal = false;
     private Customer customer;
     private List<Transaction> transactions;
+    private List<Transaction> allTransactions; // All transactions including hidden ones
     private List<Transaction> depositTransactions;
     private List<TransactionGroup> groupedTransactions;
     private bool isLoading = true;
+
+    private bool showHiddenTransactions = false;
+    private bool hasHiddenTransactions = false;
 
     private bool showTransactionModal = false;
     private Transaction currentTransaction = new Transaction();
@@ -367,7 +394,6 @@ else
 
         await LoadCustomerData();
     }
-
 
     private void LoadPrinters()
     {
@@ -418,11 +444,19 @@ else
         customer = await DatabaseService.GetCustomerAsync(CustomerId);
         if (customer != null)
         {
-            transactions = await DatabaseService.GetCustomerTransactionsAsync(CustomerId);
+            allTransactions = await DatabaseService.GetCustomerTransactionsAsync(CustomerId);
+
+            // Check if there are hidden transactions
+            hasHiddenTransactions = allTransactions.Any(t => t.IsHidden);
+
+            // Make a copy of all transactions
+            transactions = new List<Transaction>(allTransactions);
+
             // Separate deposit transactions
             depositTransactions = transactions.Where(t => t.IsDeposit).ToList();
             // Filter out deposit transactions from main transactions list
             transactions = transactions.Where(t => !t.IsDeposit).ToList();
+
             GroupTransactions();
         }
 
@@ -437,17 +471,38 @@ else
             return;
         }
 
-        groupedTransactions = transactions
+        // Filter hidden transactions if they should not be shown
+        var filteredTransactions = showHiddenTransactions
+            ? transactions
+            : transactions.Where(t => !t.IsHidden).ToList();
+
+        // Also filter deposit transactions based on hidden status
+        depositTransactions = showHiddenTransactions
+            ? allTransactions.Where(t => t.IsDeposit).ToList()
+            : allTransactions.Where(t => t.IsDeposit && !t.IsHidden).ToList();
+
+        groupedTransactions = filteredTransactions
             .GroupBy(t => t.CurrencyType)
             .Select(g => new TransactionGroup
                 {
                     Key = g.Key,
                     Transactions = g.OrderBy(t => t.Date).ToList(),
                     Balance = g.Where(t => t.Type == TransactionType.CustomerDebt).Sum(t => t.Amount) -
-                                          g.Where(t => t.Type == TransactionType.StoreDebt).Sum(t => t.Amount)
+                                                  g.Where(t => t.Type == TransactionType.StoreDebt).Sum(t => t.Amount)
                 })
             .OrderBy(g => g.Key.ToString())
             .ToList();
+    }
+
+    private void ToggleHiddenTransactions()
+    {
+        // Only toggle if there are hidden transactions
+        if (hasHiddenTransactions)
+        {
+            showHiddenTransactions = !showHiddenTransactions;
+            GroupTransactions();
+            StateHasChanged();
+        }
     }
 
     private void PrintCustomerReceipt()
@@ -508,7 +563,8 @@ else
                 CurrencyType = transaction.CurrencyType,
                 Date = transaction.Date,
                 Description = transaction.Description,
-                IsDeposit = transaction.IsDeposit
+                IsDeposit = transaction.IsDeposit,
+                IsHidden = transaction.IsHidden
             };
         currentTransactionDate = transaction.Date.Date;
         currentTransactionTime = transaction.Date.TimeOfDay;
@@ -613,5 +669,17 @@ else
             "Açıklama",
             transaction.Description,
             yesText: "Tamam");
+    }
+
+    private async Task ToggleTransactionHiddenState(Transaction transaction)
+    {
+        // Toggle the transaction's hidden state
+        transaction.IsHidden = !transaction.IsHidden;
+
+        // Save the updated transaction to the database
+        await DatabaseService.SaveTransactionAsync(transaction);
+
+        // Refresh the transaction lists and UI
+        await LoadCustomerData();
     }
 }

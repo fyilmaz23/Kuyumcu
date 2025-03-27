@@ -423,34 +423,6 @@ namespace Kuyumcu.Services
                 .ToListAsync();
         }
 
-        public async Task<decimal> GetCustomerBalanceAsync(int customerId)
-        {
-            await InitializeAsync();
-            var transactions = await GetCustomerTransactionsAsync(customerId);
-            decimal balance = 0;
-
-            foreach (var transaction in transactions)
-            {
-                if (transaction.CurrencyType == CurrencyType.TurkishLira)
-                {
-                    if (transaction.Type == TransactionType.CustomerDebt)
-                        balance += transaction.Amount;
-                    else
-                        balance -= transaction.Amount;
-                }
-            }
-
-            return balance;
-        }
-
-        public async Task<Transaction> GetTransactionAsync(int id)
-        {
-            await InitializeAsync();
-            return await _database.Table<Transaction>()
-                .Where(t => t.Id == id && !t.IsDeleted)
-                .FirstOrDefaultAsync();
-        }
-
         public async Task<int> SaveTransactionAsync(Transaction transaction)
         {
             await InitializeAsync();
