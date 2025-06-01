@@ -1,0 +1,489 @@
+@page "/import-data"
+@using Kuyumcu.Models
+@using Kuyumcu.Services
+@using Kuyumcu.Components.Helper
+@using System.IO
+@using Microsoft.Extensions.Logging
+@inject DatabaseImportService DbImportService
+@inject NavigationManager NavigationManager
+@inject GoldPriceExportService GoldPriceExportService
+@inject ILogger<ImportData> Logger
+@implements IAsyncDisposable
+
+<div class="mud-container">
+    <MudText Typo="Typo.h5" Class="mt-4 mb-4">Veritabanı Import</MudText>
+
+    <MudPaper Elevation="3" Class="p-4 mb-5">
+        <MudText Typo="Typo.subtitle1" Class="mb-3">Harici bir veritabanı dosyasından verileri görüntüleyin</MudText>
+
+        <MudStack Row="true" Spacing="2" Class="mb-4">
+            <MudButton Variant="Variant.Filled"
+                       Color="Color.Primary"
+                       OnClick="ImportDatabaseAsync">
+                <MudIcon Icon="@Icons.Material.Filled.UploadFile" Class="mr-2" />
+                Veritabanı Dosyası Seç (.db3)
+            </MudButton>
+
+            @if (OperatingSystem.IsAndroid())
+            {
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Secondary"
+                           OnClick="ExportGoldPricesAsync"
+                           Disabled="@IsExporting">
+                    <MudIcon Icon="@Icons.Material.Filled.Download" Class="mr-2" />
+                    Listeyi Paylaş
+                </MudButton>
+            }
+        </MudStack>
+
+        @if (IsLoading || IsExporting)
+        {
+            <MudProgressLinear Indeterminate="true" Class="mb-4" />
+            @if (IsExporting)
+            {
+                <MudText Typo="Typo.body2" Color="Color.Info" Class="mb-4">@ExportStatusMessage</MudText>
+            }
+        }
+
+        @if (ImportError || ExportError)
+        {
+            <MudAlert Severity="Severity.Error" Class="mb-4">@ErrorMessage</MudAlert>
+        }
+
+        @if (showGoldPrices && goldPrices != null && goldPrices.Any())
+        {
+            <MudPaper Elevation="3" Class="pa-4 mb-4">
+                <MudText Typo="Typo.h6" Class="mb-3">Altın Fiyatları</MudText>
+                <MudText Typo="Typo.caption" Class="mb-3">Güncelleme Zamanı: @(goldPrices.FirstOrDefault()?.UpdateTime.ToString("dd.MM.yyyy HH:mm:ss") ?? DateTime.Now.ToString("dd.MM.yyyy HH:mm:ss"))</MudText>
+                
+                <MudTable Items="@goldPrices" Hover="true" Elevation="0" Class="mt-3">
+                    <HeaderContent>
+                        <MudTh>Altın Türü</MudTh>
+                        <MudTh>Alış Fiyatı</MudTh>
+                        <MudTh>Satış Fiyatı</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd DataLabel="Altın Türü"><strong>@context.Type</strong></MudTd>
+                        <MudTd DataLabel="Alış Fiyatı">@context.BuyPrice.ToString("N2") ₺</MudTd>
+                        <MudTd DataLabel="Satış Fiyatı">@context.SellPrice.ToString("N2") ₺</MudTd>
+                    </RowTemplate>
+                </MudTable>
+            </MudPaper>
+        }
+
+        @if (HasImportedDatabase)
+        {
+            <MudAlert Severity="Severity.Success" Class="mb-4">
+                Veritabanı başarıyla import edildi.
+                <MudButton Variant="Variant.Text" Color="Color.Error" OnClick="CloseDatabase" Class="ml-auto">Kapat</MudButton>
+            </MudAlert>
+
+            <MudTabs @bind-ActivePanelIndex="ActiveTabIndex" Elevation="2" Rounded="true" ApplyEffectsToContainer="true" PanelClass="pa-4">
+                <MudTabPanel Text="Müşteriler">
+                    <MudPaper Elevation="0" Class="pa-3 mb-3">
+                        <MudTextField @bind-Value="CustomerSearchText" Label="Müşteri Ara"
+                                      Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                                      Immediate="true" Clearable="true"
+                                      OnAdornmentClick="ApplyCustomerSearch"
+                                      OnClearButtonClick="ClearCustomerSearch"
+                                      OnKeyDown="@CustomerSearchKeyPress"
+                                      Style="max-width: 500px;" />
+                        <MudText Typo="Typo.caption" Class="ml-2 mt-1" Color="Color.Info">
+                            İsim veya telefon numarasına göre arayın
+                        </MudText>
+                    </MudPaper>
+
+                    <MudTable T="Customer" Items="@FilteredCustomers" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@IsCustomersLoading"
+                              LoadingProgressColor="Color.Primary">
+                        <HeaderContent>
+                            <MudTh>Müşteri Adı</MudTh>
+                            <MudTh>Telefon</MudTh>
+                            <MudTh>İşlemler</MudTh>
+                        </HeaderContent>
+                        <RowTemplate>
+                            <MudTd DataLabel="Müşteri Adı">@context.Name</MudTd>
+                            <MudTd DataLabel="Telefon">@context.PhoneNumber</MudTd>
+                            <MudTd>
+                                <MudButton Variant="Variant.Outlined"
+                                           Size="Size.Small"
+                                           Color="Color.Primary"
+                                           OnClick="@(() => ViewCustomerTransactions(context.Id))">
+                                    İşlemleri Gör
+                                </MudButton>
+                            </MudTd>
+                        </RowTemplate>
+                        <PagerContent>
+                            <MudTablePager />
+                        </PagerContent>
+                        <NoRecordsContent>
+                            <MudText>Arama kriterlerine uygun müşteri bulunamadı.</MudText>
+                        </NoRecordsContent>
+                    </MudTable>
+                </MudTabPanel>
+                <MudTabPanel Text="Tüm İşlemler">
+                    <MudTable T="Transaction" Items="@ImportedTransactions" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@IsTransactionsLoading"
+                              LoadingProgressColor="Color.Primary">
+                        <HeaderContent>
+                            <MudTh>Tarih</MudTh>
+                            <MudTh>Müşteri</MudTh>
+                            <MudTh>İşlem Türü</MudTh>
+                            <MudTh>Miktar</MudTh>
+                            <MudTh>Açıklama</MudTh>
+                        </HeaderContent>
+                        <RowTemplate>
+                            <MudTd DataLabel="Tarih">@context.Date.ToString("dd.MM.yyyy HH:mm")</MudTd>
+                            <MudTd DataLabel="Müşteri">@GetCustomerName(context.CustomerId)</MudTd>
+                            <MudTd DataLabel="İşlem Türü">@(context.Type == TransactionType.CustomerDebt ? "Giden" : "Gelen")</MudTd>
+                            <MudTd DataLabel="Miktar">@Helper.HelperMethods.FormatPrice(context.Amount) @context.CurrencyType.GetSymbol() (@context.CurrencyType.GetDisplayName())</MudTd>
+                            <MudTd DataLabel="Açıklama">@context.Description</MudTd>
+                        </RowTemplate>
+                        <PagerContent>
+                            <MudTablePager />
+                        </PagerContent>
+                    </MudTable>
+                </MudTabPanel>
+                @if (SelectedCustomerId.HasValue)
+                {
+                    <MudTabPanel Text="Müşteri İşlemleri">
+                        <MudPaper Elevation="0" Class="mb-4">
+                            <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
+                                <MudText Typo="Typo.h5">@GetCustomerName(SelectedCustomerId.Value) İşlemleri</MudText>
+                            </MudStack>
+                        </MudPaper>
+
+                        @if (IsCustomerTransactionsLoading)
+                        {
+                            <MudProgressCircular Color="Color.Primary" Indeterminate="true" Class="my-7" Size="Size.Large" />
+                        }
+                        else if (CustomerTransactions == null || !CustomerTransactions.Any())
+                        {
+                            <MudAlert Severity="Severity.Info">Bu müşteriye ait işlem kaydı bulunmamaktadır.</MudAlert>
+                        }
+                        else
+                        {
+                            @if (GroupedCustomerTransactions != null && GroupedCustomerTransactions.Any())
+                            {
+                                <MudText Class="mt-4 mb-2"><b>Güncel Durum:</b></MudText>
+                                <MudGrid>
+                                    @foreach (var group in GroupedCustomerTransactions)
+                                    {
+                                        <MudItem xs="12" sm="6" md="4">
+                                            <MudPaper Elevation="1" Class="pa-2" Style="@(group.Balance == 0 ? "" : group.Balance > 0 ? "background-color: rgba(244,67,54,0.1)" : "background-color: rgba(76,175,80,0.1)")">
+                                                <MudStack Row="true" Justify="Justify.SpaceBetween">
+                                                    <MudText><b>@group.Key.GetDisplayName():</b></MudText>
+                                                    @if (group.Balance == 0)
+                                                    {
+                                                        <MudText>Hesap Sıfır</MudText>
+                                                    }
+                                                    else if (group.Balance > 0)
+                                                    {
+                                                        <MudText Color="Color.Error">@Helper.HelperMethods.FormatPrice(group.Balance) @group.Key.GetSymbol() (@group.Key.GetDisplayName() Giden)</MudText>
+                                                    }
+                                                    else
+                                                    {
+                                                        <MudText Color="Color.Primary">@Helper.HelperMethods.FormatPrice(Math.Abs(group.Balance)) @group.Key.GetSymbol() (@group.Key.GetDisplayName() Gelen)</MudText>
+                                                    }
+                                                </MudStack>
+                                            </MudPaper>
+                                        </MudItem>
+                                    }
+                                </MudGrid>
+                            }
+
+                            <MudGrid Class="mt-4">
+                                @foreach (var currencyGroup in GroupedCustomerTransactions)
+                                {
+                                    <MudItem xs="12" md="6">
+                                        <MudCard Class="mud-height-full mb-4">
+                                            <MudCardHeader>
+                                                <CardHeaderContent>
+                                                    <MudText Typo="Typo.h6">@currencyGroup.Key.GetDisplayName() (@currencyGroup.Key.GetSymbol())</MudText>
+                                                </CardHeaderContent>
+                                            </MudCardHeader>
+                                            <MudCardContent>
+                                                <MudTable Items="@currencyGroup.Transactions" Hover="true" Breakpoint="Breakpoint.Sm">
+                                                    <HeaderContent>
+                                                        <MudTh>Tarih</MudTh>
+                                                        <MudTh>Tür</MudTh>
+                                                        <MudTh>Tutar</MudTh>
+                                                        <MudTh>Açıklama</MudTh>
+                                                    </HeaderContent>
+                                                    <RowTemplate>
+                                                        <MudTd DataLabel="Tarih">
+                                                            @context.Date.ToString("dd.MM.yyyy HH:mm")
+                                                        </MudTd>
+                                                        <MudTd DataLabel="Tür">
+                                                            @if (context.Type == TransactionType.CustomerDebt)
+                                                            {
+                                                                <MudChip T="string" Color="Color.Error" Size="Size.Small">Giden</MudChip>
+                                                            }
+                                                            else
+                                                            {
+                                                                <MudChip T="string" Color="Color.Success" Size="Size.Small">Gelen</MudChip>
+                                                            }
+                                                        </MudTd>
+                                                        <MudTd DataLabel="Tutar">@Helper.HelperMethods.FormatPrice(context.Amount) @context.CurrencyType.GetSymbol()</MudTd>
+                                                        <MudTd DataLabel="Açıklama">@context.Description</MudTd>
+                                                    </RowTemplate>
+                                                </MudTable>
+                                            </MudCardContent>
+                                        </MudCard>
+                                    </MudItem>
+                                }
+                            </MudGrid>
+                        }
+                    </MudTabPanel>
+                }
+            </MudTabs>
+        }
+    </MudPaper>
+</div>
+
+@code {
+    private bool IsLoading = false;
+    private bool ImportError { get; set; } = false;
+    private string ErrorMessage { get; set; } = string.Empty;
+    private bool IsExporting { get; set; } = false;
+    private string ExportStatusMessage { get; set; } = string.Empty;
+    private bool ExportError { get; set; } = false;
+    private bool HasImportedDatabase = false;
+
+    private bool IsCustomersLoading = false;
+    private bool IsTransactionsLoading = false;
+    private bool IsCustomerTransactionsLoading = false;
+
+    private List<Customer> ImportedCustomers = new();
+    private List<Transaction> ImportedTransactions = new();
+    private List<Transaction> CustomerTransactions = new();
+
+    private int? SelectedCustomerId = null;
+    private int ActiveTabIndex = 0;
+
+    // Arama işlevselliği için
+    private string CustomerSearchText { get; set; } = string.Empty;
+    private List<Customer> FilteredCustomers => string.IsNullOrWhiteSpace(CustomerSearchText)
+        ? ImportedCustomers
+        : ImportedCustomers
+            .Where(c => c.Name.Contains(CustomerSearchText, StringComparison.OrdinalIgnoreCase) ||
+                       (c.PhoneNumber != null && c.PhoneNumber.Contains(CustomerSearchText)))
+            .ToList();
+
+    private void ApplyCustomerSearch()
+    {
+        // Arama otomatik olarak yapılıyor, bu yöntem sadece UI etkileşimleri için
+        StateHasChanged();
+    }
+
+    private void ClearCustomerSearch()
+    {
+        CustomerSearchText = string.Empty;
+        StateHasChanged();
+    }
+
+    private void CustomerSearchKeyPress(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            ApplyCustomerSearch();
+        }
+    }
+
+    private List<CurrencyTransactionGroup> _groupedCustomerTransactions;
+    public List<CurrencyTransactionGroup> GroupedCustomerTransactions
+    {
+        get
+        {
+            if (_groupedCustomerTransactions == null && CustomerTransactions != null)
+            {
+                _groupedCustomerTransactions = CustomerTransactions
+                    .GroupBy(t => t.CurrencyType)
+                    .Select(g => new CurrencyTransactionGroup
+                        {
+                            Key = g.Key,
+                            Transactions = g.OrderByDescending(t => t.Date).ToList(),
+                            Balance = g.Where(t => t.Type == TransactionType.CustomerDebt).Sum(t => t.Amount) -
+                                     g.Where(t => t.Type == TransactionType.StoreDebt).Sum(t => t.Amount)
+                        })
+                    .ToList();
+            }
+            return _groupedCustomerTransactions ?? new List<CurrencyTransactionGroup>();
+        }
+    }
+
+    private async Task ImportDatabaseAsync()
+    {
+        try
+        {
+            IsLoading = true;
+            ImportError = false;
+            ErrorMessage = string.Empty;
+
+            var result = await DbImportService.ImportDatabaseAsync();
+            if (result)
+            {
+                HasImportedDatabase = true;
+                await LoadImportedDataAsync();
+            }
+            else
+            {
+                ImportError = true;
+                ErrorMessage = "Veritabanı import edilemedi. Lütfen geçerli bir .db3 dosyası seçtiğinizden emin olun.";
+            }
+        }
+        catch (Exception ex)
+        {
+            ImportError = true;
+            ErrorMessage = $"Hata oluştu: {ex.Message}";
+        }
+        finally
+        {
+            IsLoading = false;
+        }
+    }
+
+    private async Task LoadImportedDataAsync()
+    {
+        await LoadCustomersAsync();
+        await LoadTransactionsAsync();
+    }
+
+    private async Task LoadCustomersAsync()
+    {
+        try
+        {
+            IsCustomersLoading = true;
+            ImportedCustomers = await DbImportService.GetImportedCustomersAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Müşteri listesi yükleme hatası: {ex.Message}");
+        }
+        finally
+        {
+            IsCustomersLoading = false;
+        }
+    }
+
+    private async Task LoadTransactionsAsync()
+    {
+        try
+        {
+            IsTransactionsLoading = true;
+            ImportedTransactions = await DbImportService.GetImportedTransactionsAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"İşlem listesi yükleme hatası: {ex.Message}");
+        }
+        finally
+        {
+            IsTransactionsLoading = false;
+        }
+    }
+
+    private async Task ViewCustomerTransactions(int customerId)
+    {
+        try
+        {
+            SelectedCustomerId = customerId;
+            _groupedCustomerTransactions = null;
+            IsCustomerTransactionsLoading = true;
+
+            CustomerTransactions = await DbImportService.GetImportedTransactionsByCustomerIdAsync(customerId);
+
+            // Automatically switch to customer transactions tab
+            ActiveTabIndex = 2;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Müşteri işlemleri yükleme hatası: {ex.Message}");
+        }
+        finally
+        {
+            IsCustomerTransactionsLoading = false;
+        }
+    }
+
+    private string GetCustomerName(int customerId)
+    {
+        var customer = ImportedCustomers.FirstOrDefault(c => c.Id == customerId);
+        return customer?.Name ?? "Bilinmeyen Müşteri";
+    }
+
+    private async Task CloseDatabase()
+    {
+        // Önce veritabanı bağlantısını düzgün bir şekilde kapatalım
+        await DbImportService.CloseImportedDatabaseAsync();
+
+        // Sonra UI verilerini temizleyelim
+        HasImportedDatabase = false;
+        ImportedCustomers.Clear();
+        ImportedTransactions.Clear();
+        CustomerTransactions.Clear();
+        SelectedCustomerId = null;
+        _groupedCustomerTransactions = null;
+        ActiveTabIndex = 0;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        // Sayfa kapatıldığında veritabanı bağlantısını kapat
+        await DbImportService.CloseImportedDatabaseAsync();
+    }
+
+    public class CurrencyTransactionGroup
+    {
+        public CurrencyType Key { get; set; }
+        public List<Transaction> Transactions { get; set; } = new List<Transaction>();
+        public decimal Balance { get; set; }
+    }
+
+    private List<GoldPriceDto> goldPrices = new List<GoldPriceDto>();
+    private bool showGoldPrices = false;
+    
+    private async Task ExportGoldPricesAsync()
+    {
+        try
+        {
+            IsExporting = true;
+            ExportStatusMessage = "Altın fiyatları alınıyor...";
+            ExportError = false;
+            ErrorMessage = string.Empty;
+            showGoldPrices = false;
+
+            // Altın fiyatlarını çekme işlemi
+            goldPrices = await GoldPriceExportService.GetGoldPricesAsync();
+            if (goldPrices == null || !goldPrices.Any())
+            {
+                ExportError = true;
+                ErrorMessage = "Altın fiyatları alınamadı. Lütfen internet bağlantınızı kontrol edin ve tekrar deneyin.";
+                return;
+            }
+
+            ExportStatusMessage = $"{goldPrices.Count} adet altın fiyatı başarıyla alındı. Görsel oluşturuluyor...";
+            showGoldPrices = true;
+            
+            // Şablon görsel üzerine fiyatları yerleştirip kaydet
+            string imagePath = await GoldPriceExportService.CreateGoldPriceImageAsync(goldPrices, true);
+            
+            if (string.IsNullOrEmpty(imagePath))
+            {
+                ExportError = true;
+                ErrorMessage = "Altın fiyat görseli oluşturulamadı.";
+                return;
+            }
+            
+            ExportStatusMessage = $"Altın fiyat görseli oluşturuldu ve kaydedildi: {Path.GetFileName(imagePath)}";
+        }
+        catch (Exception ex)
+        {
+            ExportError = true;
+            ErrorMessage = $"Altın fiyatlarını alma sırasında hata oluştu: {ex.Message}";
+            Logger.LogError(ex, "Gold price export error");
+        }
+        finally
+        {
+            IsExporting = false;
+        }
+    }
+}

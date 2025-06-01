@@ -1,0 +1,66 @@
+<html lang="tr">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="csrf-token" content="Hl4MgkyTOEnFKiLpucwoHTwGjSmXuCCvdy3ZBFNQ">
+    <title>CESOFT KUYUMCU EKRANI</title>
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.bunny.net">
+    <link href="https://fonts.bunny.net/css?family=figtree:400,500,600&amp;display=swap" rel="stylesheet">
+
+    <!-- Scripts -->
+    <link rel="preload" as="style" href="https://fiyat.ekeo.org.tr/build/assets/app-cNy9yCjt.css">
+    <link rel="modulepreload" href="https://fiyat.ekeo.org.tr/build/assets/app-BtUpmekk.js">
+    <link rel="stylesheet" href="https://fiyat.ekeo.org.tr/build/assets/app-cNy9yCjt.css">
+    <script type="module" src="https://fiyat.ekeo.org.tr/build/assets/app-BtUpmekk.js"></script>
+</head>
+<body class="font-sans text-gray-900 antialiased">
+    <div class="min-h-screen flex flex-col sm:justify-center items-center pt-6 sm:pt-0 bg-gray-100">
+
+        <div class="w-full sm:max-w-md mt-6 px-6 py-4 bg-white shadow-md overflow-hidden sm:rounded-lg">
+            <!-- Session Status -->
+
+            <div>
+                <img src="https://fiyat.ekeo.org.tr/ekeo1.jpeg" style="height: 120px; display: block; margin: 0 auto;">
+            </div>
+
+
+            <form method="POST" action="https://fiyat.ekeo.org.tr/login">
+                <input type="hidden" name="_token" value="Hl4MgkyTOEnFKiLpucwoHTwGjSmXuCCvdy3ZBFNQ" autocomplete="off">
+                <!-- Email Address -->
+                <div>
+                    <label class="block font-medium text-sm text-gray-700" style="font-size: 14px;" for="code">
+                        Kodunuz
+                    </label>
+                    <input class="border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm block mt-1 w-full" style="height: 50px;text-align: center;" id="code" type="text" name="code" required="required" autofocus="autofocus" autocomplete="code">
+
+                </div>
+
+                <!-- Password -->
+                <div class="mt-4">
+                    <label class="block font-medium text-sm text-gray-700" for="password">
+                        Þifreniz
+                    </label>
+
+                    <input class="border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm block mt-1 w-full" style="height: 50px;text-align: center;" id="password" type="text" name="password" required="required" autocomplete="current-password">
+
+                </div>
+
+                <!-- Remember Me -->
+
+
+                <div class="flex items-center justify-end mt-4">
+
+
+                    <button type="submit" class="inline-flex items-center px-4 py-2 bg-gray-800 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-gray-700 focus:bg-gray-700 active:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition ease-in-out duration-150 ms-3" style="padding: 20px;text-transform: none;">
+                        SÝSTEME GÝRÝÞ YAP
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+
+</body>
+</html>

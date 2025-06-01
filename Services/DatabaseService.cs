@@ -2,6 +2,7 @@ using SQLite;
 using Kuyumcu.Models;
 using System.Collections.ObjectModel;
 using System;
+using System.Globalization;
 
 namespace Kuyumcu.Services
 {
@@ -196,43 +197,39 @@ namespace Kuyumcu.Services
             // Apply search filter if provided
             if (!string.IsNullOrWhiteSpace(searchTerm))
             {
-                searchTerm = searchTerm.ToLower();
-                // Use LIKE operator for case-insensitive search
-                query = query.Where(c => 
-                    c.Name.ToLower().Contains(searchTerm) || 
-                    (c.PhoneNumber != null && c.PhoneNumber.ToLower().Contains(searchTerm)));
+                // Get all customers first to perform proper Turkish-aware search
+                var allCustomers = await query.ToListAsync();
+                
+                // Create Turkish culture-aware comparison for search
+                var turkishCulture = new CultureInfo("tr-TR");
+                var searchTermTurkish = searchTerm.ToLower(turkishCulture);
+                
+                // Filter with culture-aware comparison
+                var filteredCustomers = allCustomers.Where(c => 
+                    c.Name.ToLower(turkishCulture).Contains(searchTermTurkish) || 
+                    (c.PhoneNumber != null && c.PhoneNumber.ToLower(turkishCulture).Contains(searchTermTurkish)))
+                    .ToList();
+                
+                // Apply sorting to the filtered results
+                var sortedAndFilteredCustomers = ApplySorting(filteredCustomers, sortField, sortDirection);
+                
+                // Apply pagination to the in-memory collection
+                return sortedAndFilteredCustomers
+                    .Skip(page * pageSize)
+                    .Take(pageSize)
+                    .ToList();
             }
             
-            // Apply sorting
-            if (!string.IsNullOrEmpty(sortField))
-            {
-                switch (sortField.ToLower())
-                {
-                    case "name":
-                        query = sortDirection == SortDirection.Ascending
-                            ? query.OrderBy(c => c.Name)
-                            : query.OrderByDescending(c => c.Name);
-                        break;
-                    case "phone":
-                        query = sortDirection == SortDirection.Ascending
-                            ? query.OrderBy(c => c.PhoneNumber)
-                            : query.OrderByDescending(c => c.PhoneNumber);
-                        break;
-                    default:
-                        query = query.OrderBy(c => c.Name);
-                        break;
-                }
-            }
-            else
-            {
-                query = query.OrderBy(c => c.Name);
-            }
+            // If no search term, we can let SQLite handle sorting and pagination
+            // Get all customers to sort them properly with Turkish culture
+            var customers = await query.ToListAsync();
+            var sortedCustomers = ApplySorting(customers, sortField, sortDirection);
             
-            // Apply pagination - SQLite.Net PCL pagination
-            return await query
+            // Apply pagination to the in-memory collection
+            return sortedCustomers
                 .Skip(page * pageSize)
                 .Take(pageSize)
-                .ToListAsync();
+                .ToList();
         }
 
         public async Task<int> GetCustomerCountAsync()
@@ -243,14 +240,23 @@ namespace Kuyumcu.Services
         public async Task<int> GetCustomerCountAsync(string searchTerm)
         {
             await InitializeAsync();
+            
             var query = _database.Table<Customer>().Where(c => !c.IsDeleted);
             
+            // Apply search filter if provided
             if (!string.IsNullOrWhiteSpace(searchTerm))
             {
-                searchTerm = searchTerm.ToLower();
-                query = query.Where(c => 
-                    c.Name.ToLower().Contains(searchTerm) || 
-                    (c.PhoneNumber != null && c.PhoneNumber.ToLower().Contains(searchTerm)));
+                // Get all customers to perform proper Turkish culture search
+                var allCustomers = await query.ToListAsync();
+                
+                // Create Turkish culture-aware comparison for search
+                var turkishCulture = new CultureInfo("tr-TR");
+                var searchTermTurkish = searchTerm.ToLower(turkishCulture);
+                
+                // Count with culture-aware comparison
+                return allCustomers.Count(c => 
+                    c.Name.ToLower(turkishCulture).Contains(searchTermTurkish) || 
+                    (c.PhoneNumber != null && c.PhoneNumber.ToLower(turkishCulture).Contains(searchTermTurkish)));
             }
             
             return await query.CountAsync();
@@ -275,9 +281,15 @@ namespace Kuyumcu.Services
                 return null;
                 
             await InitializeAsync();
-            return await _database.Table<Customer>()
-                .Where(c => c.Name.ToLower() == name.ToLower() && !c.IsDeleted)
-                .FirstOrDefaultAsync();
+            
+            // Create Turkish culture-aware comparison for search
+            var turkishCulture = new CultureInfo("tr-TR");
+            string nameLower = name.ToLower(turkishCulture);
+            
+            // Get all customers and filter in memory for proper Turkish culture-aware comparison
+            var customers = await _database.Table<Customer>().Where(c => !c.IsDeleted).ToListAsync();
+            return customers.FirstOrDefault(c => 
+                string.Compare(c.Name.ToLower(turkishCulture), nameLower, StringComparison.CurrentCultureIgnoreCase) == 0);
         }
 
         public async Task<int> SaveCustomerAsync(Customer customer)
@@ -317,6 +329,81 @@ namespace Kuyumcu.Services
             await InitializeAsync();
             return await _database.Table<Transaction>().Where(c => !c.IsDeleted).ToListAsync();
         }
+        
+        /// <summary>
+        /// En çok işlem yapılan para birimini bulur
+        /// </summary>
+        /// <returns>En aktif para birimi ve işlem sayısı</returns>
+        public async Task<(CurrencyType CurrencyType, int TransactionCount)> GetMostActiveCurrencyTypeAsync()
+        {
+            await InitializeAsync();
+            
+            // Tüm işlemleri al
+            var transactions = await GetTransactionsAsync();
+            
+            // Para birimine göre grupla ve en fazla işlem yapılanı bul
+            var mostActiveCurrency = transactions
+                .Where(t => !t.IsDeleted && !t.IsDeposit)
+                .GroupBy(t => t.CurrencyType)
+                .Select(g => new { CurrencyType = g.Key, Count = g.Count() })
+                .OrderByDescending(x => x.Count)
+                .FirstOrDefault();
+            
+            if (mostActiveCurrency == null)
+            {
+                // Eğer hiç işlem yoksa varsayılan olarak TL döndür
+                return (CurrencyType.TurkishLira, 0);
+            }
+            
+            return (mostActiveCurrency.CurrencyType, mostActiveCurrency.Count);
+        }
+
+        /// <summary>
+        /// Borçlu müşteri sayısını hesaplar. Bir müşteri herhangi bir para biriminde borçluysa (giden > gelen) borçlu sayılır
+        /// </summary>
+        /// <returns>Borçlu müşteri sayısı</returns>
+        public async Task<int> GetIndebtedCustomersCountAsync()
+        {
+            await InitializeAsync();
+            
+            // Tüm müşterileri al
+            var customers = await GetCustomersAsync();
+            // Tüm işlemleri al
+            var transactions = await GetTransactionsAsync();
+            
+            int indebtedCount = 0;
+            
+            foreach (var customer in customers)
+            {
+                // Bu müşterinin işlemlerini al
+                var customerTransactions = transactions
+                    .Where(t => !t.IsDeleted && !t.IsDeposit && t.CustomerId == customer.Id)
+                    .ToList();
+                
+                if (!customerTransactions.Any())
+                    continue;
+                
+                // Her para birimi için ayrı kontrol et
+                var currencyGroups = customerTransactions
+                    .GroupBy(t => t.CurrencyType)
+                    .ToList();
+                
+                foreach (var group in currencyGroups)
+                {
+                    var outgoing = group.Where(t => t.Type == TransactionType.CustomerDebt).Sum(t => t.Amount);
+                    var incoming = group.Where(t => t.Type == TransactionType.StoreDebt).Sum(t => t.Amount);
+                    
+                    // Eğer bu para biriminde borçluysa (giden > gelen) sayıyı artır ve sonraki müşteriye geç
+                    if (outgoing > incoming)
+                    {
+                        indebtedCount++;
+                        break; // Bu müşteriyi saydık, bir sonraki müşteriye geç
+                    }
+                }
+            }
+            
+            return indebtedCount;
+        }
 
         public async Task<List<Transaction>> GetTransactionsAsync(int page, int pageSize, string sortField, SortDirection? sortDirection)
         {
@@ -328,7 +415,7 @@ namespace Kuyumcu.Services
             await InitializeAsync();
             
             // Base query for transactions
-            var query = _database.Table<Transaction>().Where(c => !c.IsDeleted); ;
+            var query = _database.Table<Transaction>().Where(c => !c.IsDeleted && !c.IsDeposit); ;
             
             // Apply filter by type if requested
             if (filterType.HasValue)
@@ -395,7 +482,7 @@ namespace Kuyumcu.Services
         public async Task<int> GetTransactionCountAsync(string searchTerm = null, TransactionType? filterType = null)
         {
             await InitializeAsync();
-            var query = _database.Table<Transaction>().Where(c => !c.IsDeleted);
+            var query = _database.Table<Transaction>().Where(c => !c.IsDeleted && !c.IsDeposit);
             
             // Apply filter by type if requested
             if (filterType.HasValue)
@@ -420,6 +507,25 @@ namespace Kuyumcu.Services
             return await _database.Table<Transaction>()
                 .Where(t => t.CustomerId == customerId && !t.IsDeleted)
                 .OrderByDescending(t => t.Date)
+                .ToListAsync();
+        }
+
+        /// <summary>
+        /// Müşteriye ait işlemleri belirli bir para birimine göre ve sayfalanarak getirir
+        /// </summary>
+        /// <param name="customerId">Müşteri ID</param>
+        /// <param name="currencyType">Para birimi</param>
+        /// <param name="skip">Atlanacak işlem sayısı</param>
+        /// <param name="take">Alınacak maksimum işlem sayısı</param>
+        /// <returns>İşlem listesi</returns>
+        public async Task<List<Transaction>> GetCustomerTransactionsByCurrencyPaginatedAsync(int customerId, CurrencyType currencyType, int skip, int take)
+        {
+            await InitializeAsync();
+            return await _database.Table<Transaction>()
+                .Where(t => t.CustomerId == customerId && !t.IsDeleted && t.CurrencyType == currencyType)
+                .OrderByDescending(t => t.Date)
+                .Skip(skip)
+                .Take(take)
                 .ToListAsync();
         }
 
@@ -482,6 +588,36 @@ namespace Kuyumcu.Services
         {
             await InitializeAsync();
             return await _database.DeleteAsync(entry);
+        }
+        
+        // Helper method to sort customers with Turkish culture support
+        private List<Customer> ApplySorting(List<Customer> customers, string sortField, SortDirection? sortDirection)
+        {
+            // Create Turkish culture comparison for proper alphabetical sorting
+            var turkishCulture = new CultureInfo("tr-TR");
+            var turkishComparer = StringComparer.Create(turkishCulture, ignoreCase: true);
+            
+            // Apply culture-aware sorting
+            if (!string.IsNullOrEmpty(sortField))
+            {
+                switch (sortField.ToLower())
+                {
+                    case "name":
+                        return sortDirection == SortDirection.Ascending
+                            ? customers.OrderBy(c => c.Name, turkishComparer).ToList()
+                            : customers.OrderByDescending(c => c.Name, turkishComparer).ToList();
+                    case "phone":
+                        return sortDirection == SortDirection.Ascending
+                            ? customers.OrderBy(c => c.PhoneNumber).ToList()
+                            : customers.OrderByDescending(c => c.PhoneNumber).ToList();
+                    default:
+                        return customers.OrderBy(c => c.Name, turkishComparer).ToList();
+                }
+            }
+            else
+            {
+                return customers.OrderBy(c => c.Name, turkishComparer).ToList();
+            }
         }
     }
 

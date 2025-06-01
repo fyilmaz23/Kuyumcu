@@ -240,8 +240,7 @@
                 searchTerm,
                 filterType);
                 
-            // Filter out "Emanet" transactions (IsDeposit=true)
-            transactions = transactions.Where(t => !t.IsDeposit).ToList();
+           
                 
             int totalItems = await DatabaseService.GetTransactionCountAsync(searchTerm, filterType);
 

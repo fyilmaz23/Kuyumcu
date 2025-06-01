@@ -4,8 +4,16 @@
     <MudText Typo="Typo.h6" Class="px-4 mud-text-secondary">Kuyumcu</MudText>
     <MudDivider Class="my-2" />
     <MudNavMenu>
+
+        @if (DeviceInfo.Platform == DevicePlatform.Android)
+        {
+            <MudNavLink Href="import-data" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.DataObject">Veri İçe Aktar</MudNavLink>
+        }
+        else
+        {
         <MudNavLink Href="" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Home">Ana Sayfa</MudNavLink>
         <MudNavLink Href="customers" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.People">Müşteriler</MudNavLink>
         <MudNavLink Href="transactions" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Receipt">İşlemler</MudNavLink>
+        }
     </MudNavMenu>
 </MudPaper>

@@ -52,7 +52,7 @@ namespace Kuyumcu.Services
 
                 // Create backup file name with timestamp
                 string timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
-                string backupFileName = $"Kuyumcu_Backup_{timestamp}.db3";
+                string backupFileName = $"{timestamp}_Kuyumcu_Yedek.db3";
                 
                 // Create a temporary copy of the database to avoid file access issues
                 string tempBackupPath = Path.Combine(

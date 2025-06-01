@@ -1,6 +1,11 @@
 using Microsoft.Extensions.Logging;
 using Kuyumcu.Services;
 using MudBlazor.Services;
+using System.Net;
+using System.Net.Http;
+#if ANDROID
+using Kuyumcu.Platforms.Android.Services;
+#endif
 
 namespace Kuyumcu;
 
@@ -21,6 +26,24 @@ public static class MauiProgram
         builder.Services.AddSingleton<BackupService>();
         builder.Services.AddSingleton<PrintService>();
         builder.Services.AddSingleton<GoogleDriveService>();
+        
+        // CookieHandler ile HttpClient oluştur
+        var cookieContainer = new CookieContainer();
+        var handler = new HttpClientHandler
+        {
+            CookieContainer = cookieContainer,
+            UseCookies = true,
+            AllowAutoRedirect = true
+        };
+        builder.Services.AddSingleton<HttpClient>(new HttpClient(handler));
+        builder.Services.AddSingleton<GoldPriceExportService>();
+        
+        // Register File Import Services
+#if ANDROID
+        builder.Services.AddSingleton<IFileImportService, AndroidFileImportService>();
+        builder.Services.AddSingleton<DatabaseImportService>();
+#endif
+        
         builder.Services.AddMudServices();
 
 #if DEBUG

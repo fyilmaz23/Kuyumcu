@@ -135,9 +135,6 @@ else
     else
     {
         <MudGrid>
-            @{
-                var groupCount = 0;
-            }
             @foreach (var currencyGroup in groupedTransactions)
             {
                 <MudItem xs="12" md="4">
@@ -156,6 +153,24 @@ else
                             </CardHeaderContent>
                         </MudCardHeader>
                         <MudCardContent>
+
+                            @{
+                                // Check if there are potentially more transactions to load for this currency type
+                                var allTransactionsForCurrency = allTransactions
+                                .Where(t => t.CurrencyType == currencyGroup.Key && (!t.IsHidden || showHiddenTransactions))
+                                .ToList();
+                                var hasMoreTransactions = allTransactionsForCurrency.Count > currencyGroup.Transactions.Count;
+                            }
+
+                            @if (hasMoreTransactions)
+                            {
+                                <MudButton Color="Color.Primary" Variant="Variant.Text"
+                                           id="@($"load-more-{currencyGroup.Key}")" 
+                                           OnClick="@(async () => await LoadMoreTransactions(currencyGroup.Key, $"load-more-{currencyGroup.Key}"))"
+                                           Class="mt-2" FullWidth="true">
+                                    <MudText>Daha fazla göster</MudText>
+                                </MudButton>
+                            }
                             <MudTable Items="@currencyGroup.Transactions" Hover="true" Breakpoint="Breakpoint.Sm">
                                 <HeaderContent>
                                     <MudTh>Tarih</MudTh>
@@ -194,6 +209,7 @@ else
                                     </MudTd>
                                 </RowTemplate>
                             </MudTable>
+                       
 
                             <MudAlert Severity="@(currencyGroup.Balance == 0 ? Severity.Normal : currencyGroup.Balance < 0 ? Severity.Success : Severity.Error)"
                                       Class="mt-3">
@@ -266,7 +282,7 @@ else
     }
 }
 
-<MudDialog @bind-Visible="showTransactionModal" Options="_dialogOptions">
+<MudDialog @bind-Visible="showTransactionModal" Options="_dialogOptions" DefaultFocus="DefaultFocus.FirstChild">
     <DialogContent>
         <MudContainer Style="max-height: 500px; overflow-y: auto">
             <MudText Typo="Typo.h6" Class="mb-4">
@@ -292,7 +308,7 @@ else
                 <MudStack Class="pa-4" Spacing="2">
                     <MudGrid>
                         <MudItem xs="12" sm="6">
-                            <MudTextField T="decimal" Label="Tutar" @bind-Value="currentTransaction.Amount"
+                            <MudTextField T="decimal" Label="Tutar" @bind-Value="currentTransaction.Amount" 
                                           Variant="Variant.Outlined" Required="true"
                                           RequiredError="Tutar gereklidir" Immediate
                                           HelperText="@Helper.HelperMethods.FormatPrice(currentTransaction.Amount)"
@@ -362,6 +378,11 @@ else
     public int CustomerId { get; set; }
     [CascadingParameter]
     private IMudDialogInstance MudDialog { get; set; }
+    
+    // Stores how many transactions are loaded per currency type
+    private Dictionary<CurrencyType, int> loadedTransactionsCount = new Dictionary<CurrencyType, int>();
+    // Default number of transactions to load initially and each time "Show more" is clicked
+    private const int PAGE_SIZE = 5;
 
     private readonly DialogOptions _dialogOptions = new() { NoHeader = true, MaxWidth = MaxWidth.Small, FullWidth = true };
 
@@ -419,24 +440,6 @@ else
         }
     }
 
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (firstRender)
-        {
-            await JSRuntime.InvokeVoidAsync("eval", @"
-                window.selectInputText = function(id) {
-                    var element = document.getElementById(id);
-                    if (element) {
-                        setTimeout(function() {
-                            element.select();
-                        }, 50);
-                    }
-                }
-            ");
-        }
-        await base.OnAfterRenderAsync(firstRender);
-    }
-
     private async Task LoadCustomerData()
     {
         isLoading = true;
@@ -444,26 +447,34 @@ else
         customer = await DatabaseService.GetCustomerAsync(CustomerId);
         if (customer != null)
         {
+            // Reset the loaded transactions count for a fresh load
+            loadedTransactionsCount = new Dictionary<CurrencyType, int>();
+            
+            // Get all transactions for the customer
             allTransactions = await DatabaseService.GetCustomerTransactionsAsync(CustomerId);
 
-            // Check if there are hidden transactions
-            hasHiddenTransactions = allTransactions.Any(t => t.IsHidden);
+            if (allTransactions != null)
+            {
+                // Emanet işlemleri ayrı gösterdiğimiz için ana listeden çıkaralım
+                depositTransactions = allTransactions.Where(t => t.IsDeposit).ToList();
+                transactions = allTransactions.Where(t => !t.IsDeposit).ToList();
+            }
+            else
+            {
+                transactions = new List<Transaction>();
+                depositTransactions = new List<Transaction>();
+            }
 
-            // Make a copy of all transactions
-            transactions = new List<Transaction>(allTransactions);
-
-            // Separate deposit transactions
-            depositTransactions = transactions.Where(t => t.IsDeposit).ToList();
-            // Filter out deposit transactions from main transactions list
+            // Deposit olmayan işlemleri gruplayalım
             transactions = transactions.Where(t => !t.IsDeposit).ToList();
 
-            GroupTransactions();
+            await GroupTransactions();
         }
 
         isLoading = false;
     }
 
-    private void GroupTransactions()
+    private async Task GroupTransactions()
     {
         if (transactions == null || transactions.Count == 0)
         {
@@ -472,36 +483,141 @@ else
         }
 
         // Filter hidden transactions if they should not be shown
-        var filteredTransactions = showHiddenTransactions
-            ? transactions
-            : transactions.Where(t => !t.IsHidden).ToList();
+        var filteredTransactions = transactions;
+        if (!showHiddenTransactions)
+        {
+            filteredTransactions = transactions.Where(t => !t.IsHidden).ToList();
+        }
 
-        // Also filter deposit transactions based on hidden status
-        depositTransactions = showHiddenTransactions
-            ? allTransactions.Where(t => t.IsDeposit).ToList()
-            : allTransactions.Where(t => t.IsDeposit && !t.IsHidden).ToList();
+        // Check if there are any hidden transactions at all
+        hasHiddenTransactions = transactions.Any(t => t.IsHidden);
 
-        groupedTransactions = filteredTransactions
-            .GroupBy(t => t.CurrencyType)
-            .Select(g => new TransactionGroup
-                {
-                    Key = g.Key,
-                    Transactions = g.OrderBy(t => t.Date).ToList(),
-                    Balance = g.Where(t => t.Type == TransactionType.CustomerDebt).Sum(t => t.Amount) -
-                                                  g.Where(t => t.Type == TransactionType.StoreDebt).Sum(t => t.Amount)
-                })
-            .OrderBy(g => g.Key.ToString())
-            .ToList();
+        // Get distinct currency types from the transactions
+        var currencyTypes = filteredTransactions.Select(t => t.CurrencyType).Distinct().ToList();
+        
+        // Initialize loadedTransactionsCount for currency types if not already set
+        foreach (var currencyType in currencyTypes)
+        {
+            if (!loadedTransactionsCount.ContainsKey(currencyType))
+            {
+                loadedTransactionsCount[currencyType] = PAGE_SIZE;
+            }
+        }
+        
+        // Group transactions by currency with pagination
+        groupedTransactions = new List<TransactionGroup>();
+        
+        foreach (var currencyType in currencyTypes)
+        {
+            // Load only the specified number of transactions for this currency type
+            var transactionsForCurrency = await DatabaseService.GetCustomerTransactionsByCurrencyPaginatedAsync(
+                CustomerId, currencyType, 0, loadedTransactionsCount[currencyType]);
+                
+            // Apply hidden filter if needed
+            if (!showHiddenTransactions)
+            {
+                transactionsForCurrency = transactionsForCurrency.Where(t => !t.IsHidden).ToList();
+            }
+            
+            // Calculate the total balance for this currency regardless of pagination
+            var allTransactionsForCurrency = filteredTransactions.Where(t => t.CurrencyType == currencyType).ToList();
+            var balance = allTransactionsForCurrency.Where(t => t.Type == TransactionType.CustomerDebt).Sum(t => t.Amount) -
+                          allTransactionsForCurrency.Where(t => t.Type == TransactionType.StoreDebt).Sum(t => t.Amount);
+            
+            groupedTransactions.Add(new TransactionGroup
+            {
+                Key = currencyType,
+                Transactions = transactionsForCurrency.OrderBy(x=>x.Date).ToList(),
+                Balance = balance
+            });
+        }
+        
+        // Order by currency type
+        groupedTransactions = groupedTransactions.OrderBy(g => g.Key.ToString()).ToList();
     }
 
-    private void ToggleHiddenTransactions()
+    private async Task ToggleHiddenTransactions()
     {
         // Only toggle if there are hidden transactions
         if (hasHiddenTransactions)
         {
             showHiddenTransactions = !showHiddenTransactions;
-            GroupTransactions();
+            await GroupTransactions();
             StateHasChanged();
+        }
+    }
+    
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            // JavaScript fonksiyonlarını tanımla
+            await JSRuntime.InvokeVoidAsync("eval", @"
+                // Input seçmek için kullanılan fonksiyon
+                window.selectInputText = function(id) {
+                    var element = document.getElementById(id);
+                    if (element) {
+                        window.setTimeout(function() {
+                            element.focus();
+                            element.select();
+                        }, 50);
+                    }
+                };
+                
+                // Scroll pozisyonunu kaydetmek için değişkenler
+                window.scrollData = {
+                    scrollTop: 0,
+                    elementY: 0
+                };
+                
+                // Scroll pozisyonunu kaydet
+                window.saveScrollPosition = function(elementId) {
+                    window.scrollData.scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+                    var element = document.getElementById(elementId);
+                    if (element) {
+                        window.scrollData.elementY = element.getBoundingClientRect().top;
+                    }
+                };
+                
+                // Scroll pozisyonunu geri yükle
+                window.restoreScrollPosition = function(elementId) {
+                    setTimeout(function() {
+                        var element = document.getElementById(elementId);
+                        if (element) {
+                            var newY = element.getBoundingClientRect().top;
+                            var offset = newY - window.scrollData.elementY;
+                            window.scrollTo({
+                                top: window.scrollData.scrollTop + offset,
+                                behavior: 'auto'
+                            });
+                        }
+                    }, 50);
+                };
+            ");
+        }
+        await base.OnAfterRenderAsync(firstRender);
+    }
+    
+    private async Task LoadMoreTransactions(CurrencyType currencyType, string buttonId)
+    {
+        try
+        {
+            // Save the current scroll position and button position
+            await JSRuntime.InvokeVoidAsync("saveScrollPosition", buttonId);
+            
+            // Increase the count of loaded transactions for this currency type
+            loadedTransactionsCount[currencyType] += PAGE_SIZE;
+            
+            // Reload the grouped transactions with the new counts
+            await GroupTransactions();
+            StateHasChanged();
+            
+            // Restore the scroll position to focus on the button
+            await JSRuntime.InvokeVoidAsync("restoreScrollPosition", buttonId);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"LoadMoreTransactions error: {ex.Message}");
         }
     }
 

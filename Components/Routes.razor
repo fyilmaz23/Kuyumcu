@@ -2,16 +2,40 @@
 
 <Router AppAssembly="@typeof(MauiProgram).Assembly">
     <Found Context="routeData">
+        @if (DeviceInfo.Platform == DevicePlatform.Android)
+        {
+            if (routeData.PageType != typeof(Pages.ImportData))
+            {
+                NavigationManager.NavigateTo("import-data");
+                return;
+            }
+        }
+
         <RouteView RouteData="@routeData" DefaultLayout="@typeof(Layout.MainLayout)" />
         <FocusOnNavigate RouteData="@routeData" Selector="h1" />
     </Found>
     <NotFound>
         <LayoutView Layout="@typeof(Layout.MainLayout)">
+            @if (DeviceInfo.Platform == DevicePlatform.Android)
+            {
+                NavigationManager.NavigateTo("import-data");
+                return;
+            }
+
+            else
+            {
+                
             <div class="container text-center mt-5">
-                <h1 class="text-danger">404 - Sayfa Bulunamadı</h1>
-                <p class="lead">Aradığınız sayfa bulunamadı.</p>
-                <a href="/" class="btn btn-primary">Ana Sayfaya Dön</a>
-            </div>
-        </LayoutView>
-    </NotFound>
-</Router>
+                    <h1 class="text-danger">404 - Sayfa Bulunamadı</h1>
+                    <p class="lead">Aradığınız sayfa bulunamadı.</p>
+                    <a href="/" class="btn btn-primary">Ana Sayfaya Dön</a>
+                </div>
+            }
+            </LayoutView>
+        </NotFound>
+    </Router>
+
+    @code {
+    [Inject]
+    private NavigationManager NavigationManager { get; set; }
+}

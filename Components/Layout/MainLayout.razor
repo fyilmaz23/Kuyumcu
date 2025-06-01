@@ -1,14 +1,28 @@
 @inherits LayoutComponentBase
+@inject GoogleDriveService GoogleDriveService
+@inject IDialogService DialogService
 
 <MudLayout>
     <MudAppBar Elevation="1" Color="Color.Primary">
         <MudText Typo="Typo.h6" Class="ml-3">Kuyumcu Mehmet</MudText>
         <MudSpacer />
-        <MudIconButton Icon="@Icons.Material.Filled.Home" Color="Color.Inherit" Href="/" />
-        <MudIconButton Icon="@Icons.Material.Filled.People" Color="Color.Inherit" Href="/customers" />
-        <MudIconButton Icon="@Icons.Material.Filled.Receipt" Color="Color.Inherit" Href="/transactions" />
+        @if (DeviceInfo.Platform != DevicePlatform.Android)
+        {
+            <MudIconButton Icon="@Icons.Material.Filled.Home" Color="Color.Inherit" Href="/" />
+            <MudIconButton Icon="@Icons.Material.Filled.People" Color="Color.Inherit" Href="/customers" />
+            <MudIconButton Icon="@Icons.Material.Filled.Receipt" Color="Color.Inherit" Href="/transactions" />
+            <MudButton Variant="Variant.Filled" Color="Color.Secondary" StartIcon="@Icons.Material.Filled.Backup"
+            OnClick="@(() => BackupToGoogleDrive())" Disabled="@isBackupInProgress">
+                @(isBackupInProgress ? "Yedekleniyor..." : "Yedek Al")
+            </MudButton>
+        }
+        else
+        {
+            <MudIconButton Icon="@Icons.Material.Filled.DataObject" Color="Color.Inherit" Href="/import-data" />
+        }
+
     </MudAppBar>
-    
+
     <MudMainContent Class="pt-16 px-4">
         @Body
     </MudMainContent>
@@ -18,8 +32,13 @@
 <MudDialogProvider />
 <MudSnackbarProvider />
 <MudPopoverProvider />
+<MudScrollToTop>
+    <MudFab Color="Color.Tertiary" StartIcon="@Icons.Material.Filled.ArrowCircleUp" />
+</MudScrollToTop>
 
 @code {
+    private bool isBackupInProgress = false;
+    private string backupResult = string.Empty;
     private MudTheme myCustomTheme = new MudTheme()
     {
         PaletteLight = new PaletteLight()
@@ -44,4 +63,39 @@
             }
         }
     };
+
+    private async Task BackupToGoogleDrive()
+    {
+        var confirmResult = await DialogService.ShowMessageBox(
+          "Emin misiniz?",
+          $"Yedekleme Alýnacak",
+          yesText: "Evet",
+          noText: "Hayýr");
+
+        if (confirmResult == false) return;
+        try
+        {
+            isBackupInProgress = true;
+            StateHasChanged();
+
+            backupResult = await GoogleDriveService.BackupDatabaseAsync();
+
+            await DialogService.ShowMessageBox(
+                "Yedekleme",
+                backupResult,
+                yesText: "Tamam");
+        }
+        catch (Exception ex)
+        {
+            await DialogService.ShowMessageBox(
+                "Hata",
+                $"Yedekleme sýrasýnda bir hata oluþtu: {ex.Message}",
+                yesText: "Tamam");
+        }
+        finally
+        {
+            isBackupInProgress = false;
+            StateHasChanged();
+        }
+    }
 }
