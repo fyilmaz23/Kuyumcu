@@ -15,13 +15,13 @@
         <MudGrid>
             <MudItem xs="12" sm="4">
                 <MudSelect T="TransactionType?" Label="İşlem Türü" Value="filterType" Variant="Variant.Outlined"
-                ValueChanged="@(async (value) => await OnFilterTypeChanged(value))">
+                           ValueChanged="@(async (value) => await OnFilterTypeChanged(value))">
                     <MudSelectItem T="TransactionType?" Value="@((TransactionType?)null)">Tümü</MudSelectItem>
                     <MudSelectItem T="TransactionType?" Value="@(TransactionType.CustomerDebt)">Giden</MudSelectItem>
                     <MudSelectItem T="TransactionType?" Value="@(TransactionType.StoreDebt)">Gelen</MudSelectItem>
                 </MudSelect>
             </MudItem>
-        @*     <MudItem xs="12" sm="8" Class="d-flex justify-end">
+            @*     <MudItem xs="12" sm="8" Class="d-flex justify-end">
                 <MudStack Row="true" Spacing="2">
                     <MudTextField T="string" Value="@searchTerm" ValueChanged="@(s => OnSearch(s))"
                     Placeholder="İşlem ara..." Adornment="Adornment.Start"
@@ -55,8 +55,8 @@
                 else
                 {
                     <MudTable T="Transaction" ServerData="@ServerReload"
-                    Dense="true" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@isLoading" 
-                    LoadingProgressColor="Color.Primary" @ref="table">
+                              Dense="true" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@isLoading"
+                              LoadingProgressColor="Color.Primary" @ref="table">
                         <ToolBarContent>
                             <MudText Typo="Typo.h6">İşlemler Listesi</MudText>
                             <MudSpacer />
@@ -89,7 +89,7 @@
                                 }
                                 else
                                 {
-                                    <MudChip T="string" Color="Color.Success" Size="Size.Small" >Gelen</MudChip>
+                                    <MudChip T="string" Color="Color.Success" Size="Size.Small">Gelen</MudChip>
                                 }
                             </MudTd>
                             <MudTd DataLabel="Tutar">@Helper.HelperMethods.FormatPrice(context.Amount)</MudTd>
@@ -97,7 +97,7 @@
                             <MudTd DataLabel="Açıklama">@(context.Description ?? "-")</MudTd>
                             <MudTd DataLabel="İşlemler">
                                 <MudIconButton Icon="@Icons.Material.Filled.Visibility" Color="Color.Info" Size="Size.Small"
-                                OnClick="@(() => ViewTransactionDetails(context))" />
+                                               OnClick="@(() => ViewTransactionDetails(context))" />
                             </MudTd>
                         </RowTemplate>
                         <PagerContent>
@@ -110,8 +110,8 @@
 
                         @foreach (var currencyType in Enum.GetValues<CurrencyType>())
                         {
-                            @if (currencySummaries.ContainsKey(currencyType) && 
-                                (currencySummaries[currencyType].TotalCustomerDebt > 0 || currencySummaries[currencyType].TotalStoreDebt > 0))
+                            @if (currencySummaries.ContainsKey(currencyType) &&
+                           (currencySummaries[currencyType].TotalCustomerDebt > 0 || currencySummaries[currencyType].TotalStoreDebt > 0))
                             {
                                 <MudText Typo="Typo.subtitle1" Class="mt-3 mb-2">
                                     <strong>@currencyType.GetDisplayName() (@currencyType.GetSymbol())</strong>
@@ -198,12 +198,41 @@
                             <MudTd DataLabel="Para Birimi">@context.CurrencyType.GetDisplayName() (@context.CurrencyType.GetSymbol())</MudTd>
                             <MudTd DataLabel="İşlemler">
                                 <MudIconButton Icon="@Icons.Material.Filled.Visibility" Color="Color.Info" Size="Size.Small"
-                                OnClick="@(() => ViewCustomerDetails(context.CustomerId))" />
+                                               OnClick="@(() => ViewCustomerDetails(context.CustomerId))" />
                             </MudTd>
                         </RowTemplate>
                     </MudTable>
                 }
             </MudTabPanel>
+            <MudTabPanel Text="Borçlu Müşteriler">
+                @if (isLoading)
+                {
+                    <MudProgressCircular Color="Color.Primary" Indeterminate="true" Class="my-7" Size="Size.Large" />
+                }
+                else if (customersWithPositiveBalance == null || customersWithPositiveBalance.Count == 0)
+                {
+                    <MudAlert Severity="Severity.Info" Class="ma-4">Tüm kalemlerde borcu olan müşteri bulunmamaktadır.</MudAlert>
+                }
+                else
+                {
+                    <MudTable Items="@customersWithPositiveBalance" Hover="true" Breakpoint="Breakpoint.Sm">
+                        <HeaderContent>
+                            <MudTh>Müşteri</MudTh>
+                            <MudTh>İşlemler</MudTh>
+                        </HeaderContent>
+                        <RowTemplate>
+                            <MudTd DataLabel="Müşteri">
+                                <MudLink Href="@($"/customer/{context.CustomerId}")">@context.CustomerName</MudLink>
+                            </MudTd>
+                            <MudTd DataLabel="İşlemler">
+                                <MudIconButton Icon="@Icons.Material.Filled.Visibility" Color="Color.Info" Size="Size.Small"
+                                               OnClick="@(() => ViewCustomerDetails(context.CustomerId))" />
+                            </MudTd>
+                        </RowTemplate>
+                    </MudTable>
+                }
+            </MudTabPanel>
+            <!-- Add this section -->
         </MudTabs>
     }
     </MudContainer>
@@ -213,12 +242,13 @@
     private List<Transaction> transactions;
     private Dictionary<int, string> customerNames = new Dictionary<int, string>();
     private bool isLoading = true;
-    private TransactionType? filterType = null; 
+    private TransactionType? filterType = null;
     private string searchTerm = string.Empty;
 
     private Dictionary<CurrencyType, CurrencySummary> currencySummaries = new Dictionary<CurrencyType, CurrencySummary>();
 
     private List<CustomerDebtInfo> customersWithLongDebt = new List<CustomerDebtInfo>();
+    private List<CustomerDebtInfo> customersWithPositiveBalance = new List<CustomerDebtInfo>();
 
     private MudTable<Transaction> table;
 
@@ -233,15 +263,15 @@
             var sortDirection = Helper.HelperMethods.GetSortDirection(state?.SortDirection);
 
             var transactions = await DatabaseService.GetTransactionsPaginationAsync(
-                state.Page, 
-                state.PageSize, 
-                state?.SortLabel, 
+                state.Page,
+                state.PageSize,
+                state?.SortLabel,
                 sortDirection,
                 searchTerm,
                 filterType);
-                
-           
-                
+
+
+
             int totalItems = await DatabaseService.GetTransactionCountAsync(searchTerm, filterType);
 
             // Update customer names for displayed transactions if needed
@@ -258,102 +288,132 @@
             }
 
             // Only load all transactions for summary if needed
-            if (transactions.Count > 0 && (currencySummaries.Count == 0 || customersWithLongDebt.Count == 0))
+            if (transactions.Count > 0 && (currencySummaries.Count == 0 || customersWithLongDebt.Count == 0 || customersWithPositiveBalance.Count == 0))
             {
                 // Load all transactions for summaries
                 this.transactions = await DatabaseService.GetTransactionsAsync();
-                
+
                 // Filter out "Emanet" transactions (IsDeposit=true)
                 this.transactions = this.transactions.Where(t => !t.IsDeposit).ToList();
-                
+
                 // Update currency summaries
                 CalculateTotals();
                 await CalculateCustomersWithLongDebt();
+                await CalculateCustomersWithPositiveBalance();
             }
-            
-            
+
+
             return new TableData<Transaction>
-            {
-                Items = transactions,
-                TotalItems = totalItems
-            };
+                {
+                    Items = transactions,
+                    TotalItems = totalItems
+                };
         }
         catch (Exception ex)
         {
             Console.WriteLine(ex);
             return new TableData<Transaction>
-            {
-                Items = new List<Transaction>(),
-                TotalItems = 0
-            };
+                {
+                    Items = new List<Transaction>(),
+                    TotalItems = 0
+                };
         }
     }
 
     protected override async Task OnInitializedAsync()
     {
         isLoading = true;
-        
+
         // Load all customers for names lookup
         var customers = await DatabaseService.GetCustomersAsync();
         foreach (var customer in customers)
         {
             customerNames[customer.Id] = customer.Name;
         }
-        
+
         // Initial load will be handled by ServerReload when the table is initialized
         // Just load all transactions for summary calculations
         transactions = await DatabaseService.GetTransactionsAsync();
-        
+
         // Filter out "Emanet" transactions (IsDeposit=true)
         transactions = transactions.Where(t => !t.IsDeposit).ToList();
-        
+
         CalculateTotals();
         await CalculateCustomersWithLongDebt();
-        
+        await CalculateCustomersWithPositiveBalance();
+
         isLoading = false;
     }
-    
+
+    private async Task CalculateCustomersWithPositiveBalance()
+    {
+        var customers = await DatabaseService.GetCustomersAsync();
+        customersWithPositiveBalance.Clear();
+
+        foreach (var customer in customers)
+        {
+            // Only consider non-Emanet transactions but include all currency types
+            var customerTransactions = transactions.Where(t => t.CustomerId == customer.Id &&
+                                                   !t.IsDeposit).ToList();
+            // Group transactions by currency type
+            var transactionsByCurrency = customerTransactions.GroupBy(t => t.CurrencyType);
+            if (transactionsByCurrency.All(x => (x.Where(t => t.Type == TransactionType.CustomerDebt).Sum(y => y.Amount) - x.Where(t => t.Type == TransactionType.StoreDebt).Sum(y => y.Amount)) > 0))
+            {
+
+                customersWithPositiveBalance.Add(new CustomerDebtInfo
+                    {
+                        CustomerId = customer.Id,
+                        CustomerName = customer.Name,
+                    });
+            }
+        }
+
+        customersWithPositiveBalance = customersWithPositiveBalance
+            .OrderByDescending(c => c.Balance) // Order by highest positive balance first
+            .ToList();
+    }
+
     private async Task CalculateCustomersWithLongDebt()
     {
         var customers = await DatabaseService.GetCustomersAsync();
         customersWithLongDebt.Clear();
-        
+
         foreach (var customer in customers)
         {
             // Only consider non-Emanet transactions but include all currency types
-            var customerTransactions = transactions.Where(t => t.CustomerId == customer.Id && 
+            var customerTransactions = transactions.Where(t => t.CustomerId == customer.Id &&
                                                    !t.IsDeposit).ToList();
-            
+
             // Group transactions by currency type
             var transactionsByCurrency = customerTransactions.GroupBy(t => t.CurrencyType);
-            
+
             foreach (var currencyGroup in transactionsByCurrency)
             {
                 var currencyType = currencyGroup.Key;
                 var currencyTransactions = currencyGroup.ToList();
-                
+
                 if (currencyTransactions.Count > 0)
                 {
                     // Calculate total "Giden" (outgoing) amounts
                     decimal totalGiden = currencyTransactions
                         .Where(t => t.Type == TransactionType.CustomerDebt)
                         .Sum(t => t.Amount);
-                    
-                    // Calculate total "Gelen" (incoming) amounts 
+
+                    // Calculate total "Gelen" (incoming) amounts
                     decimal totalGelen = currencyTransactions
                         .Where(t => t.Type == TransactionType.StoreDebt)
                         .Sum(t => t.Amount);
-                    
+
                     // Net balance (positive means customer owes money)
                     decimal netBalance = totalGiden - totalGelen;
-                    
+
                     // Only proceed if customer has more "Giden" than "Gelen"
                     if (netBalance > 0)
                     {
                         // Find the earliest debt transaction date where the running balance became positive
                         DateTime earliestDebtDate = DateTime.MaxValue;
                         decimal runningBalance = 0;
-                        
+
                         foreach (var transaction in currencyTransactions.OrderBy(t => t.Date))
                         {
                             if (transaction.Type == TransactionType.CustomerDebt)
@@ -364,7 +424,7 @@
                             {
                                 runningBalance -= transaction.Amount;
                             }
-                            
+
                             if (runningBalance > 0 && earliestDebtDate == DateTime.MaxValue)
                             {
                                 earliestDebtDate = transaction.Date;
@@ -374,30 +434,30 @@
                                 earliestDebtDate = DateTime.MaxValue;
                             }
                         }
-                        
+
                         // Only add to long-term debt list if debt is older than 30 days
-                        if (earliestDebtDate != DateTime.MaxValue && 
+                        if (earliestDebtDate != DateTime.MaxValue &&
                             (DateTime.Now - earliestDebtDate).TotalDays >= 30)
                         {
                             customersWithLongDebt.Add(new CustomerDebtInfo
-                            {
-                                CustomerId = customer.Id,
-                                CustomerName = customer.Name,
-                                Balance = netBalance,
-                                EarliestDebtDate = earliestDebtDate,
-                                CurrencyType = currencyType
-                            });
+                                {
+                                    CustomerId = customer.Id,
+                                    CustomerName = customer.Name,
+                                    Balance = netBalance,
+                                    EarliestDebtDate = earliestDebtDate,
+                                    CurrencyType = currencyType
+                                });
                         }
                     }
                 }
             }
         }
-        
+
         customersWithLongDebt = customersWithLongDebt
             .OrderBy(c => c.EarliestDebtDate)
             .ToList();
     }
-    
+
     private void CalculateTotals()
     {
         currencySummaries.Clear();
@@ -405,7 +465,7 @@
         {
             currencySummaries[currencyType] = new CurrencySummary();
         }
-        
+
         if (transactions != null)
         {
             foreach (var transaction in transactions)
@@ -425,16 +485,16 @@
     {
         NavigationManager.NavigateTo($"/customer/{transaction.CustomerId}");
     }
-    
+
     private void ViewCustomerDetails(int customerId)
     {
         NavigationManager.NavigateTo($"/customer/{customerId}");
     }
-    
+
     private string GetDebtDurationText(DateTime debtDate)
     {
         TimeSpan duration = DateTime.Now - debtDate;
-        
+
         if (duration.TotalDays >= 365)
         {
             int years = (int)(duration.TotalDays / 365);
@@ -450,19 +510,19 @@
             return $"{(int)duration.TotalDays} gün";
         }
     }
-    
+
     private async Task OnSearch(string text)
     {
         searchTerm = text;
         await table.ReloadServerData();
     }
-    
+
     private async Task OnFilterTypeChanged(TransactionType? filterType)
     {
         this.filterType = filterType;
         await table.ReloadServerData();
     }
-    
+
     private class CustomerDebtInfo
     {
         public int CustomerId { get; set; }
@@ -471,7 +531,7 @@
         public DateTime EarliestDebtDate { get; set; }
         public CurrencyType CurrencyType { get; set; } = CurrencyType.TurkishLira;
     }
-    
+
     private class CurrencySummary
     {
         public decimal TotalCustomerDebt { get; set; } = 0;

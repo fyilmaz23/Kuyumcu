@@ -29,7 +29,7 @@ namespace Kuyumcu.Services
 
             _initialized = true;
         }
-        
+
         /// <summary>
         /// Veritabanı şemasını günceller. Bu metot sadece şema değişikliklerinde kullanılmalıdır.
         /// </summary>
@@ -39,15 +39,15 @@ namespace Kuyumcu.Services
             {
                 // Veritabanını yeniden oluşturmadan önce bağlantıyı kapatıp açalım
                 _initialized = false;
-                
+
                 var databasePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Kuyumcu.db3");
                 _database = new SQLiteAsyncConnection(databasePath);
-                
+
                 // Tabloları oluştur veya güncelle
                 await _database.CreateTableAsync<Customer>();
                 await _database.CreateTableAsync<Transaction>();
                 await _database.CreateTableAsync<QuickEntry>();
-                
+
                 _initialized = true;
                 return true;
             }
@@ -66,17 +66,17 @@ namespace Kuyumcu.Services
             try
             {
                 await InitializeAsync();
-                
+
                 // Mevcut Customer verilerini al
                 var existingCustomers = await _database.Table<Customer>().ToListAsync();
-                
+
                 // SQLite'da doğrudan kolonu değiştirme imkanı yok, yeni tablo oluşturup veri aktarmamız gerekiyor
                 await _database.ExecuteAsync("CREATE TABLE CustomerNew (" +
                     "Id INTEGER PRIMARY KEY AUTOINCREMENT," +
                     "Name TEXT COLLATE NOCASE NOT NULL," +
                     "PhoneNumber TEXT," +
                     "IsDeleted INTEGER NOT NULL DEFAULT 0)");
-                
+
                 // Eski tablodan yeni tabloya verileri kopyala
                 foreach (var customer in existingCustomers)
                 {
@@ -84,19 +84,19 @@ namespace Kuyumcu.Services
                         "INSERT INTO CustomerNew (Id, Name, PhoneNumber, IsDeleted) VALUES (?, ?, ?, ?)",
                         customer.Id, customer.Name, customer.PhoneNumber, customer.IsDeleted ? 1 : 0);
                 }
-                
+
                 // Transaction tablolarında Foreign Key kullanılmadığı için bu işlemleri yapabiliriz
-                
+
                 // Eski tabloyu sil
                 await _database.ExecuteAsync("DROP TABLE Customer");
-                
+
                 // Yeni tabloyu rename et
                 await _database.ExecuteAsync("ALTER TABLE CustomerNew RENAME TO Customer");
-                
+
                 // Yeniden initialize edelim
                 _initialized = false;
                 await InitializeAsync();
-                
+
                 return true;
             }
             catch (Exception ex)
@@ -115,19 +115,19 @@ namespace Kuyumcu.Services
             try
             {
                 await InitializeAsync();
-                
+
                 // Veritabanı bağlantısını kapatmak için tüm işlemleri tamamlayalım
                 _database.GetConnection().Close();
                 _initialized = false;
-                
+
                 // Veritabanı dosya yolunu alalım
                 var databasePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Kuyumcu.db3");
-                
+
                 try
                 {
                     // Dosyayı açmadan önce kısa bir bekleme süresi ekleyelim
                     await Task.Delay(500);
-                    
+
                     // Dosya kullanımda olabilir, bu yüzden mümkün olduğunca kısa süre için açıp okuyalım
                     byte[] fileBytes;
                     using (FileStream fs = new FileStream(databasePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
@@ -135,7 +135,7 @@ namespace Kuyumcu.Services
                         fileBytes = new byte[fs.Length];
                         await fs.ReadAsync(fileBytes, 0, fileBytes.Length);
                     }
-                    
+
                     // Şimdi okunan verileri hedef dosyaya yazalım
                     using (FileStream fs = new FileStream(targetPath, FileMode.Create))
                     {
@@ -147,16 +147,16 @@ namespace Kuyumcu.Services
                     Console.WriteLine($"Dosya kopyalama hatası: {ex.Message}");
                     return false;
                 }
-                
+
                 // Veritabanını yeniden bağlayalım
                 await InitializeAsync();
-                
+
                 return true;
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"Veritabanı yedek kopyası oluşturulurken hata oluştu: {ex.Message}");
-                
+
                 // Herhangi bir hata durumunda veritabanını yeniden bağlamaya çalışalım
                 try
                 {
@@ -167,7 +167,7 @@ namespace Kuyumcu.Services
                 {
                     // Yeniden bağlanma işlemi hata verirse sessizce devam edelim
                 }
-                
+
                 return false;
             }
         }
@@ -190,41 +190,41 @@ namespace Kuyumcu.Services
         public async Task<List<Customer>> GetCustomersPaginationAsync(int page, int pageSize, string sortField, SortDirection? sortDirection, string searchTerm)
         {
             await InitializeAsync();
-            
+
             // Default sorting is by Name
             var query = _database.Table<Customer>().Where(c => !c.IsDeleted);
-            
+
             // Apply search filter if provided
             if (!string.IsNullOrWhiteSpace(searchTerm))
             {
                 // Get all customers first to perform proper Turkish-aware search
                 var allCustomers = await query.ToListAsync();
-                
+
                 // Create Turkish culture-aware comparison for search
                 var turkishCulture = new CultureInfo("tr-TR");
                 var searchTermTurkish = searchTerm.ToLower(turkishCulture);
-                
+
                 // Filter with culture-aware comparison
-                var filteredCustomers = allCustomers.Where(c => 
-                    c.Name.ToLower(turkishCulture).Contains(searchTermTurkish) || 
+                var filteredCustomers = allCustomers.Where(c =>
+                    c.Name.ToLower(turkishCulture).Contains(searchTermTurkish) ||
                     (c.PhoneNumber != null && c.PhoneNumber.ToLower(turkishCulture).Contains(searchTermTurkish)))
                     .ToList();
-                
+
                 // Apply sorting to the filtered results
                 var sortedAndFilteredCustomers = ApplySorting(filteredCustomers, sortField, sortDirection);
-                
+
                 // Apply pagination to the in-memory collection
                 return sortedAndFilteredCustomers
                     .Skip(page * pageSize)
                     .Take(pageSize)
                     .ToList();
             }
-            
+
             // If no search term, we can let SQLite handle sorting and pagination
             // Get all customers to sort them properly with Turkish culture
             var customers = await query.ToListAsync();
             var sortedCustomers = ApplySorting(customers, sortField, sortDirection);
-            
+
             // Apply pagination to the in-memory collection
             return sortedCustomers
                 .Skip(page * pageSize)
@@ -240,25 +240,25 @@ namespace Kuyumcu.Services
         public async Task<int> GetCustomerCountAsync(string searchTerm)
         {
             await InitializeAsync();
-            
+
             var query = _database.Table<Customer>().Where(c => !c.IsDeleted);
-            
+
             // Apply search filter if provided
             if (!string.IsNullOrWhiteSpace(searchTerm))
             {
                 // Get all customers to perform proper Turkish culture search
                 var allCustomers = await query.ToListAsync();
-                
+
                 // Create Turkish culture-aware comparison for search
                 var turkishCulture = new CultureInfo("tr-TR");
                 var searchTermTurkish = searchTerm.ToLower(turkishCulture);
-                
+
                 // Count with culture-aware comparison
-                return allCustomers.Count(c => 
-                    c.Name.ToLower(turkishCulture).Contains(searchTermTurkish) || 
+                return allCustomers.Count(c =>
+                    c.Name.ToLower(turkishCulture).Contains(searchTermTurkish) ||
                     (c.PhoneNumber != null && c.PhoneNumber.ToLower(turkishCulture).Contains(searchTermTurkish)));
             }
-            
+
             return await query.CountAsync();
         }
 
@@ -269,7 +269,7 @@ namespace Kuyumcu.Services
                 .Where(c => c.Id == id && !c.IsDeleted)
                 .FirstOrDefaultAsync();
         }
-        
+
         /// <summary>
         /// İsme göre müşteri arar (büyük/küçük harf duyarsız)
         /// </summary>
@@ -279,16 +279,16 @@ namespace Kuyumcu.Services
         {
             if (string.IsNullOrWhiteSpace(name))
                 return null;
-                
+
             await InitializeAsync();
-            
+
             // Create Turkish culture-aware comparison for search
             var turkishCulture = new CultureInfo("tr-TR");
             string nameLower = name.ToLower(turkishCulture);
-            
+
             // Get all customers and filter in memory for proper Turkish culture-aware comparison
             var customers = await _database.Table<Customer>().Where(c => !c.IsDeleted).ToListAsync();
-            return customers.FirstOrDefault(c => 
+            return customers.FirstOrDefault(c =>
                 string.Compare(c.Name.ToLower(turkishCulture), nameLower, StringComparison.CurrentCultureIgnoreCase) == 0);
         }
 
@@ -304,22 +304,22 @@ namespace Kuyumcu.Services
         public async Task<int> DeleteCustomerAsync(Customer customer)
         {
             await InitializeAsync();
-            
+
             // Soft delete customer
             customer.IsDeleted = true;
             await _database.UpdateAsync(customer);
-            
+
             // Soft delete all related transactions
             var customerTransactions = await _database.Table<Transaction>()
                 .Where(t => t.CustomerId == customer.Id && !t.IsDeleted)
                 .ToListAsync();
-                
+
             foreach (var transaction in customerTransactions)
             {
                 transaction.IsDeleted = true;
                 await _database.UpdateAsync(transaction);
             }
-            
+
             return 1; // Return success
         }
 
@@ -329,7 +329,7 @@ namespace Kuyumcu.Services
             await InitializeAsync();
             return await _database.Table<Transaction>().Where(c => !c.IsDeleted).ToListAsync();
         }
-        
+
         /// <summary>
         /// En çok işlem yapılan para birimini bulur
         /// </summary>
@@ -337,10 +337,10 @@ namespace Kuyumcu.Services
         public async Task<(CurrencyType CurrencyType, int TransactionCount)> GetMostActiveCurrencyTypeAsync()
         {
             await InitializeAsync();
-            
+
             // Tüm işlemleri al
             var transactions = await GetTransactionsAsync();
-            
+
             // Para birimine göre grupla ve en fazla işlem yapılanı bul
             var mostActiveCurrency = transactions
                 .Where(t => !t.IsDeleted && !t.IsDeposit)
@@ -348,13 +348,13 @@ namespace Kuyumcu.Services
                 .Select(g => new { CurrencyType = g.Key, Count = g.Count() })
                 .OrderByDescending(x => x.Count)
                 .FirstOrDefault();
-            
+
             if (mostActiveCurrency == null)
             {
                 // Eğer hiç işlem yoksa varsayılan olarak TL döndür
                 return (CurrencyType.TurkishLira, 0);
             }
-            
+
             return (mostActiveCurrency.CurrencyType, mostActiveCurrency.Count);
         }
 
@@ -365,34 +365,34 @@ namespace Kuyumcu.Services
         public async Task<int> GetIndebtedCustomersCountAsync()
         {
             await InitializeAsync();
-            
+
             // Tüm müşterileri al
             var customers = await GetCustomersAsync();
             // Tüm işlemleri al
             var transactions = await GetTransactionsAsync();
-            
+
             int indebtedCount = 0;
-            
+
             foreach (var customer in customers)
             {
                 // Bu müşterinin işlemlerini al
                 var customerTransactions = transactions
                     .Where(t => !t.IsDeleted && !t.IsDeposit && t.CustomerId == customer.Id)
                     .ToList();
-                
+
                 if (!customerTransactions.Any())
                     continue;
-                
+
                 // Her para birimi için ayrı kontrol et
                 var currencyGroups = customerTransactions
                     .GroupBy(t => t.CurrencyType)
                     .ToList();
-                
+
                 foreach (var group in currencyGroups)
                 {
                     var outgoing = group.Where(t => t.Type == TransactionType.CustomerDebt).Sum(t => t.Amount);
                     var incoming = group.Where(t => t.Type == TransactionType.StoreDebt).Sum(t => t.Amount);
-                    
+
                     // Eğer bu para biriminde borçluysa (giden > gelen) sayıyı artır ve sonraki müşteriye geç
                     if (outgoing > incoming)
                     {
@@ -401,7 +401,7 @@ namespace Kuyumcu.Services
                     }
                 }
             }
-            
+
             return indebtedCount;
         }
 
@@ -413,28 +413,28 @@ namespace Kuyumcu.Services
         public async Task<List<Transaction>> GetTransactionsPaginationAsync(int page, int pageSize, string sortField, SortDirection? sortDirection, string searchTerm, TransactionType? filterType = null)
         {
             await InitializeAsync();
-            
+
             // Base query for transactions
             var query = _database.Table<Transaction>().Where(c => !c.IsDeleted && !c.IsDeposit); ;
-            
+
             // Apply filter by type if requested
             if (filterType.HasValue)
             {
                 query = query.Where(t => t.Type == filterType.Value);
             }
-            
+
             // Apply search filter if provided
             if (!string.IsNullOrWhiteSpace(searchTerm))
             {
                 searchTerm = searchTerm.ToLower();
                 // Search by description
-                query = query.Where(t => 
+                query = query.Where(t =>
                     (t.Description != null && t.Description.ToLower().Contains(searchTerm)));
-                
+
                 // Note: Ideally we'd search by customer name too, but that requires a join
                 // which might be complicated with SQLite.NET PCL. We'll handle that in the UI.
             }
-            
+
             // Apply sorting
             if (!string.IsNullOrEmpty(sortField))
             {
@@ -471,7 +471,7 @@ namespace Kuyumcu.Services
                 // Default sorting is by date descending
                 query = query.OrderByDescending(t => t.Date);
             }
-            
+
             // Apply pagination - SQLite.Net PCL pagination
             return await query
                 .Skip(page * pageSize)
@@ -483,21 +483,21 @@ namespace Kuyumcu.Services
         {
             await InitializeAsync();
             var query = _database.Table<Transaction>().Where(c => !c.IsDeleted && !c.IsDeposit);
-            
+
             // Apply filter by type if requested
             if (filterType.HasValue)
             {
                 query = query.Where(t => t.Type == filterType.Value);
             }
-            
+
             // Apply search filter if provided
             if (!string.IsNullOrWhiteSpace(searchTerm))
             {
                 searchTerm = searchTerm.ToLower();
-                query = query.Where(t => 
+                query = query.Where(t =>
                     (t.Description != null && t.Description.ToLower().Contains(searchTerm)));
             }
-            
+
             return await query.CountAsync();
         }
 
@@ -541,7 +541,7 @@ namespace Kuyumcu.Services
         public async Task<int> DeleteTransactionAsync(Transaction transaction)
         {
             await InitializeAsync();
-            
+
             // Soft delete transaction
             transaction.IsDeleted = true;
             return await _database.UpdateAsync(transaction);
@@ -558,6 +558,86 @@ namespace Kuyumcu.Services
         {
             await InitializeAsync();
             return await _database.Table<QuickEntry>().Where(e => e.Id == id).FirstOrDefaultAsync();
+        }
+
+        /// <summary>
+        /// Belirtilen müşteri ID'sine göre bir önceki müşterinin ID'sini döndürür
+        /// </summary>
+        /// <param name="currentId">Mevcut müşteri ID'si</param>
+        /// <returns>Bir önceki müşteri ID'si veya müşteri yoksa null</returns>
+        public async Task<int?> GetPreviousCustomerIdAsync(int currentId)
+        {
+            await InitializeAsync();
+            var currentCustomer = await GetCustomerAsync(currentId);
+            if (currentCustomer == null) return null;
+
+            try
+            {
+                // Tüm silinmemiş müşterileri hafızaya al
+                var allCustomers = await _database.Table<Customer>()
+                    .Where(c => !c.IsDeleted)
+                    .ToListAsync();
+                    
+                // Türkçe kültürü için karşılaştırıcı oluştur
+                var turkishCulture = new CultureInfo("tr-TR");
+                    
+                // Müşterileri isme göre sırala
+                var sortedCustomers = allCustomers
+                    .OrderBy(c => c.Name, StringComparer.Create(turkishCulture, ignoreCase: true))
+                    .ToList();
+                    
+                // Mevcut müşterinin index'ini bul
+                int currentIndex = sortedCustomers.FindIndex(c => c.Id == currentId);
+                if (currentIndex <= 0) return null; // İlk müşteri ya da bulunamadıysa
+                    
+                // Bir önceki müşteriyi döndür
+                return sortedCustomers[currentIndex - 1].Id;
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine($"GetPreviousCustomerIdAsync hata: {e.Message}");
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Belirtilen müşteri ID'sine göre bir sonraki müşterinin ID'sini döndürür
+        /// </summary>
+        /// <param name="currentId">Mevcut müşteri ID'si</param>
+        /// <returns>Bir sonraki müşteri ID'si veya müşteri yoksa null</returns>
+        public async Task<int?> GetNextCustomerIdAsync(int currentId)
+        {
+            await InitializeAsync();
+            var currentCustomer = await GetCustomerAsync(currentId);
+            if (currentCustomer == null) return null;
+
+            try
+            {
+                // Tüm silinmemiş müşterileri hafızaya al
+                var allCustomers = await _database.Table<Customer>()
+                    .Where(c => !c.IsDeleted)
+                    .ToListAsync();
+                    
+                // Türkçe kültürü için karşılaştırıcı oluştur
+                var turkishCulture = new CultureInfo("tr-TR");
+                    
+                // Müşterileri isme göre sırala
+                var sortedCustomers = allCustomers
+                    .OrderBy(c => c.Name, StringComparer.Create(turkishCulture, ignoreCase: true))
+                    .ToList();
+                    
+                // Mevcut müşterinin index'ini bul
+                int currentIndex = sortedCustomers.FindIndex(c => c.Id == currentId);
+                if (currentIndex < 0 || currentIndex >= sortedCustomers.Count - 1) return null; // Son müşteri ya da bulunamadıysa
+                    
+                // Bir sonraki müşteriyi döndür
+                return sortedCustomers[currentIndex + 1].Id;
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine($"GetNextCustomerIdAsync hata: {e.Message}");
+                return null;
+            }
         }
 
         public async Task<List<QuickEntry>> SearchQuickEntriesAsync(string searchTerm)
@@ -589,14 +669,14 @@ namespace Kuyumcu.Services
             await InitializeAsync();
             return await _database.DeleteAsync(entry);
         }
-        
+
         // Helper method to sort customers with Turkish culture support
         private List<Customer> ApplySorting(List<Customer> customers, string sortField, SortDirection? sortDirection)
         {
             // Create Turkish culture comparison for proper alphabetical sorting
             var turkishCulture = new CultureInfo("tr-TR");
             var turkishComparer = StringComparer.Create(turkishCulture, ignoreCase: true);
-            
+
             // Apply culture-aware sorting
             if (!string.IsNullOrEmpty(sortField))
             {
