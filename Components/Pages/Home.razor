@@ -101,6 +101,36 @@
                 </MudChart>
             </MudPaper>
         </MudItem>
+
+        <!-- Toplam Bakiye Tablosu -->
+        <MudItem xs="12">
+            <MudPaper Elevation="2" Class="pa-4">
+                <MudText Typo="Typo.h6" Class="mb-4">Para Birimi Bazlı Toplam Bakiyeler</MudText>
+                @if (currencyBalanceSummary != null)
+                {
+                    <MudTable Items="@currencyBalanceSummaryList" Hover="true" Striped="true" Dense="true">
+                        <HeaderContent>
+                            <MudTh>Para Birimi</MudTh>
+                            <MudTh Style="text-align: right;">Toplam Gelen</MudTh>
+                            <MudTh Style="text-align: right;">Toplam Giden</MudTh>
+                        </HeaderContent>
+                        <RowTemplate>
+                            <MudTd DataLabel="Para Birimi">@context.CurrencyName</MudTd>
+                            <MudTd DataLabel="Toplam Gelen" Style="text-align: right; color: #4caf50; font-weight: bold;">
+                                @context.TotalIncoming.ToString("N2")
+                            </MudTd>
+                            <MudTd DataLabel="Toplam Giden" Style="text-align: right; color: #f44336; font-weight: bold;">
+                                @context.TotalOutgoing.ToString("N2")
+                            </MudTd>
+                        </RowTemplate>
+                    </MudTable>
+                }
+                else
+                {
+                    <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
+                }
+            </MudPaper>
+        </MudItem>
     </MudGrid>
 </MudContainer>
 @code {
@@ -137,6 +167,10 @@ ShowToolTips = true,
     // Müşteri isimleri cache'i
     private Dictionary<int, string> customerNames = new();
 
+    // Currency balance summary
+    private CurrencyBalanceSummaryResult currencyBalanceSummary;
+    private List<CurrencyBalanceRow> currencyBalanceSummaryList = new();
+
     public PatternMask mask2 = new PatternMask("XXX-XXX-XX-XX")
         {
             MaskChars = new[] { new MaskChar('X', @"[0-9]") },
@@ -169,6 +203,7 @@ ShowToolTips = true,
     protected override async Task OnInitializedAsync()
     {
         await LoadDashboardData();
+        await LoadCurrencyBalanceSummary();
     }
     private async Task LoadDashboardData()
     {
@@ -714,5 +749,45 @@ ShowToolTips = true,
                 }
             ");
         }
+    }
+
+    private async Task LoadCurrencyBalanceSummary()
+    {
+        try
+        {
+            var result = await DatabaseService.GetCurrencyBalanceSummaryAsync();
+            currencyBalanceSummary = result;
+            
+            // Convert to list for table display
+            currencyBalanceSummaryList = new List<CurrencyBalanceRow>
+            {
+                new CurrencyBalanceRow { CurrencyName = "TL", TotalIncoming = result.ToplamGelenTL, TotalOutgoing = result.ToplamGidenTL },
+                new CurrencyBalanceRow { CurrencyName = "Dolar", TotalIncoming = result.ToplamGelenDolar, TotalOutgoing = result.ToplamGidenDolar },
+                new CurrencyBalanceRow { CurrencyName = "Euro", TotalIncoming = result.ToplamGelenEuro, TotalOutgoing = result.ToplamGidenEuro },
+                new CurrencyBalanceRow { CurrencyName = "Sterlin", TotalIncoming = result.ToplamGelenSterlin, TotalOutgoing = result.ToplamGidenSterlin },
+                new CurrencyBalanceRow { CurrencyName = "Riyal", TotalIncoming = result.ToplamGelenRiyal, TotalOutgoing = result.ToplamGidenRiyal },
+                new CurrencyBalanceRow { CurrencyName = "14 Ayar", TotalIncoming = result.ToplamGelen14Ayar, TotalOutgoing = result.ToplamGiden14Ayar },
+                new CurrencyBalanceRow { CurrencyName = "22 Ayar", TotalIncoming = result.ToplamGelen22Ayar, TotalOutgoing = result.ToplamGiden22Ayar },
+                new CurrencyBalanceRow { CurrencyName = "24 Ayar", TotalIncoming = result.ToplamGelen24Ayar, TotalOutgoing = result.ToplamGiden24Ayar },
+                new CurrencyBalanceRow { CurrencyName = "Çeyrek Altın", TotalIncoming = result.ToplamGelenCeyrekAltin, TotalOutgoing = result.ToplamGidenCeyrekAltin },
+                new CurrencyBalanceRow { CurrencyName = "Yarım Altın", TotalIncoming = result.ToplamGelenYarimAltin, TotalOutgoing = result.ToplamGidenYarimAltin },
+                new CurrencyBalanceRow { CurrencyName = "Tam Altın", TotalIncoming = result.ToplamGelenTamAltin, TotalOutgoing = result.ToplamGidenTamAltin },
+                new CurrencyBalanceRow { CurrencyName = "Ziynet Altın", TotalIncoming = result.ToplamGelenZiynetAltin, TotalOutgoing = result.ToplamGidenZiynetAltin }
+            };
+            
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Para birimi bakiye özeti yüklenirken hata: {ex.Message}");
+        }
+    }
+
+    // Data model for currency balance summary display
+    public class CurrencyBalanceRow
+    {
+        public string CurrencyName { get; set; }
+        public decimal TotalIncoming { get; set; }
+        public decimal TotalOutgoing { get; set; }
     }
 }

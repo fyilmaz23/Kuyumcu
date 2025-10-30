@@ -699,6 +699,125 @@ namespace Kuyumcu.Services
                 return customers.OrderBy(c => c.Name, turkishComparer).ToList();
             }
         }
+
+        /// <summary>
+        /// Tüm para birimleri için gelen ve giden toplam bakiyeleri hesaplar
+        /// </summary>
+        public async Task<CurrencyBalanceSummaryResult> GetCurrencyBalanceSummaryAsync()
+        {
+            await InitializeAsync();
+
+            var result = new CurrencyBalanceSummaryResult();
+            var customers = await GetCustomersAsync();
+            var allTransactions = await GetTransactionsAsync();
+
+            // Her müşteri için her para birimindeki net durumu hesapla
+            var customerBalances = new List<CustomerBalance>();
+
+            foreach (var customer in customers)
+            {
+                var customerTransactions = allTransactions
+                    .Where(t => !t.IsDeleted && t.CustomerId == customer.Id && (!t.IsDeposit || t.IsDeposit == false))
+                    .ToList();
+
+                var currencyGroups = customerTransactions
+                    .GroupBy(t => t.CurrencyType)
+                    .ToList();
+
+                foreach (var group in currencyGroups)
+                {
+                    var outgoing = group.Where(t => t.Type == TransactionType.CustomerDebt).Sum(t => t.Amount);
+                    var incoming = group.Where(t => t.Type == TransactionType.StoreDebt).Sum(t => t.Amount);
+                    var netBalance = outgoing - incoming;
+
+                    if (netBalance != 0)
+                    {
+                        customerBalances.Add(new CustomerBalance
+                        {
+                            CustomerId = customer.Id,
+                            CustomerName = customer.Name,
+                            CurrencyType = group.Key,
+                            NetBalance = netBalance
+                        });
+                    }
+                }
+            }
+
+            // Toplamları hesapla - NetBalance < 0 ise Gelen (müşterinin borcu var), > 0 ise Giden (mağaza borçlu)
+            result.ToplamGelenTL = customerBalances.Where(cb => cb.CurrencyType == CurrencyType.TurkishLira && cb.NetBalance < 0).Sum(cb => Math.Abs(cb.NetBalance));
+            result.ToplamGidenTL = customerBalances.Where(cb => cb.CurrencyType == CurrencyType.TurkishLira && cb.NetBalance > 0).Sum(cb => cb.NetBalance);
+
+            result.ToplamGelenDolar = customerBalances.Where(cb => cb.CurrencyType == CurrencyType.Dollar && cb.NetBalance < 0).Sum(cb => Math.Abs(cb.NetBalance));
+            result.ToplamGidenDolar = customerBalances.Where(cb => cb.CurrencyType == CurrencyType.Dollar && cb.NetBalance > 0).Sum(cb => cb.NetBalance);
+
+            result.ToplamGelenEuro = customerBalances.Where(cb => cb.CurrencyType == CurrencyType.Euro && cb.NetBalance < 0).Sum(cb => Math.Abs(cb.NetBalance));
+            result.ToplamGidenEuro = customerBalances.Where(cb => cb.CurrencyType == CurrencyType.Euro && cb.NetBalance > 0).Sum(cb => cb.NetBalance);
+
+            result.ToplamGelenSterlin = customerBalances.Where(cb => cb.CurrencyType == CurrencyType.Sterlin && cb.NetBalance < 0).Sum(cb => Math.Abs(cb.NetBalance));
+            result.ToplamGidenSterlin = customerBalances.Where(cb => cb.CurrencyType == CurrencyType.Sterlin && cb.NetBalance > 0).Sum(cb => cb.NetBalance);
+
+            result.ToplamGelenRiyal = customerBalances.Where(cb => cb.CurrencyType == CurrencyType.Riyal && cb.NetBalance < 0).Sum(cb => Math.Abs(cb.NetBalance));
+            result.ToplamGidenRiyal = customerBalances.Where(cb => cb.CurrencyType == CurrencyType.Riyal && cb.NetBalance > 0).Sum(cb => cb.NetBalance);
+
+            result.ToplamGelen14Ayar = customerBalances.Where(cb => cb.CurrencyType == CurrencyType.Gold14K && cb.NetBalance < 0).Sum(cb => Math.Abs(cb.NetBalance));
+            result.ToplamGiden14Ayar = customerBalances.Where(cb => cb.CurrencyType == CurrencyType.Gold14K && cb.NetBalance > 0).Sum(cb => cb.NetBalance);
+
+            result.ToplamGelen22Ayar = customerBalances.Where(cb => cb.CurrencyType == CurrencyType.Gold22K && cb.NetBalance < 0).Sum(cb => Math.Abs(cb.NetBalance));
+            result.ToplamGiden22Ayar = customerBalances.Where(cb => cb.CurrencyType == CurrencyType.Gold22K && cb.NetBalance > 0).Sum(cb => cb.NetBalance);
+
+            result.ToplamGelen24Ayar = customerBalances.Where(cb => cb.CurrencyType == CurrencyType.Gold24K && cb.NetBalance < 0).Sum(cb => Math.Abs(cb.NetBalance));
+            result.ToplamGiden24Ayar = customerBalances.Where(cb => cb.CurrencyType == CurrencyType.Gold24K && cb.NetBalance > 0).Sum(cb => cb.NetBalance);
+
+            result.ToplamGelenCeyrekAltin = customerBalances.Where(cb => cb.CurrencyType == CurrencyType.QuarterGold && cb.NetBalance < 0).Sum(cb => Math.Abs(cb.NetBalance));
+            result.ToplamGidenCeyrekAltin = customerBalances.Where(cb => cb.CurrencyType == CurrencyType.QuarterGold && cb.NetBalance > 0).Sum(cb => cb.NetBalance);
+
+            result.ToplamGelenYarimAltin = customerBalances.Where(cb => cb.CurrencyType == CurrencyType.HalfGold && cb.NetBalance < 0).Sum(cb => Math.Abs(cb.NetBalance));
+            result.ToplamGidenYarimAltin = customerBalances.Where(cb => cb.CurrencyType == CurrencyType.HalfGold && cb.NetBalance > 0).Sum(cb => cb.NetBalance);
+
+            result.ToplamGelenTamAltin = customerBalances.Where(cb => cb.CurrencyType == CurrencyType.FullGold && cb.NetBalance < 0).Sum(cb => Math.Abs(cb.NetBalance));
+            result.ToplamGidenTamAltin = customerBalances.Where(cb => cb.CurrencyType == CurrencyType.FullGold && cb.NetBalance > 0).Sum(cb => cb.NetBalance);
+
+            result.ToplamGelenZiynetAltin = customerBalances.Where(cb => cb.CurrencyType == CurrencyType.Ziynet && cb.NetBalance < 0).Sum(cb => Math.Abs(cb.NetBalance));
+            result.ToplamGidenZiynetAltin = customerBalances.Where(cb => cb.CurrencyType == CurrencyType.Ziynet && cb.NetBalance > 0).Sum(cb => cb.NetBalance);
+
+            return result;
+        }
+
+        private class CustomerBalance
+        {
+            public int CustomerId { get; set; }
+            public string CustomerName { get; set; }
+            public CurrencyType CurrencyType { get; set; }
+            public decimal NetBalance { get; set; }
+        }
+    }
+
+    public class CurrencyBalanceSummaryResult
+    {
+        public decimal ToplamGelenTL { get; set; }
+        public decimal ToplamGidenTL { get; set; }
+        public decimal ToplamGelenDolar { get; set; }
+        public decimal ToplamGidenDolar { get; set; }
+        public decimal ToplamGelenEuro { get; set; }
+        public decimal ToplamGidenEuro { get; set; }
+        public decimal ToplamGelenSterlin { get; set; }
+        public decimal ToplamGidenSterlin { get; set; }
+        public decimal ToplamGelenRiyal { get; set; }
+        public decimal ToplamGidenRiyal { get; set; }
+        public decimal ToplamGelen14Ayar { get; set; }
+        public decimal ToplamGiden14Ayar { get; set; }
+        public decimal ToplamGelen22Ayar { get; set; }
+        public decimal ToplamGiden22Ayar { get; set; }
+        public decimal ToplamGelen24Ayar { get; set; }
+        public decimal ToplamGiden24Ayar { get; set; }
+        public decimal ToplamGelenCeyrekAltin { get; set; }
+        public decimal ToplamGidenCeyrekAltin { get; set; }
+        public decimal ToplamGelenYarimAltin { get; set; }
+        public decimal ToplamGidenYarimAltin { get; set; }
+        public decimal ToplamGelenTamAltin { get; set; }
+        public decimal ToplamGidenTamAltin { get; set; }
+        public decimal ToplamGelenZiynetAltin { get; set; }
+        public decimal ToplamGidenZiynetAltin { get; set; }
     }
 
     public enum SortDirection
