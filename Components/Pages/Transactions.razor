@@ -105,7 +105,7 @@
                         </PagerContent>
                     </MudTable>
 
-                    <MudPaper Elevation="2" Class="mt-4 pa-4">
+               @*      <MudPaper Elevation="2" Class="mt-4 pa-4">
                         <MudText Typo="Typo.h6" Class="mb-3">Özet</MudText>
 
                         @foreach (var currencyType in Enum.GetValues<CurrencyType>())
@@ -163,7 +163,7 @@
                                 <MudDivider Class="my-3" />
                             }
                         }
-                    </MudPaper>
+                    </MudPaper> *@
                 }
             </MudTabPanel>
             <MudTabPanel Text="Uzun Süreli Borçlar">
@@ -245,7 +245,7 @@
     private TransactionType? filterType = null;
     private string searchTerm = string.Empty;
 
-    private Dictionary<CurrencyType, CurrencySummary> currencySummaries = new Dictionary<CurrencyType, CurrencySummary>();
+    // private Dictionary<CurrencyType, CurrencySummary> currencySummaries = new Dictionary<CurrencyType, CurrencySummary>();
 
     private List<CustomerDebtInfo> customersWithLongDebt = new List<CustomerDebtInfo>();
     private List<CustomerDebtInfo> customersWithPositiveBalance = new List<CustomerDebtInfo>();
@@ -288,7 +288,7 @@
             }
 
             // Only load all transactions for summary if needed
-            if (transactions.Count > 0 && (currencySummaries.Count == 0 || customersWithLongDebt.Count == 0 || customersWithPositiveBalance.Count == 0))
+            if (transactions.Count > 0 && ( customersWithLongDebt.Count == 0 || customersWithPositiveBalance.Count == 0))
             {
                 // Load all transactions for summaries
                 this.transactions = await DatabaseService.GetTransactionsAsync();
@@ -297,7 +297,7 @@
                 this.transactions = this.transactions.Where(t => !t.IsDeposit).ToList();
 
                 // Update currency summaries
-                CalculateTotals();
+                // CalculateTotals();
                 await CalculateCustomersWithLongDebt();
                 await CalculateCustomersWithPositiveBalance();
             }
@@ -338,7 +338,7 @@
         // Filter out "Emanet" transactions (IsDeposit=true)
         transactions = transactions.Where(t => !t.IsDeposit).ToList();
 
-        CalculateTotals();
+        // CalculateTotals();
         await CalculateCustomersWithLongDebt();
         await CalculateCustomersWithPositiveBalance();
 
@@ -458,29 +458,29 @@
             .ToList();
     }
 
-    private void CalculateTotals()
-    {
-        currencySummaries.Clear();
-        foreach (var currencyType in Enum.GetValues<CurrencyType>())
-        {
-            currencySummaries[currencyType] = new CurrencySummary();
-        }
+    // private void CalculateTotals()
+    // {
+    //     currencySummaries.Clear();
+    //     foreach (var currencyType in Enum.GetValues<CurrencyType>())
+    //     {
+    //         currencySummaries[currencyType] = new CurrencySummary();
+    //     }
 
-        if (transactions != null)
-        {
-            foreach (var transaction in transactions)
-            {
-                if (transaction.Type == TransactionType.CustomerDebt)
-                {
-                    currencySummaries[transaction.CurrencyType].TotalCustomerDebt += transaction.Amount;
-                }
-                else
-                {
-                    currencySummaries[transaction.CurrencyType].TotalStoreDebt += transaction.Amount;
-                }
-            }
-        }
-    }
+    //     if (transactions != null)
+    //     {
+    //         foreach (var transaction in transactions)
+    //         {
+    //             if (transaction.Type == TransactionType.CustomerDebt)
+    //             {
+    //                 currencySummaries[transaction.CurrencyType].TotalCustomerDebt += transaction.Amount;
+    //             }
+    //             else
+    //             {
+    //                 currencySummaries[transaction.CurrencyType].TotalStoreDebt += transaction.Amount;
+    //             }
+    //         }
+    //     }
+    // }
     private void ViewTransactionDetails(Transaction transaction)
     {
         NavigationManager.NavigateTo($"/customer/{transaction.CustomerId}");
