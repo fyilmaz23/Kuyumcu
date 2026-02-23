@@ -53,7 +53,7 @@
 
     <ItemGroup>
         <!-- App Icon -->
-        <MauiIcon Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\appiconfg.svg" Color="#b99500" />
+        <MauiIcon Include="Resources\AppIcon\kuyumcu_icon.svg" />
         <!--<MauiIcon Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\appiconfg.svg" Color="#512BD4" />-->
 
         <!-- Splash Screen -->
@@ -87,7 +87,7 @@
 
 
     <ItemGroup>
-      <EmbeddedResource Include="Assets\gold_prices_story_template.jpg" />
+      <EmbeddedResource Include="Assets\carsi_kuyumculuk_template.jpg" />
     </ItemGroup>
 
  

@@ -201,7 +201,7 @@ public class GoldPriceExportService
                 return null;
             }
             var assembly = typeof(GoldPriceExportService).Assembly;
-            var resourceName = "Kuyumcu.Assets.gold_prices_story_template.jpg";
+            var resourceName = "Kuyumcu.Assets.carsi_kuyumculuk_template.jpg";
             using var stream2 = assembly.GetManifestResourceStream(resourceName);
 
 
@@ -251,7 +251,7 @@ public class GoldPriceExportService
                 "22 Ayar",
                 "14 Ayar",
                 "Beşli",
-                "Tam",
+                "Ata",
                 "Yarım",
                 "Çeyrek",
                 "Gram" // Gram olarak gösterilecek
@@ -308,7 +308,7 @@ public class GoldPriceExportService
 
                     if (matchingGold != null)
                     {
-                        displayItems.Add((orderType, matchingGold.BuyPrice, matchingGold.SellPrice));
+                        displayItems.Add((orderType=="Ata"?"Tam":orderType, matchingGold.BuyPrice, matchingGold.SellPrice));
                     }
                 }
             }
