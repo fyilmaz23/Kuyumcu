@@ -23,7 +23,7 @@ jobs:
           dotnet-version: 8.0.x
 
       - name: Install MAUI Workload
-        run: dotnet workload install maui-windows
+        run: dotnet workload install maui
 
       - name: Extract version from tag
         id: version
