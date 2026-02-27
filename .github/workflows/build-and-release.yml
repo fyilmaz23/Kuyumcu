@@ -47,15 +47,6 @@ jobs:
           [IO.File]::WriteAllBytes($certPath, $pfxBytes)
           echo "CERT_PATH=$certPath" >> $env:GITHUB_ENV
 
-      - name: Import certificate to store
-        shell: pwsh
-        run: |
-          $password = ConvertTo-SecureString -String "${{ secrets.SIGNING_CERTIFICATE_PASSWORD }}" -Force -AsPlainText
-          Import-PfxCertificate -FilePath $env:CERT_PATH -CertStoreLocation Cert:\CurrentUser\My -Password $password
-          # Get thumbprint
-          $cert = Get-PfxCertificate -FilePath $env:CERT_PATH
-          echo "CERT_THUMBPRINT=$($cert.Thumbprint)" >> $env:GITHUB_ENV
-
       - name: Update version in Package.appxmanifest
         shell: pwsh
         run: |
@@ -71,7 +62,8 @@ jobs:
             -f ${{ env.TARGET_FRAMEWORK }} `
             -p:RuntimeIdentifierOverride=win10-x64 `
             -p:AppxPackageSigningEnabled=true `
-            -p:PackageCertificateThumbprint=${{ env.CERT_THUMBPRINT }} `
+            -p:PackageCertificateKeyFile=${{ env.CERT_PATH }} `
+            -p:PackageCertificatePassword=${{ secrets.SIGNING_CERTIFICATE_PASSWORD }} `
             -p:GenerateAppInstallerFile=false `
             -p:AppxPackageDir="$env:GITHUB_WORKSPACE\AppPackages\" `
             -p:ApplicationDisplayVersion="${{ steps.version.outputs.APP_VERSION }}" `
