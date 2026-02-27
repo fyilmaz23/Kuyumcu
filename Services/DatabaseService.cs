@@ -118,58 +118,28 @@ namespace Kuyumcu.Services
             {
                 await InitializeAsync();
 
-                // Veritabanı bağlantısını kapatmak için tüm işlemleri tamamlayalım
-                _database.GetConnection().Close();
-                _initialized = false;
-
                 // Veritabanı dosya yolunu alalım
                 var databasePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Kuyumcu.db3");
 
-                try
+                // Dosyayı bağlantı açıkken kopyalayabiliriz (FileShare.ReadWrite ile)
+                byte[] fileBytes;
+                using (FileStream fs = new FileStream(databasePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
                 {
-                    // Dosyayı açmadan önce kısa bir bekleme süresi ekleyelim
-                    await Task.Delay(500);
-
-                    // Dosya kullanımda olabilir, bu yüzden mümkün olduğunca kısa süre için açıp okuyalım
-                    byte[] fileBytes;
-                    using (FileStream fs = new FileStream(databasePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
-                    {
-                        fileBytes = new byte[fs.Length];
-                        await fs.ReadAsync(fileBytes, 0, fileBytes.Length);
-                    }
-
-                    // Şimdi okunan verileri hedef dosyaya yazalım
-                    using (FileStream fs = new FileStream(targetPath, FileMode.Create))
-                    {
-                        await fs.WriteAsync(fileBytes, 0, fileBytes.Length);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"Dosya kopyalama hatası: {ex.Message}");
-                    return false;
+                    fileBytes = new byte[fs.Length];
+                    await fs.ReadAsync(fileBytes, 0, fileBytes.Length);
                 }
 
-                // Veritabanını yeniden bağlayalım
-                await InitializeAsync();
+                // Okunan verileri hedef dosyaya yazalım
+                using (FileStream fs = new FileStream(targetPath, FileMode.Create))
+                {
+                    await fs.WriteAsync(fileBytes, 0, fileBytes.Length);
+                }
 
                 return true;
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Veritabanı yedek kopyası oluşturulurken hata oluştu: {ex.Message}");
-
-                // Herhangi bir hata durumunda veritabanını yeniden bağlamaya çalışalım
-                try
-                {
-                    _initialized = false;
-                    await InitializeAsync();
-                }
-                catch
-                {
-                    // Yeniden bağlanma işlemi hata verirse sessizce devam edelim
-                }
-
+                Console.WriteLine($"Veritabani yedek kopyasi olusturulurken hata olustu: {ex.Message}");
                 return false;
             }
         }
