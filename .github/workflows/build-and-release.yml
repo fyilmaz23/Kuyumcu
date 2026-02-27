@@ -95,6 +95,7 @@ jobs:
           echo "Found: $($msixFile.FullName)"
 
       - name: Generate .appinstaller file
+        id: gen_appinstaller
         shell: pwsh
         run: |
           $version = "${{ steps.version.outputs.APP_VERSION }}"
@@ -144,7 +145,7 @@ jobs:
             > ⚠️ İlk kurulumda sertifikayı "Güvenilen Kişiler" (Trusted People) deposuna yüklemeniz gerekir.
           files: |
             ${{ steps.find_msix.outputs.MSIX_PATH }}
-            ${{ steps.find_msix.outputs.APPINSTALLER_PATH }}
+            ${{ steps.gen_appinstaller.outputs.APPINSTALLER_PATH }}
           draft: false
           prerelease: false
         env:
