@@ -26,6 +26,7 @@ namespace Kuyumcu.Services
             await _database.CreateTableAsync<Customer>();
             await _database.CreateTableAsync<Transaction>();
             await _database.CreateTableAsync<QuickEntry>();
+            await _database.CreateTableAsync<AppSettings>();
 
             _initialized = true;
         }
@@ -47,6 +48,7 @@ namespace Kuyumcu.Services
                 await _database.CreateTableAsync<Customer>();
                 await _database.CreateTableAsync<Transaction>();
                 await _database.CreateTableAsync<QuickEntry>();
+                await _database.CreateTableAsync<AppSettings>();
 
                 _initialized = true;
                 return true;
@@ -789,6 +791,30 @@ namespace Kuyumcu.Services
             public string CustomerName { get; set; }
             public CurrencyType CurrencyType { get; set; }
             public decimal NetBalance { get; set; }
+        }
+
+        // AppSettings methods
+        public async Task<AppSettings> GetSettingsAsync()
+        {
+            await InitializeAsync();
+            var settings = await _database.Table<AppSettings>().FirstOrDefaultAsync();
+            return settings ?? new AppSettings();
+        }
+
+        public async Task SaveSettingsAsync(AppSettings settings)
+        {
+            await InitializeAsync();
+            if (settings.Id != 0)
+                await _database.UpdateAsync(settings);
+            else
+                await _database.InsertAsync(settings);
+        }
+
+        public async Task<bool> IsSetupCompletedAsync()
+        {
+            await InitializeAsync();
+            var settings = await _database.Table<AppSettings>().FirstOrDefaultAsync();
+            return settings?.IsSetupCompleted ?? false;
         }
     }
 

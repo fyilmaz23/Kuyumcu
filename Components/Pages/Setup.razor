@@ -1,0 +1,86 @@
+@page "/setup"
+@inject DatabaseService DatabaseService
+@inject NavigationManager NavigationManager
+
+<MudContainer MaxWidth="MaxWidth.Small" Class="d-flex align-center" Style="min-height: 80vh;">
+    <MudPaper Class="pa-8 w-100" Elevation="3">
+        <MudText Typo="Typo.h4" Align="Align.Center" Class="mb-2">
+            <MudIcon Icon="@Icons.Material.Filled.Diamond" Size="Size.Large" Class="mr-2" />
+            Hoş Geldiniz
+        </MudText>
+        <MudText Typo="Typo.body1" Align="Align.Center" Color="Color.Secondary" Class="mb-6">
+            Uygulamayı kullanmaya başlamak için aşağıdaki bilgileri doldurun.
+        </MudText>
+
+        <MudDivider Class="mb-6" />
+
+        <MudText Typo="Typo.h6" Class="mb-3">
+            <MudIcon Icon="@Icons.Material.Filled.Store" Class="mr-1" /> İş Yeri Bilgileri
+        </MudText>
+
+        <MudTextField @bind-Value="settings.BusinessName"
+                       Label="İş Yeri Adı"
+                       Placeholder="Örn: Kuyumcu Mehmet"
+                       Variant="Variant.Outlined"
+                       Required="true"
+                       RequiredError="İş yeri adı zorunludur"
+                       Class="mb-4" />
+
+        <MudDivider Class="my-4" />
+
+        <MudText Typo="Typo.h6" Class="mb-1">
+            <MudIcon Icon="@Icons.Material.Filled.CloudUpload" Class="mr-1" /> Google Drive Yedekleme
+        </MudText>
+        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-3">
+            İsteğe bağlı. Sonradan Ayarlar sayfasından da ekleyebilirsiniz.
+        </MudText>
+
+        <MudTextField @bind-Value="settings.GoogleClientId"
+                       Label="Google Client ID"
+                       Placeholder="xxxxx.apps.googleusercontent.com"
+                       Variant="Variant.Outlined"
+                       Class="mb-3" />
+
+        <MudTextField @bind-Value="settings.GoogleClientSecret"
+                       Label="Google Client Secret"
+                       Placeholder="GOCSPX-xxxxx"
+                       Variant="Variant.Outlined"
+                       InputType="InputType.Password"
+                       Class="mb-6" />
+
+        <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true" Class="mb-4">
+            Google Drive bilgilerini almak için
+            <MudLink Href="https://console.cloud.google.com" Target="_blank">Google Cloud Console</MudLink>
+            üzerinden bir proje oluşturup OAuth 2.0 kimlik bilgilerini oluşturmanız gerekmektedir.
+        </MudAlert>
+
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Primary"
+                   FullWidth="true"
+                   Size="Size.Large"
+                   StartIcon="@Icons.Material.Filled.Check"
+                   OnClick="SaveAndContinue"
+                   Disabled="@(string.IsNullOrWhiteSpace(settings.BusinessName))">
+            Kaydet ve Başla
+        </MudButton>
+    </MudPaper>
+</MudContainer>
+
+@code {
+    private AppSettings settings = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        settings = await DatabaseService.GetSettingsAsync();
+    }
+
+    private async Task SaveAndContinue()
+    {
+        if (string.IsNullOrWhiteSpace(settings.BusinessName))
+            return;
+
+        settings.IsSetupCompleted = true;
+        await DatabaseService.SaveSettingsAsync(settings);
+        NavigationManager.NavigateTo("/", forceLoad: true);
+    }
+}

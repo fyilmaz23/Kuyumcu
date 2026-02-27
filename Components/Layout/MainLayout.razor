@@ -1,10 +1,11 @@
 @inherits LayoutComponentBase
 @inject GoogleDriveService GoogleDriveService
+@inject DatabaseService DatabaseService
 @inject IDialogService DialogService
 
 <MudLayout>
     <MudAppBar Elevation="1" Color="Color.Primary">
-        <MudText Typo="Typo.h6" Class="ml-3">Ã‡arÅŸÄ± Kuyumculuk</MudText>
+        <MudText Typo="Typo.h6" Class="ml-3">@businessName</MudText>
         <MudSpacer />
         @if (DeviceInfo.Platform != DevicePlatform.Android)
         {
@@ -12,9 +13,10 @@
             <MudIconButton Icon="@Icons.Material.Filled.People" Color="Color.Inherit" Href="/customers" />
             <MudIconButton Icon="@Icons.Material.Filled.Receipt" Color="Color.Inherit" Href="/transactions" />
             <MudButton Variant="Variant.Filled" Color="Color.Secondary" StartIcon="@Icons.Material.Filled.Backup"
-            OnClick="@(() => BackupToGoogleDrive())" Disabled="@isBackupInProgress">
+            OnClick="@(() => BackupToGoogleDrive())" Disabled="@(isBackupInProgress || !isGoogleDriveConfigured)">
                 @(isBackupInProgress ? "Yedekleniyor..." : "Yedek Al")
             </MudButton>
+            <MudIconButton Icon="@Icons.Material.Filled.Settings" Color="Color.Inherit" Href="/settings" />
         }
         else
         {
@@ -39,6 +41,9 @@
 @code {
     private bool isBackupInProgress = false;
     private string backupResult = string.Empty;
+    private string businessName = "Kuyumcu";
+    private bool isGoogleDriveConfigured = false;
+
     private MudTheme myCustomTheme = new MudTheme()
     {
         PaletteLight = new PaletteLight()
@@ -64,13 +69,24 @@
         }
     };
 
+    protected override async Task OnInitializedAsync()
+    {
+        var settings = await DatabaseService.GetSettingsAsync();
+        if (!string.IsNullOrWhiteSpace(settings.BusinessName))
+        {
+            businessName = settings.BusinessName;
+        }
+        isGoogleDriveConfigured = !string.IsNullOrWhiteSpace(settings.GoogleClientId) 
+                                   && !string.IsNullOrWhiteSpace(settings.GoogleClientSecret);
+    }
+
     private async Task BackupToGoogleDrive()
     {
         var confirmResult = await DialogService.ShowMessageBox(
           "Emin misiniz?",
-          $"Yedekleme Alýnacak",
+          "Yedekleme Alinacak",
           yesText: "Evet",
-          noText: "Hayýr");
+          noText: "Hayir");
 
         if (confirmResult == false) return;
         try
@@ -89,7 +105,7 @@
         {
             await DialogService.ShowMessageBox(
                 "Hata",
-                $"Yedekleme sýrasýnda bir hata oluþtu: {ex.Message}",
+                $"Yedekleme sirasinda bir hata olustu: {ex.Message}",
                 yesText: "Tamam");
         }
         finally

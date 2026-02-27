@@ -10,6 +10,11 @@
                 return;
             }
         }
+        else if (!_isSetupCompleted && routeData.PageType != typeof(Pages.Setup))
+        {
+            NavigationManager.NavigateTo("setup");
+            return;
+        }
 
         <RouteView RouteData="@routeData" DefaultLayout="@typeof(Layout.MainLayout)" />
         <FocusOnNavigate RouteData="@routeData" Selector="h1" />
@@ -38,4 +43,14 @@
     @code {
     [Inject]
     private NavigationManager NavigationManager { get; set; }
+
+    [Inject]
+    private DatabaseService DatabaseService { get; set; }
+
+    private bool _isSetupCompleted = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _isSetupCompleted = await DatabaseService.IsSetupCompletedAsync();
+    }
 }

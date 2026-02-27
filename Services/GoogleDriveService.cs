@@ -25,6 +25,13 @@ namespace Kuyumcu.Services
         {
             try
             {
+                // Check if Google Drive is configured
+                var settings = await _databaseService.GetSettingsAsync();
+                if (string.IsNullOrWhiteSpace(settings.GoogleClientId) || string.IsNullOrWhiteSpace(settings.GoogleClientSecret))
+                {
+                    return "Google Drive bilgileri ayarlanmamis. Lutfen Ayarlar sayfasindan Google Client ID ve Secret bilgilerini girin.";
+                }
+
                 // Get the database path - checking both possible paths
                 string databasePath = "";
                 string localAppDataPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Kuyumcu.db3");
@@ -40,14 +47,14 @@ namespace Kuyumcu.Services
                 }
                 else
                 {
-                    return "Veritabanı dosyası bulunamadı.";
+                    return "Veritabani dosyasi bulunamadi.";
                 }
 
                 // Authenticate the user if not already authenticated
                 var driveService = await GetDriveServiceAsync();
                 if (driveService == null)
                 {
-                    return "Google Drive bağlantısı kurulamadı. Lütfen tarayıcıdaki kimlik doğrulama işlemini tamamlayın.";
+                    return "Google Drive baglantisi kurulamadi. Lutfen tarayicidaki kimlik dogrulama islemini tamamlayin.";
                 }
 
                 // Create backup file name with timestamp
@@ -67,7 +74,7 @@ namespace Kuyumcu.Services
                     // If backup copy fails, inform the user
                     if (!File.Exists(tempBackupPath))
                     {
-                        return "Veritabanı yedek kopyası oluşturulamadı.";
+                        return "Veritabani yedek kopyasi olusturulamadi.";
                     }
                     
                     // Create file metadata
@@ -90,11 +97,11 @@ namespace Kuyumcu.Services
                         if (uploadProgress.Status == Google.Apis.Upload.UploadStatus.Completed)
                         {
                             var file = request.ResponseBody;
-                            return $"Veritabanı yedekleme başarılı. Dosya adı: {file.Name}";
+                            return $"Veritabani yedekleme basarili. Dosya adi: {file.Name}";
                         }
                         else
                         {
-                            return $"Yükleme başarısız oldu: {uploadProgress.Exception?.Message ?? "Bilinmeyen hata"}";
+                            return $"Yukleme basarisiz oldu: {uploadProgress.Exception?.Message ?? "Bilinmeyen hata"}";
                         }
                     }
                 }
@@ -116,7 +123,7 @@ namespace Kuyumcu.Services
             }
             catch (Exception ex)
             {
-                return $"Hata oluştu: {ex.Message}";
+                return $"Hata olustu: {ex.Message}";
             }
         }
 
@@ -129,16 +136,23 @@ namespace Kuyumcu.Services
 
             try
             {
+                // Load credentials from settings
+                var settings = await _databaseService.GetSettingsAsync();
+                if (string.IsNullOrWhiteSpace(settings.GoogleClientId) || string.IsNullOrWhiteSpace(settings.GoogleClientSecret))
+                {
+                    Console.WriteLine("Google Drive credentials not configured.");
+                    return null;
+                }
+
                 // Get the credential folder path in the app's local storage
                 var credentialFolderPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), CredentialFolderName);
                 Directory.CreateDirectory(credentialFolderPath);
 
-                // Create ClientSecrets object with Google OAuth credentials
+                // Create ClientSecrets object with dynamic Google OAuth credentials
                 var clientSecrets = new ClientSecrets
                 {
-                    // NOTE: These are example values and must be replaced with actual values from the Google Cloud Console
-                    ClientId = "345633897924-09a5r28ba6vk4210chg7pdkk85ehikje.apps.googleusercontent.com",
-                    ClientSecret = "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"
+                    ClientId = settings.GoogleClientId,
+                    ClientSecret = settings.GoogleClientSecret
                 };
 
                 // Create the credential
@@ -163,6 +177,14 @@ namespace Kuyumcu.Services
                 Console.WriteLine($"Authentication error: {ex.Message}");
                 return null;
             }
+        }
+
+        /// <summary>
+        /// Resets the cached drive service so new credentials take effect
+        /// </summary>
+        public void ResetConnection()
+        {
+            _driveService = null;
         }
     }
 }

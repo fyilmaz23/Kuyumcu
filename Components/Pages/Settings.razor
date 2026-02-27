@@ -1,0 +1,99 @@
+@page "/settings"
+@inject DatabaseService DatabaseService
+@inject IDialogService DialogService
+@inject NavigationManager NavigationManager
+
+<MudContainer MaxWidth="MaxWidth.Small" Class="mt-4">
+    <MudText Typo="Typo.h5" Class="mb-4">
+        <MudIcon Icon="@Icons.Material.Filled.Settings" Class="mr-2" />
+        Ayarlar
+    </MudText>
+
+    @if (isLoading)
+    {
+        <MudProgressCircular Indeterminate="true" Class="d-block mx-auto my-8" />
+    }
+    else
+    {
+        <MudPaper Class="pa-6 mb-4" Elevation="2">
+            <MudText Typo="Typo.h6" Class="mb-3">
+                <MudIcon Icon="@Icons.Material.Filled.Store" Class="mr-1" /> İş Yeri Bilgileri
+            </MudText>
+            <MudTextField @bind-Value="settings.BusinessName"
+                           Label="İş Yeri Adı"
+                           Variant="Variant.Outlined"
+                           Required="true"
+                           Class="mb-3" />
+        </MudPaper>
+
+        <MudPaper Class="pa-6 mb-4" Elevation="2">
+            <MudText Typo="Typo.h6" Class="mb-1">
+                <MudIcon Icon="@Icons.Material.Filled.CloudUpload" Class="mr-1" /> Google Drive Yedekleme
+            </MudText>
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-3">
+                Google Cloud Console'dan aldığınız OAuth 2.0 kimlik bilgilerini girin.
+            </MudText>
+
+            <MudTextField @bind-Value="settings.GoogleClientId"
+                           Label="Google Client ID"
+                           Variant="Variant.Outlined"
+                           Class="mb-3" />
+
+            <MudTextField @bind-Value="settings.GoogleClientSecret"
+                           Label="Google Client Secret"
+                           Variant="Variant.Outlined"
+                           InputType="InputType.Password"
+                           Class="mb-3" />
+
+            @if (!string.IsNullOrWhiteSpace(settings.GoogleClientId) && !string.IsNullOrWhiteSpace(settings.GoogleClientSecret))
+            {
+                <MudAlert Severity="Severity.Success" Variant="Variant.Outlined" Dense="true">
+                    Google Drive bağlantısı yapılandırıldı. Yedek Al butonunu kullanabilirsiniz.
+                </MudAlert>
+            }
+            else
+            {
+                <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Dense="true">
+                    Google Drive bilgileri girilmediği için yedekleme özelliği devre dışı kalacaktır.
+                </MudAlert>
+            }
+        </MudPaper>
+
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Primary"
+                   FullWidth="true"
+                   Size="Size.Large"
+                   StartIcon="@Icons.Material.Filled.Save"
+                   OnClick="SaveSettings"
+                   Disabled="@(string.IsNullOrWhiteSpace(settings.BusinessName))">
+            Kaydet
+        </MudButton>
+    }
+</MudContainer>
+
+@code {
+    private AppSettings settings = new();
+    private bool isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        settings = await DatabaseService.GetSettingsAsync();
+        isLoading = false;
+    }
+
+    private async Task SaveSettings()
+    {
+        if (string.IsNullOrWhiteSpace(settings.BusinessName))
+            return;
+
+        settings.IsSetupCompleted = true;
+        await DatabaseService.SaveSettingsAsync(settings);
+
+        await DialogService.ShowMessageBox(
+            "Başarılı",
+            "Ayarlar kaydedildi.",
+            yesText: "Tamam");
+
+        NavigationManager.NavigateTo("/", forceLoad: true);
+    }
+}
