@@ -1,0 +1,156 @@
+name: Build, Sign & Release MSIX
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+env:
+  PROJECT_PATH: Kuyumcu.csproj
+  TARGET_FRAMEWORK: net8.0-windows10.0.19041.0
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Install MAUI Workload
+        run: dotnet workload install maui-windows
+
+      - name: Extract version from tag
+        id: version
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          # v1.2.3 → 1.2.3.0
+          $ver = $tag -replace '^v', ''
+          $parts = $ver.Split('.')
+          while ($parts.Count -lt 4) { $parts += '0' }
+          $fullVersion = $parts -join '.'
+          echo "APP_VERSION=$fullVersion" >> $env:GITHUB_OUTPUT
+          echo "TAG_NAME=$tag" >> $env:GITHUB_OUTPUT
+          echo "Version: $fullVersion"
+
+      - name: Decode signing certificate
+        shell: pwsh
+        run: |
+          $pfxBytes = [Convert]::FromBase64String("${{ secrets.SIGNING_CERTIFICATE }}")
+          $certPath = Join-Path $env:RUNNER_TEMP "KuyumcuSigning.pfx"
+          [IO.File]::WriteAllBytes($certPath, $pfxBytes)
+          echo "CERT_PATH=$certPath" >> $env:GITHUB_ENV
+
+      - name: Import certificate to store
+        shell: pwsh
+        run: |
+          $password = ConvertTo-SecureString -String "${{ secrets.SIGNING_CERTIFICATE_PASSWORD }}" -Force -AsPlainText
+          Import-PfxCertificate -FilePath $env:CERT_PATH -CertStoreLocation Cert:\CurrentUser\My -Password $password
+          # Get thumbprint
+          $cert = Get-PfxCertificate -FilePath $env:CERT_PATH
+          echo "CERT_THUMBPRINT=$($cert.Thumbprint)" >> $env:GITHUB_ENV
+
+      - name: Update version in Package.appxmanifest
+        shell: pwsh
+        run: |
+          $manifestPath = "Platforms/Windows/Package.appxmanifest"
+          $content = Get-Content $manifestPath -Raw
+          $content = $content -replace 'Version="[^"]*"', "Version=`"${{ steps.version.outputs.APP_VERSION }}`""
+          Set-Content $manifestPath $content
+
+      - name: Publish MSIX
+        run: |
+          dotnet publish ${{ env.PROJECT_PATH }} `
+            -c Release `
+            -f ${{ env.TARGET_FRAMEWORK }} `
+            -p:RuntimeIdentifierOverride=win10-x64 `
+            -p:AppxPackageSigningEnabled=true `
+            -p:PackageCertificateThumbprint=${{ env.CERT_THUMBPRINT }} `
+            -p:GenerateAppInstallerFile=false `
+            -p:AppxPackageDir="$env:GITHUB_WORKSPACE\AppPackages\" `
+            -p:ApplicationDisplayVersion="${{ steps.version.outputs.APP_VERSION }}" `
+            -p:ApplicationVersion=${{ github.run_number }}
+        shell: pwsh
+
+      - name: Find MSIX package
+        id: find_msix
+        shell: pwsh
+        run: |
+          $msixFile = Get-ChildItem -Path "$env:GITHUB_WORKSPACE\AppPackages" -Recurse -Filter "*.msix" | Select-Object -First 1
+          if (-not $msixFile) {
+            Write-Error "MSIX file not found!"
+            exit 1
+          }
+          echo "MSIX_PATH=$($msixFile.FullName)" >> $env:GITHUB_OUTPUT
+          echo "MSIX_NAME=$($msixFile.Name)" >> $env:GITHUB_OUTPUT
+          echo "Found: $($msixFile.FullName)"
+
+      - name: Generate .appinstaller file
+        shell: pwsh
+        run: |
+          $version = "${{ steps.version.outputs.APP_VERSION }}"
+          $tagName = "${{ steps.version.outputs.TAG_NAME }}"
+          $msixName = "${{ steps.find_msix.outputs.MSIX_NAME }}"
+          $repoUrl = "https://github.com/${{ github.repository }}/releases/download/$tagName"
+          
+          $appInstallerContent = @"
+          <?xml version="1.0" encoding="utf-8"?>
+          <AppInstaller
+            Uri="$repoUrl/Kuyumcu.appinstaller"
+            Version="$version"
+            xmlns="http://schemas.microsoft.com/appx/appinstaller/2018">
+            
+            <MainPackage
+              Name="com.companyname.kuyumcu"
+              Version="$version"
+              Publisher="CN=KuyumcuApp"
+              ProcessorArchitecture="x64"
+              Uri="$repoUrl/$msixName" />
+            
+            <UpdateSettings>
+              <OnLaunch
+                HoursBetweenUpdateChecks="6"
+                ShowPrompt="true"
+                UpdateBlocksActivation="false" />
+            </UpdateSettings>
+          </AppInstaller>
+          "@
+          
+          $appInstallerPath = "$env:GITHUB_WORKSPACE\AppPackages\Kuyumcu.appinstaller"
+          $appInstallerContent | Out-File -FilePath $appInstallerPath -Encoding utf8
+          echo "APPINSTALLER_PATH=$appInstallerPath" >> $env:GITHUB_OUTPUT
+          echo "Generated .appinstaller at: $appInstallerPath"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "Kuyumcu ${{ steps.version.outputs.TAG_NAME }}"
+          body: |
+            ## Kuyumcu ${{ steps.version.outputs.TAG_NAME }}
+            
+            ### Kurulum
+            - **İlk kurulum:** `.msix` dosyasını indirip çift tıklayarak kurun.
+            - **Güncelleme:** Uygulama otomatik güncelleme kontrolü yapar.
+            
+            > ⚠️ İlk kurulumda sertifikayı "Güvenilen Kişiler" (Trusted People) deposuna yüklemeniz gerekir.
+          files: |
+            ${{ steps.find_msix.outputs.MSIX_PATH }}
+            ${{ steps.find_msix.outputs.APPINSTALLER_PATH }}
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Cleanup certificate
+        if: always()
+        shell: pwsh
+        run: |
+          if (Test-Path $env:CERT_PATH) {
+            Remove-Item $env:CERT_PATH -Force
+          }
