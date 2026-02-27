@@ -81,6 +81,6 @@
 
         settings.IsSetupCompleted = true;
         await DatabaseService.SaveSettingsAsync(settings);
-        NavigationManager.NavigateTo("/", forceLoad: true);
+        NavigationManager.NavigateTo("/");
     }
 }
