@@ -144,6 +144,103 @@ namespace Kuyumcu.Services
             }
         }
 
+        /// <summary>
+        /// Yedek dosyasindan veritabanini geri yukler. DIKKAT: Mevcut tum veriler silinir!
+        /// </summary>
+        public async Task<(bool Success, string Message)> RestoreDatabaseAsync(string backupFilePath)
+        {
+            try
+            {
+                if (!File.Exists(backupFilePath))
+                    return (false, "Yedek dosyasi bulunamadi.");
+
+                // Validate the backup file is a valid SQLite database
+                var validationResult = await ValidateBackupFileAsync(backupFilePath);
+                if (!validationResult.IsValid)
+                    return (false, validationResult.Message);
+
+                var databasePath = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), 
+                    "Kuyumcu.db3");
+
+                // Close the current connection
+                if (_database != null)
+                {
+                    await _database.CloseAsync();
+                    _database = null;
+                    _initialized = false;
+                }
+
+                await Task.Delay(300);
+
+                // Create a safety backup of current database
+                var safetyBackupPath = databasePath + ".safety_backup";
+                if (File.Exists(databasePath))
+                {
+                    File.Copy(databasePath, safetyBackupPath, overwrite: true);
+                }
+
+                try
+                {
+                    // Replace database with backup file
+                    File.Copy(backupFilePath, databasePath, overwrite: true);
+
+                    // Reinitialize connection
+                    await InitializeAsync();
+
+                    // Clean up safety backup on success
+                    if (File.Exists(safetyBackupPath))
+                        File.Delete(safetyBackupPath);
+
+                    return (true, "Veritabani basariyla geri yuklendi. Uygulama yeniden baslatilmalidir.");
+                }
+                catch (Exception ex)
+                {
+                    // Roll back: restore from safety backup
+                    if (File.Exists(safetyBackupPath))
+                    {
+                        File.Copy(safetyBackupPath, databasePath, overwrite: true);
+                        File.Delete(safetyBackupPath);
+                    }
+                    _initialized = false;
+                    await InitializeAsync();
+
+                    return (false, $"Geri yukleme basarisiz oldu: {ex.Message}. Mevcut veriler korundu.");
+                }
+            }
+            catch (Exception ex)
+            {
+                try { _initialized = false; await InitializeAsync(); } catch { }
+                return (false, $"Beklenmeyen hata: {ex.Message}");
+            }
+        }
+
+        private async Task<(bool IsValid, string Message)> ValidateBackupFileAsync(string filePath)
+        {
+            try
+            {
+                var testDb = new SQLiteAsyncConnection(filePath);
+                var tableInfo = await testDb.QueryAsync<TableInfoResult>(
+                    "SELECT name FROM sqlite_master WHERE type='table' AND name='Customer'");
+                await testDb.CloseAsync();
+
+                if (tableInfo == null || tableInfo.Count == 0)
+                    return (false, "Gecersiz yedek dosyasi: 'Customer' tablosu bulunamadi.");
+
+                return (true, "");
+            }
+            catch
+            {
+                return (false, "Gecersiz dosya formati. Lutfen gecerli bir .db3 yedek dosyasi secin.");
+            }
+        }
+
+        private class TableInfoResult
+        {
+            [Column("name")]
+            public string Name { get; set; }
+        }
+
         // Customer methods
         public async Task<List<Customer>> GetCustomersAsync()
         {

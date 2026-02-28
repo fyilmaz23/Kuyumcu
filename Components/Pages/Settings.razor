@@ -68,12 +68,38 @@
                    Disabled="@(string.IsNullOrWhiteSpace(settings.BusinessName))">
             Kaydet
         </MudButton>
+
+        <MudDivider Class="my-6" />
+
+        <MudPaper Class="pa-6 mb-4" Elevation="2" Style="border: 2px solid #ff5252;">
+            <MudText Typo="Typo.h6" Class="mb-1" Color="Color.Error">
+                <MudIcon Icon="@Icons.Material.Filled.RestorePage" Class="mr-1" /> Yedeği İçe Aktar
+            </MudText>
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-3">
+                Daha önce alınmış bir .db3 yedek dosyasını içe aktararak veritabanını değiştirir.
+            </MudText>
+
+            <MudAlert Severity="Severity.Error" Variant="Variant.Filled" Dense="true" Class="mb-3">
+                <strong>DİKKAT:</strong> Bu işlem mevcut TÜM verilerinizi silecek ve yedek dosyasındaki verilerle değiştirecektir. Bu işlem geri alınamaz!
+            </MudAlert>
+
+            <MudButton Variant="Variant.Outlined"
+                       Color="Color.Error"
+                       FullWidth="true"
+                       Size="Size.Large"
+                       StartIcon="@Icons.Material.Filled.FileUpload"
+                       OnClick="RestoreDatabase"
+                       Disabled="@isRestoreInProgress">
+                @(isRestoreInProgress ? "İçe aktarılıyor..." : "Yedek Dosyası Seç ve İçe Aktar")
+            </MudButton>
+        </MudPaper>
     }
 </MudContainer>
 
 @code {
     private AppSettings settings = new();
     private bool isLoading = true;
+    private bool isRestoreInProgress = false;
 
     protected override async Task OnInitializedAsync()
     {
@@ -95,5 +121,79 @@
             yesText: "Tamam");
 
         NavigationManager.NavigateTo("/");
+    }
+
+    private async Task RestoreDatabase()
+    {
+        // 1. İlk uyarı
+        var firstConfirm = await DialogService.ShowMessageBox(
+            "Yedeği İçe Aktar",
+            "Bu işlem mevcut TÜM verilerinizi silecek ve seçeceğiniz yedek dosyasındaki verilerle değiştirecektir.\n\nDevam etmek istiyor musunuz?",
+            yesText: "Evet, Devam Et",
+            noText: "İptal");
+
+        if (firstConfirm != true) return;
+
+        // 2. Dosya seçimi
+        try
+        {
+            var fileResult = await FilePicker.Default.PickAsync(new PickOptions
+            {
+                PickerTitle = "Yedek dosyasını seçin (.db3)",
+                FileTypes = new FilePickerFileType(
+                    new Dictionary<DevicePlatform, IEnumerable<string>>
+                    {
+                        { DevicePlatform.WinUI, new[] { ".db3", ".db" } },
+                        { DevicePlatform.Android, new[] { "application/octet-stream" } },
+                        { DevicePlatform.iOS, new[] { "public.data" } },
+                        { DevicePlatform.macOS, new[] { "public.data" } }
+                    })
+            });
+
+            if (fileResult == null) return;
+
+            // 3. Son onay
+            var finalConfirm = await DialogService.ShowMessageBox(
+                "⚠️ Son Onay",
+                $"Seçilen dosya: {fileResult.FileName}\n\nBu işlem GERİ ALINAMAZ! Mevcut tüm müşteri ve işlem verileri silinecektir.\n\nEmin misiniz?",
+                yesText: "Evet, İçe Aktar",
+                noText: "Vazgeç");
+
+            if (finalConfirm != true) return;
+
+            isRestoreInProgress = true;
+            StateHasChanged();
+
+            var result = await DatabaseService.RestoreDatabaseAsync(fileResult.FullPath);
+
+            if (result.Success)
+            {
+                await DialogService.ShowMessageBox(
+                    "Başarılı",
+                    result.Message,
+                    yesText: "Tamam");
+
+                NavigationManager.NavigateTo("/");
+            }
+            else
+            {
+                await DialogService.ShowMessageBox(
+                    "Hata",
+                    result.Message,
+                    yesText: "Tamam");
+            }
+        }
+        catch (Exception ex)
+        {
+            await DialogService.ShowMessageBox(
+                "Hata",
+                $"Dosya seçilirken bir hata oluştu: {ex.Message}",
+                yesText: "Tamam");
+        }
+        finally
+        {
+            isRestoreInProgress = false;
+            StateHasChanged();
+        }
     }
 }
