@@ -72,6 +72,15 @@
     protected override async Task OnInitializedAsync()
     {
         settings = await DatabaseService.GetSettingsAsync();
+
+        // Geriye dönük uyumluluk: Veritabanında zaten setup tamamlanmışsa 
+        // (örneğin eski sürümden güncelleyen bir kullanıcı) 
+        // Preferences'ı senkronize edip anasayfaya yönlendiriyoruz.
+        if (settings.IsSetupCompleted)
+        {
+            Preferences.Set("IsSetupCompleted", true);
+            NavigationManager.NavigateTo("/");
+        }
     }
 
     private async Task SaveAndContinue()
