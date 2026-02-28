@@ -10,7 +10,7 @@
                 return;
             }
         }
-        else if (!_isSetupCompleted && routeData.PageType != typeof(Pages.Setup))
+        else if (!Preferences.Get("IsSetupCompleted", false) && routeData.PageType != typeof(Pages.Setup))
         {
             NavigationManager.NavigateTo("setup");
             return;
@@ -43,14 +43,4 @@
     @code {
     [Inject]
     private NavigationManager NavigationManager { get; set; }
-
-    [Inject]
-    private DatabaseService DatabaseService { get; set; }
-
-    private bool _isSetupCompleted = false;
-
-    protected override async Task OnInitializedAsync()
-    {
-        _isSetupCompleted = await DatabaseService.IsSetupCompletedAsync();
-    }
 }
