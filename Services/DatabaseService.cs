@@ -157,44 +157,41 @@ namespace Kuyumcu.Services
                 if (!validationResult.IsValid)
                     return (false, validationResult.Message);
 
-                // Read data from backup database
-                List<Customer> backupCustomers;
-                List<Transaction> backupTransactions;
-
-                try
-                {
-                    var backupDb = new SQLiteAsyncConnection(backupFilePath);
-                    backupCustomers = await backupDb.Table<Customer>().ToListAsync();
-                    
-                    // Transaction table might not exist in very old backups, handle safely
-                    try { backupTransactions = await backupDb.Table<Transaction>().ToListAsync(); }
-                    catch { backupTransactions = new List<Transaction>(); }
-                    
-                    await backupDb.CloseAsync();
-                }
-                catch (Exception ex)
-                {
-                    return (false, $"Yedek dosyasindan veri okunamadi: {ex.Message}");
-                }
-
                 await InitializeAsync();
 
-                // Start a transaction in current DB to safely replace data
-                await _database.RunInTransactionAsync(tran =>
-                {
-                    // Delete existing data
-                    tran.DeleteAll<Customer>();
-                    tran.DeleteAll<Transaction>();
+                // Mevcut ayarları yedekle (kullanıcının ayarları kaybolmasın diye)
+                var currentSettings = await _database.Table<AppSettings>().FirstOrDefaultAsync();
 
-                    // Insert backup data
-                    if (backupCustomers.Any()) tran.InsertAll(backupCustomers);
-                    if (backupTransactions.Any()) tran.InsertAll(backupTransactions);
-                });
+                // Kullanımdaki veritabanı bağlantısını kapat
+                await _database.CloseAsync();
+                _initialized = false;
+                
+                // Dosya kilidinin kalkması için OS tarafında kısa bir bekleme
+                await Task.Delay(200);
+
+                var databasePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Kuyumcu.db3");
+
+                // Orijinal veritabanı dosyasının üzerine yaz 
+                // (File.Copy, ID'leri ve ilişkileri %100 kayıpsız bir şekilde korur)
+                File.Copy(backupFilePath, databasePath, true);
+
+                // Bağlantıyı yeniden başlat (Bu işlem yedekte eksik olan yeni tabloları vs. de otomatik kurar)
+                await InitializeAsync();
+
+                // Yedekten gelen ayarları temizle ve mevcut ayarları geri yükle
+                await _database.DeleteAllAsync<AppSettings>();
+                if (currentSettings != null)
+                {
+                    currentSettings.Id = 0; // Yeni bir satır olarak eklenmesi için sıfırla
+                    await _database.InsertAsync(currentSettings);
+                }
 
                 return (true, "Veritabani basariyla geri yuklendi. Uygulama ayarlariniz korundu.");
             }
             catch (Exception ex)
             {
+                // Hata durumunda uygulamayı veritabanı bağlantısız bırakmamak için yeniden başlatmayı dene
+                try { await InitializeAsync(); } catch { }
                 return (false, $"Geri yukleme sirasinda hata olustu: {ex.Message}");
             }
         }
