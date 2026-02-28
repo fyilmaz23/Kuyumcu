@@ -145,7 +145,7 @@ namespace Kuyumcu.Services
         }
 
         /// <summary>
-        /// Yedek dosyasindan veritabanini geri yukler. DIKKAT: Mevcut tum veriler silinir!
+        /// Yedek dosyasindan veritabanini geri yukler. Sadece Customer, Transaction ve QuickEntry verileri aktarilir, ayarlariniz korunur.
         /// </summary>
         public async Task<(bool Success, string Message)> RestoreDatabaseAsync(string backupFilePath)
         {
@@ -159,59 +159,52 @@ namespace Kuyumcu.Services
                 if (!validationResult.IsValid)
                     return (false, validationResult.Message);
 
-                var databasePath = Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), 
-                    "Kuyumcu.db3");
-
-                // Close the current connection
-                if (_database != null)
-                {
-                    await _database.CloseAsync();
-                    _database = null;
-                    _initialized = false;
-                }
-
-                await Task.Delay(300);
-
-                // Create a safety backup of current database
-                var safetyBackupPath = databasePath + ".safety_backup";
-                if (File.Exists(databasePath))
-                {
-                    File.Copy(databasePath, safetyBackupPath, overwrite: true);
-                }
+                // Read data from backup database
+                List<Customer> backupCustomers;
+                List<Transaction> backupTransactions;
+                List<QuickEntry> backupQuickEntries;
 
                 try
                 {
-                    // Replace database with backup file
-                    File.Copy(backupFilePath, databasePath, overwrite: true);
-
-                    // Reinitialize connection
-                    await InitializeAsync();
-
-                    // Clean up safety backup on success
-                    if (File.Exists(safetyBackupPath))
-                        File.Delete(safetyBackupPath);
-
-                    return (true, "Veritabani basariyla geri yuklendi. Uygulama yeniden baslatilmalidir.");
+                    var backupDb = new SQLiteAsyncConnection(backupFilePath);
+                    backupCustomers = await backupDb.Table<Customer>().ToListAsync();
+                    
+                    // Transaction table might not exist in very old backups, handle safely
+                    try { backupTransactions = await backupDb.Table<Transaction>().ToListAsync(); }
+                    catch { backupTransactions = new List<Transaction>(); }
+                    
+                    // QuickEntry table might not exist in very old backups
+                    try { backupQuickEntries = await backupDb.Table<QuickEntry>().ToListAsync(); }
+                    catch { backupQuickEntries = new List<QuickEntry>(); }
+                    
+                    await backupDb.CloseAsync();
                 }
                 catch (Exception ex)
                 {
-                    // Roll back: restore from safety backup
-                    if (File.Exists(safetyBackupPath))
-                    {
-                        File.Copy(safetyBackupPath, databasePath, overwrite: true);
-                        File.Delete(safetyBackupPath);
-                    }
-                    _initialized = false;
-                    await InitializeAsync();
-
-                    return (false, $"Geri yukleme basarisiz oldu: {ex.Message}. Mevcut veriler korundu.");
+                    return (false, $"Yedek dosyasindan veri okunamadi: {ex.Message}");
                 }
+
+                await InitializeAsync();
+
+                // Start a transaction in current DB to safely replace data
+                await _database.RunInTransactionAsync(tran =>
+                {
+                    // Delete existing data
+                    tran.DeleteAll<Customer>();
+                    tran.DeleteAll<Transaction>();
+                    tran.DeleteAll<QuickEntry>();
+
+                    // Insert backup data
+                    if (backupCustomers.Any()) tran.InsertAll(backupCustomers);
+                    if (backupTransactions.Any()) tran.InsertAll(backupTransactions);
+                    if (backupQuickEntries.Any()) tran.InsertAll(backupQuickEntries);
+                });
+
+                return (true, "Veritabani basariyla geri yuklendi. Uygulama ayarlariniz korundu.");
             }
             catch (Exception ex)
             {
-                try { _initialized = false; await InitializeAsync(); } catch { }
-                return (false, $"Beklenmeyen hata: {ex.Message}");
+                return (false, $"Geri yukleme sirasinda hata olustu: {ex.Message}");
             }
         }
 
