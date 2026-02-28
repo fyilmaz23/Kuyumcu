@@ -25,7 +25,6 @@ namespace Kuyumcu.Services
 
             await _database.CreateTableAsync<Customer>();
             await _database.CreateTableAsync<Transaction>();
-            await _database.CreateTableAsync<QuickEntry>();
             await _database.CreateTableAsync<AppSettings>();
 
             _initialized = true;
@@ -47,7 +46,6 @@ namespace Kuyumcu.Services
                 // Tabloları oluştur veya güncelle
                 await _database.CreateTableAsync<Customer>();
                 await _database.CreateTableAsync<Transaction>();
-                await _database.CreateTableAsync<QuickEntry>();
                 await _database.CreateTableAsync<AppSettings>();
 
                 _initialized = true;
@@ -162,7 +160,6 @@ namespace Kuyumcu.Services
                 // Read data from backup database
                 List<Customer> backupCustomers;
                 List<Transaction> backupTransactions;
-                List<QuickEntry> backupQuickEntries;
 
                 try
                 {
@@ -172,10 +169,6 @@ namespace Kuyumcu.Services
                     // Transaction table might not exist in very old backups, handle safely
                     try { backupTransactions = await backupDb.Table<Transaction>().ToListAsync(); }
                     catch { backupTransactions = new List<Transaction>(); }
-                    
-                    // QuickEntry table might not exist in very old backups
-                    try { backupQuickEntries = await backupDb.Table<QuickEntry>().ToListAsync(); }
-                    catch { backupQuickEntries = new List<QuickEntry>(); }
                     
                     await backupDb.CloseAsync();
                 }
@@ -192,12 +185,10 @@ namespace Kuyumcu.Services
                     // Delete existing data
                     tran.DeleteAll<Customer>();
                     tran.DeleteAll<Transaction>();
-                    tran.DeleteAll<QuickEntry>();
 
                     // Insert backup data
                     if (backupCustomers.Any()) tran.InsertAll(backupCustomers);
                     if (backupTransactions.Any()) tran.InsertAll(backupTransactions);
-                    if (backupQuickEntries.Any()) tran.InsertAll(backupQuickEntries);
                 });
 
                 return (true, "Veritabani basariyla geri yuklendi. Uygulama ayarlariniz korundu.");
@@ -609,19 +600,8 @@ namespace Kuyumcu.Services
             return await _database.UpdateAsync(transaction);
         }
 
-        // QuickEntry methods
-        public async Task<List<QuickEntry>> GetQuickEntriesAsync()
-        {
-            await InitializeAsync();
-            return await _database.Table<QuickEntry>().OrderByDescending(e => e.CreatedDate).ToListAsync();
-        }
 
-        public async Task<QuickEntry> GetQuickEntryAsync(int id)
-        {
-            await InitializeAsync();
-            return await _database.Table<QuickEntry>().Where(e => e.Id == id).FirstOrDefaultAsync();
-        }
-
+        // Customer navigation methods
         /// <summary>
         /// Belirtilen müşteri ID'sine göre bir önceki müşterinin ID'sini döndürür
         /// </summary>
@@ -700,36 +680,6 @@ namespace Kuyumcu.Services
                 Console.WriteLine($"GetNextCustomerIdAsync hata: {e.Message}");
                 return null;
             }
-        }
-
-        public async Task<List<QuickEntry>> SearchQuickEntriesAsync(string searchTerm)
-        {
-            await InitializeAsync();
-            return await _database.Table<QuickEntry>()
-                .Where(e => e.FullName.Contains(searchTerm) || e.TcKimlikNo.Contains(searchTerm))
-                .OrderByDescending(e => e.CreatedDate)
-                .ToListAsync();
-        }
-
-        public async Task<int> SaveQuickEntryAsync(QuickEntry entry)
-        {
-            await InitializeAsync();
-            if (entry.Id != 0)
-                return await _database.UpdateAsync(entry);
-            else
-                return await _database.InsertAsync(entry);
-        }
-
-        // Alias for SaveQuickEntryAsync for clarity when updating
-        public async Task<int> UpdateQuickEntryAsync(QuickEntry entry)
-        {
-            return await SaveQuickEntryAsync(entry);
-        }
-
-        public async Task<int> DeleteQuickEntryAsync(QuickEntry entry)
-        {
-            await InitializeAsync();
-            return await _database.DeleteAsync(entry);
         }
 
         // Helper method to sort customers with Turkish culture support

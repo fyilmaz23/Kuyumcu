@@ -180,11 +180,6 @@ ShowToolTips = true,
 
     // Active tab
 
-    // QuickEntry related properties
-    private List<QuickEntry> quickEntries;
-    private QuickEntry currentQuickEntry = new QuickEntry();
-    private bool isLoadingQuickEntries = false;
-
     // Customers variables
     private List<Customer> customers;
     private List<Customer> filteredCustomers;
@@ -430,87 +425,6 @@ ShowToolTips = true,
         await customerTable.ReloadServerData();
     }
 
-    // QuickEntry methods
-    private async Task LoadQuickEntries()
-    {
-        isLoadingQuickEntries = true;
-        try
-        {
-            quickEntries = await DatabaseService.GetQuickEntriesAsync();
-        }
-        finally
-        {
-            isLoadingQuickEntries = false;
-            StateHasChanged();
-        }
-    }
-
-    private async Task SaveQuickEntryAsync()
-    {
-        if (currentQuickEntry.Id != 0)
-        {
-            // Düzenleme işlemi - CreatedDate'i koruyoruz
-            var existingEntry = await DatabaseService.GetQuickEntryAsync(currentQuickEntry.Id);
-            currentQuickEntry.CreatedDate = existingEntry.CreatedDate;
-        }
-        else
-        {
-            // Yeni kayıt - CreatedDate'i şu anki zaman olarak ayarlıyoruz
-            currentQuickEntry.CreatedDate = DateTime.Now;
-        }
-
-        await DatabaseService.SaveQuickEntryAsync(currentQuickEntry);
-        await LoadQuickEntries();
-
-        // Form'u temizle
-        ResetQuickEntryForm();
-    }
-
-    private void ResetQuickEntryForm()
-    {
-        currentQuickEntry = new QuickEntry
-            {
-                Id = 0
-            };
-    }
-
-    private async Task DeleteQuickEntryAsync(QuickEntry entry)
-    {
-        bool? result = await DialogService.ShowMessageBox(
-            "Silme Onayı",
-            "Bu kaydı silmek istediğinize emin misiniz?",
-            yesText: "Evet", cancelText: "Hayır");
-
-        if (result == true)
-        {
-            await DatabaseService.DeleteQuickEntryAsync(entry);
-            await LoadQuickEntries();
-        }
-    }
-
-    private async Task EditQuickEntry(QuickEntry entry)
-    {
-        // Düzenlenecek kaydın bilgilerini forma yükle
-        currentQuickEntry = new QuickEntry
-            {
-                Id = entry.Id,
-                FullName = entry.FullName,
-                TcKimlikNo = entry.TcKimlikNo,
-                Tutar = entry.Tutar,
-                IsProcessed = entry.IsProcessed,
-                CreatedDate = entry.CreatedDate
-            };
-
-        // Formun bulunduğu konuma kaydır
-        await JSRuntime.InvokeVoidAsync("scrollToTop");
-    }
-
-    private async Task UpdateProcessedStatus(QuickEntry entry, bool value)
-    {
-        entry.IsProcessed = value;
-        await DatabaseService.UpdateQuickEntryAsync(entry);
-    }
-
     // Customer methods
     private async Task LoadCustomers()
     {
@@ -689,20 +603,6 @@ ShowToolTips = true,
         return currencyType.GetDisplayName();
     }
 
-    private decimal GetProcessedTotalAmount()
-    {
-        return quickEntries?.Where(e => e.IsProcessed).Sum(e => e.Tutar) ?? 0;
-    }
-
-    private decimal GetUnprocessedTotalAmount()
-    {
-        return quickEntries?.Where(e => !e.IsProcessed).Sum(e => e.Tutar) ?? 0;
-    }
-
-    private decimal GetTotalAmount()
-    {
-        return quickEntries?.Sum(e => e.Tutar) ?? 0;
-    }
 
     private async Task CalculateIndebtedCustomers(IEnumerable<Transaction> transactions)
     {
