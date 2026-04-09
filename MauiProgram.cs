@@ -26,6 +26,7 @@ public static class MauiProgram
         builder.Services.AddSingleton<BackupService>();
         builder.Services.AddSingleton<PrintService>();
         builder.Services.AddSingleton<GoogleDriveService>();
+        builder.Services.AddSingleton<LicenseService>();
         
         // CookieHandler ile HttpClient oluştur
         var cookieContainer = new CookieContainer();
@@ -57,12 +58,19 @@ public static class MauiProgram
         var backupService = app.Services.GetService<BackupService>();
         backupService?.Start();
         
-        // Veritabanı şemasını güncelle
+        // Veritabanı şemasını güncelle ve lisansı başlat
         Task.Run(async () => {
             var dbService = app.Services.GetService<DatabaseService>();
             if (dbService != null)
             {
                 await dbService.UpdateDatabaseSchemaAsync();
+            }
+
+            // Lisans/deneme süresini başlat
+            var licenseService = app.Services.GetService<LicenseService>();
+            if (licenseService != null)
+            {
+                await licenseService.InitializeTrialAsync();
             }
         });
 

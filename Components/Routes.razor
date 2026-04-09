@@ -15,6 +15,14 @@
             NavigationManager.NavigateTo("setup");
             return;
         }
+        else if (_licenseExpired 
+                 && routeData.PageType != typeof(Pages.LicenseExpired)
+                 && routeData.PageType != typeof(Pages.Settings)
+                 && routeData.PageType != typeof(Pages.Setup))
+        {
+            NavigationManager.NavigateTo("license-expired");
+            return;
+        }
 
         <RouteView RouteData="@routeData" DefaultLayout="@typeof(Layout.MainLayout)" />
         <FocusOnNavigate RouteData="@routeData" Selector="h1" />
@@ -43,4 +51,23 @@
     @code {
     [Inject]
     private NavigationManager NavigationManager { get; set; }
+
+    [Inject]
+    private Services.LicenseService LicenseService { get; set; }
+
+    private bool _licenseExpired = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var status = await LicenseService.GetLicenseStatusAsync();
+            _licenseExpired = (status == Models.LicenseStatus.Expired);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Routes lisans kontrolü hata: {ex.Message}");
+            _licenseExpired = false; // Hata durumunda engellememe
+        }
+    }
 }

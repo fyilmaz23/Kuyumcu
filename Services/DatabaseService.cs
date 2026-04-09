@@ -26,6 +26,7 @@ namespace Kuyumcu.Services
             await _database.CreateTableAsync<Customer>();
             await _database.CreateTableAsync<Transaction>();
             await _database.CreateTableAsync<AppSettings>();
+            await _database.CreateTableAsync<LicenseInfo>();
 
             _initialized = true;
         }
@@ -47,6 +48,7 @@ namespace Kuyumcu.Services
                 await _database.CreateTableAsync<Customer>();
                 await _database.CreateTableAsync<Transaction>();
                 await _database.CreateTableAsync<AppSettings>();
+                await _database.CreateTableAsync<LicenseInfo>();
 
                 _initialized = true;
                 return true;
@@ -822,6 +824,22 @@ namespace Kuyumcu.Services
             await InitializeAsync();
             var settings = await _database.Table<AppSettings>().FirstOrDefaultAsync();
             return settings?.IsSetupCompleted ?? false;
+        }
+
+        // LicenseInfo methods
+        public async Task<LicenseInfo> GetLicenseInfoAsync()
+        {
+            await InitializeAsync();
+            return await _database.Table<LicenseInfo>().FirstOrDefaultAsync();
+        }
+
+        public async Task SaveLicenseInfoAsync(LicenseInfo licenseInfo)
+        {
+            await InitializeAsync();
+            if (licenseInfo.Id != 0)
+                await _database.UpdateAsync(licenseInfo);
+            else
+                await _database.InsertAsync(licenseInfo);
         }
     }
 

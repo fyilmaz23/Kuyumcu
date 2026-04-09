@@ -2,6 +2,7 @@
 @inject DatabaseService DatabaseService
 @inject IDialogService DialogService
 @inject NavigationManager NavigationManager
+@inject Services.LicenseService LicenseService
 
 <MudContainer MaxWidth="MaxWidth.Small" Class="mt-4">
     <MudText Typo="Typo.h5" Class="mb-4">
@@ -93,6 +94,82 @@
                 @(isRestoreInProgress ? "İçe aktarılıyor..." : "Yedek Dosyası Seç ve İçe Aktar")
             </MudButton>
         </MudPaper>
+
+        <MudDivider Class="my-4" />
+
+        @* Lisans Bilgileri Bölümü *@
+        <MudPaper Class="pa-6 mb-4" Elevation="2" Style="@($"border-left: 4px solid {(licenseStatus == Models.LicenseStatus.Licensed ? "#4caf50" : licenseStatus == Models.LicenseStatus.Trial ? "#ff9800" : "#f44336")};")">
+            <MudText Typo="Typo.h6" Class="mb-3">
+                <MudIcon Icon="@Icons.Material.Filled.VerifiedUser" Class="mr-1" /> Lisans Bilgileri
+            </MudText>
+
+            <MudStack Spacing="2" Class="mb-4">
+                <div class="d-flex justify-space-between align-center">
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">Lisans Durumu:</MudText>
+                    @if (licenseStatus == Models.LicenseStatus.Licensed)
+                    {
+                        <MudChip T="string" Color="Color.Success" Size="Size.Small" Variant="Variant.Filled" Icon="@Icons.Material.Filled.CheckCircle">
+                            Lisanslı (Tam Sürüm)
+                        </MudChip>
+                    }
+                    else if (licenseStatus == Models.LicenseStatus.Trial)
+                    {
+                        <MudChip T="string" Color="@(remainingDays <= 7 ? Color.Error : Color.Warning)" Size="Size.Small" Variant="Variant.Filled" Icon="@Icons.Material.Filled.Timer">
+                            Deneme Sürümü — @remainingDays gün kaldı
+                        </MudChip>
+                    }
+                    else
+                    {
+                        <MudChip T="string" Color="Color.Error" Size="Size.Small" Variant="Variant.Filled" Icon="@Icons.Material.Filled.Error">
+                            Süresi Dolmuş
+                        </MudChip>
+                    }
+                </div>
+
+                <div class="d-flex justify-space-between align-center">
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">Cihaz Kimliği:</MudText>
+                    <MudText Typo="Typo.body2" Style="font-family: monospace;"><strong>@deviceId</strong></MudText>
+                </div>
+
+                @if (licenseStatus == Models.LicenseStatus.Licensed && licenseInfo != null)
+                {
+                    <div class="d-flex justify-space-between align-center">
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">Aktivasyon Tarihi:</MudText>
+                        <MudText Typo="Typo.body2"><strong>@licenseInfo.LicenseActivationDate?.ToLocalTime().ToString("dd.MM.yyyy HH:mm")</strong></MudText>
+                    </div>
+                }
+            </MudStack>
+
+            @if (licenseStatus != Models.LicenseStatus.Licensed)
+            {
+                <MudDivider Class="my-3" />
+
+                <MudTextField @bind-Value="licenseKeyInput"
+                              Label="Lisans Anahtarı"
+                              Placeholder="KUYM-XXXXX-XXXXX-XXXXX-XXXXX"
+                              Variant="Variant.Outlined"
+                              Adornment="Adornment.Start"
+                              AdornmentIcon="@Icons.Material.Filled.VpnKey"
+                              Style="font-family: monospace; letter-spacing: 1px;"
+                              Class="mb-3" />
+
+                @if (!string.IsNullOrEmpty(licenseErrorMessage))
+                {
+                    <MudAlert Severity="Severity.Error" Variant="Variant.Filled" Dense="true" Class="mb-3">
+                        @licenseErrorMessage
+                    </MudAlert>
+                }
+
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Success"
+                           FullWidth="true"
+                           StartIcon="@Icons.Material.Filled.CheckCircle"
+                           OnClick="ActivateLicense"
+                           Disabled="@(string.IsNullOrWhiteSpace(licenseKeyInput) || isActivatingLicense)">
+                    @(isActivatingLicense ? "Doğrulanıyor..." : "Lisansı Etkinleştir")
+                </MudButton>
+            }
+        </MudPaper>
     }
 </MudContainer>
 
@@ -100,10 +177,31 @@
     private AppSettings settings = new();
     private bool isLoading = true;
     private bool isRestoreInProgress = false;
+    private Models.LicenseStatus licenseStatus = Models.LicenseStatus.Trial;
+    private int remainingDays = 30;
+    private string deviceId = string.Empty;
+    private string licenseKeyInput = string.Empty;
+    private string licenseErrorMessage = string.Empty;
+    private bool isActivatingLicense = false;
+    private Models.LicenseInfo licenseInfo;
 
     protected override async Task OnInitializedAsync()
     {
         settings = await DatabaseService.GetSettingsAsync();
+
+        // Lisans durumunu yükle
+        try
+        {
+            licenseStatus = await LicenseService.GetLicenseStatusAsync();
+            remainingDays = await LicenseService.GetRemainingTrialDaysAsync();
+            deviceId = await LicenseService.GetDeviceIdAsync();
+            licenseInfo = await LicenseService.GetLicenseInfoAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Settings lisans kontrolü hata: {ex.Message}");
+        }
+
         isLoading = false;
     }
 
@@ -194,6 +292,45 @@
         finally
         {
             isRestoreInProgress = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task ActivateLicense()
+    {
+        licenseErrorMessage = string.Empty;
+        isActivatingLicense = true;
+        StateHasChanged();
+
+        try
+        {
+            var result = await LicenseService.ActivateLicenseAsync(licenseKeyInput);
+
+            if (result.Success)
+            {
+                await DialogService.ShowMessageBox(
+                    "Başarılı! 🎉",
+                    result.Message,
+                    yesText: "Tamam");
+
+                // Durumu güncelle
+                licenseStatus = Models.LicenseStatus.Licensed;
+                licenseInfo = await LicenseService.GetLicenseInfoAsync();
+                licenseKeyInput = string.Empty;
+                StateHasChanged();
+            }
+            else
+            {
+                licenseErrorMessage = result.Message;
+            }
+        }
+        catch (Exception ex)
+        {
+            licenseErrorMessage = $"Beklenmeyen bir hata oluştu: {ex.Message}";
+        }
+        finally
+        {
+            isActivatingLicense = false;
             StateHasChanged();
         }
     }

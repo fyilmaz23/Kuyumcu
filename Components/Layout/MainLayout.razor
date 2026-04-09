@@ -2,6 +2,7 @@
 @inject GoogleDriveService GoogleDriveService
 @inject DatabaseService DatabaseService
 @inject IDialogService DialogService
+@inject LicenseService LicenseService
 
 <MudLayout>
     <MudAppBar Elevation="1" Color="Color.Primary">
@@ -9,6 +10,15 @@
         <MudSpacer />
         @if (DeviceInfo.Platform != DevicePlatform.Android)
         {
+            @if (licenseStatus == Models.LicenseStatus.Trial)
+            {
+                <MudChip T="string" Color="@(remainingDays <= 7 ? Color.Error : Color.Warning)" 
+                         Size="Size.Small" 
+                         Variant="Variant.Filled"
+                         Icon="@Icons.Material.Filled.Timer">
+                    Deneme Sürümü — @remainingDays gün kaldı
+                </MudChip>
+            }
             <MudIconButton Icon="@Icons.Material.Filled.Home" Color="Color.Inherit" Href="/" />
             <MudIconButton Icon="@Icons.Material.Filled.People" Color="Color.Inherit" Href="/customers" />
             <MudIconButton Icon="@Icons.Material.Filled.Receipt" Color="Color.Inherit" Href="/transactions" />
@@ -43,6 +53,8 @@
     private string backupResult = string.Empty;
     private string businessName = "Kuyumcu";
     private bool isGoogleDriveConfigured = false;
+    private Models.LicenseStatus licenseStatus = Models.LicenseStatus.Trial;
+    private int remainingDays = 30;
 
     private MudTheme myCustomTheme = new MudTheme()
     {
@@ -78,6 +90,20 @@
         }
         isGoogleDriveConfigured = !string.IsNullOrWhiteSpace(settings.GoogleClientId) 
                                    && !string.IsNullOrWhiteSpace(settings.GoogleClientSecret);
+
+        // Lisans durumunu yükle
+        try
+        {
+            licenseStatus = await LicenseService.GetLicenseStatusAsync();
+            if (licenseStatus == Models.LicenseStatus.Trial)
+            {
+                remainingDays = await LicenseService.GetRemainingTrialDaysAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"MainLayout lisans kontrolü hata: {ex.Message}");
+        }
     }
 
     private async Task BackupToGoogleDrive()
