@@ -38,23 +38,42 @@ namespace Kuyumcu.Services
 
                 if (licenseInfo == null)
                 {
-                    // İlk kurulum — deneme süresini başlat
                     var now = DateTime.UtcNow;
                     var deviceId = await GetDeviceIdAsync();
 
-                    licenseInfo = new LicenseInfo
+                    // Mevcut kullanıcı mı yoksa yeni kurulum mu kontrol et
+                    var isExistingUser = await _databaseService.IsSetupCompletedAsync();
+
+                    if (isExistingUser)
                     {
-                        TrialStartDate = now,
-                        TrialEndDate = now.AddDays(TRIAL_DAYS),
-                        DeviceId = deviceId,
-                        LastCheckDate = now,
-                        IsLicensed = false
-                    };
+                        // Mevcut kullanıcı — deneme süresi zaten dolmuş olarak işaretle
+                        // Güncelleme sonrası hemen lisans anahtarı gerekecek
+                        licenseInfo = new LicenseInfo
+                        {
+                            TrialStartDate = now.AddDays(-TRIAL_DAYS - 1), // Geçmişte başlamış
+                            TrialEndDate = now.AddDays(-1),                // Dün bitmiş
+                            DeviceId = deviceId,
+                            LastCheckDate = now,
+                            IsLicensed = false
+                        };
+                    }
+                    else
+                    {
+                        // Yeni kurulum — 30 günlük deneme süresini başlat
+                        licenseInfo = new LicenseInfo
+                        {
+                            TrialStartDate = now,
+                            TrialEndDate = now.AddDays(TRIAL_DAYS),
+                            DeviceId = deviceId,
+                            LastCheckDate = now,
+                            IsLicensed = false
+                        };
+                    }
 
                     await _databaseService.SaveLicenseInfoAsync(licenseInfo);
 
                     // SecureStorage'a da kaydet (anti-tampering)
-                    await SecureStorage.Default.SetAsync(SECURE_TRIAL_START, now.ToString("O"));
+                    await SecureStorage.Default.SetAsync(SECURE_TRIAL_START, licenseInfo.TrialStartDate.ToString("O"));
                     await SecureStorage.Default.SetAsync(SECURE_LAST_CHECK, now.ToString("O"));
                     await SecureStorage.Default.SetAsync(SECURE_DEVICE_ID, deviceId);
                 }
