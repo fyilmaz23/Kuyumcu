@@ -4,12 +4,12 @@ using Kuyumcu.Models;
 
 namespace Kuyumcu.Services
 {
-    public class LicenseService
+    public partial class LicenseService
     {
         private readonly DatabaseService _databaseService;
 
-        // ⚠️ Bu gizli anahtarı değiştirin! Üretim ortamında güçlü ve benzersiz bir anahtar kullanın.
-        private const string SECRET_KEY = "KuyumcuApp2026!SecretHMAC#Key@Production";
+        // SECRET_KEY, LicenseService.Secrets.cs dosyasında tanımlıdır (.gitignore'da)
+        // Bu dosya build sırasında GitHub Secrets'dan oluşturulur.
 
         // Deneme süresi (gün)
         private const int TRIAL_DAYS = 30;

@@ -27,6 +27,25 @@ jobs:
       - name: Install MAUI Workload
         run: dotnet workload install maui
 
+      - name: Generate License Secrets
+        shell: pwsh
+        run: |
+          $secretKey = "${{ secrets.LICENSE_SECRET_KEY }}"
+          if ([string]::IsNullOrEmpty($secretKey)) {
+            $secretKey = "MISSING_SECRET_KEY_PLEASE_SET_GITHUB_SECRET"
+          }
+          $content = @"
+          namespace Kuyumcu.Services
+          {
+              public partial class LicenseService
+              {
+                  private const string SECRET_KEY = "$secretKey";
+              }
+          }
+          "@
+          Set-Content -Path "Services/LicenseService.Secrets.cs" -Value $content -Encoding utf8
+          echo "LicenseService.Secrets.cs generated successfully."
+
       - name: Extract version from tag
         id: version
         shell: pwsh

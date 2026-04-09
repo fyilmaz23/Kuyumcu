@@ -361,3 +361,7 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+
+# License secrets (asla public repo'da görünmemeli)
+Services/LicenseService.Secrets.cs
+Components/Pages/LicenseKeyGenerator.razor
