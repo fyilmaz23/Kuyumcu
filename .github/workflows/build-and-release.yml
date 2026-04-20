@@ -121,11 +121,12 @@ jobs:
           $tagName = "${{ steps.version.outputs.TAG_NAME }}"
           $msixName = "${{ steps.find_msix.outputs.MSIX_NAME }}"
           $repoUrl = "https://github.com/${{ github.repository }}/releases/download/$tagName"
+          $latestUrl = "https://github.com/${{ github.repository }}/releases/latest/download"
           
           $appInstallerContent = @"
           <?xml version="1.0" encoding="utf-8"?>
           <AppInstaller
-            Uri="$repoUrl/Kuyumcu.appinstaller"
+            Uri="$latestUrl/Kuyumcu.appinstaller"
             Version="$version"
             xmlns="http://schemas.microsoft.com/appx/appinstaller/2018">
             
