@@ -744,6 +744,31 @@ else
             currentTransaction.Date = dateTime;
         }
 
+        // Duplicate check (Sadece yeni işlemlerde)
+        if (currentTransaction.Id == 0 && allTransactions != null)
+        {
+            var duplicateTransaction = allTransactions.FirstOrDefault(t => 
+                t.Date.Date == currentTransaction.Date.Date &&
+                t.Type == currentTransaction.Type &&
+                t.CurrencyType == currentTransaction.CurrencyType &&
+                t.Amount == currentTransaction.Amount &&
+                t.IsDeposit == currentTransaction.IsDeposit);
+
+            if (duplicateTransaction != null)
+            {
+                var dupResult = await Dialog.ShowMessageBox(
+                    "Mükerrer İşlem Uyarısı",
+                    $"Bunu bugün saat {duplicateTransaction.Date.ToString("HH:mm")}'de zaten eklemiştiniz, yine de eklenmesini ister misiniz?",
+                    yesText: "Evet, yine de ekle",
+                    noText: "Hayır, iptal et");
+
+                if (dupResult != true)
+                {
+                    return; // Kullanıcı iptal etti
+                }
+            }
+        }
+
         // Create transaction summary
         string formattedDate = currentTransaction.Date.ToString("dd.MM.yyyy HH:mm");
         string transactionType = currentTransaction.Type == TransactionType.CustomerDebt ? "Giden" : "Gelen";
