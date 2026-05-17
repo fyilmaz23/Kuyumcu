@@ -3,6 +3,7 @@
 @inject DatabaseService DatabaseService
 @inject IDialogService DialogService
 @inject LicenseService LicenseService
+@inject NavigationManager NavigationManager
 
 <MudLayout>
     <MudAppBar Elevation="1" Color="Color.Primary">
@@ -10,6 +11,12 @@
         <MudSpacer />
         @if (DeviceInfo.Platform != DevicePlatform.Android)
         {
+            <div style="width: 300px; margin-right: 16px;">
+                <MudAutocomplete @ref="searchAutocomplete" T="Kuyumcu.Models.Customer" Placeholder="Müşteri ara..." Variant="Variant.Outlined" Margin="Margin.Dense"
+                    SearchFunc="@SearchCustomers" ToStringFunc="@(e => e == null ? null : e.Name)"
+                    ValueChanged="OnCustomerSelected" AdornmentIcon="@Icons.Material.Filled.Search" Adornment="Adornment.Start"
+                    Clearable="true" Dense="true" MaxItems="10" MinCharacters="1" Style="background: white; border-radius: 4px;" />
+            </div>
             @if (licenseStatus == Models.LicenseStatus.Trial)
             {
                 <MudChip T="string" Color="@(remainingDays <= 7 ? Color.Error : Color.Warning)" 
@@ -138,6 +145,30 @@
         {
             isBackupInProgress = false;
             StateHasChanged();
+        }
+    }
+
+    private MudAutocomplete<Kuyumcu.Models.Customer> searchAutocomplete;
+    private Kuyumcu.Models.Customer selectedCustomer;
+
+    private async Task<IEnumerable<Kuyumcu.Models.Customer>> SearchCustomers(string value, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return await DatabaseService.GetCustomersPaginationAsync(0, 10, null, null, null);
+
+        var customers = await DatabaseService.GetCustomersPaginationAsync(0, 10, null, null, value);
+        return customers;
+    }
+
+    private void OnCustomerSelected(Kuyumcu.Models.Customer customer)
+    {
+        if (customer != null)
+        {
+            NavigationManager.NavigateTo($"/customer/{customer.Id}");
+            if (searchAutocomplete != null)
+            {
+                searchAutocomplete.ResetAsync();
+            }
         }
     }
 }
