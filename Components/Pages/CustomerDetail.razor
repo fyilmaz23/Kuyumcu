@@ -426,11 +426,14 @@ else
     private int? nextCustomerId = 0;
     private int? previousCustomerId = 0;
 
-    protected override async Task OnInitializedAsync()
+    protected override void OnInitialized()
     {
         // Yazıcıları yükle
         LoadPrinters();
+    }
 
+    protected override async Task OnParametersSetAsync()
+    {
         await LoadCustomerData();
     }
 
