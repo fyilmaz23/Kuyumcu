@@ -144,7 +144,11 @@ public class GoldPriceExportService
             {
                 // Altın türü
                 var typeNode = item.SelectSingleNode(".//li[@class='v_a']");
-                string goldType = typeNode?.InnerText?.Trim();
+                // Sadece text node'u alarak içindeki span vb. elementlerin görünmez metinlerini ekarte edelim
+                string goldType = typeNode?.ChildNodes.FirstOrDefault(n => n.NodeType == HtmlNodeType.Text)?.InnerText?.Trim();
+                
+                if (string.IsNullOrEmpty(goldType))
+                    goldType = typeNode?.InnerText?.Trim();
 
                 if (string.IsNullOrEmpty(goldType))
                     continue;
