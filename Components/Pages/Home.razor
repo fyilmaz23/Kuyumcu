@@ -111,16 +111,20 @@
                     <MudTable Items="@currencyBalanceSummaryList" Hover="true" Striped="true" Dense="true">
                         <HeaderContent>
                             <MudTh>Para Birimi</MudTh>
-                            <MudTh Style="text-align: right;">Toplam Gelen</MudTh>
                             <MudTh Style="text-align: right;">Toplam Giden</MudTh>
+                            <MudTh Style="text-align: right;">Toplam Gelen</MudTh>
+                            <MudTh Style="text-align: right;">Fark</MudTh>
                         </HeaderContent>
                         <RowTemplate>
                             <MudTd DataLabel="Para Birimi">@context.CurrencyName</MudTd>
+                            <MudTd DataLabel="Toplam Giden" Style="text-align: right; color: #f44336; font-weight: bold;">
+                                @context.TotalOutgoing.ToString("N2")
+                            </MudTd>
                             <MudTd DataLabel="Toplam Gelen" Style="text-align: right; color: #4caf50; font-weight: bold;">
                                 @context.TotalIncoming.ToString("N2")
                             </MudTd>
-                            <MudTd DataLabel="Toplam Giden" Style="text-align: right; color: #f44336; font-weight: bold;">
-                                @context.TotalOutgoing.ToString("N2")
+                            <MudTd DataLabel="Fark" Style="@GetDifferenceStyle(context.Difference)">
+                                @context.Difference.ToString("N2")
                             </MudTd>
                         </RowTemplate>
                     </MudTable>
@@ -683,11 +687,19 @@ ShowToolTips = true,
         }
     }
 
+    // Fark sütunu için renk stili: pozitif (giden fazla) kırmızı, negatif (gelen fazla) yeşil
+    private string GetDifferenceStyle(decimal difference)
+    {
+        var color = difference > 0 ? "#f44336" : difference < 0 ? "#4caf50" : "inherit";
+        return $"text-align: right; font-weight: bold; color: {color};";
+    }
+
     // Data model for currency balance summary display
     public class CurrencyBalanceRow
     {
         public string CurrencyName { get; set; }
         public decimal TotalIncoming { get; set; }
         public decimal TotalOutgoing { get; set; }
+        public decimal Difference => TotalOutgoing - TotalIncoming;
     }
 }
