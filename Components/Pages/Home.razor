@@ -117,17 +117,67 @@
                         </HeaderContent>
                         <RowTemplate>
                             <MudTd DataLabel="Para Birimi">@context.CurrencyName</MudTd>
-                            <MudTd DataLabel="Toplam Giden" Style="text-align: right; color: #f44336; font-weight: bold;">
-                                @context.TotalOutgoing.ToString("N2")
+                            <MudTd DataLabel="Toplam Giden" Style="text-align: right;">
+                                <span style="@GetAmountLinkStyle(context.TotalOutgoing, isOutgoing: true)"
+                                      title="@(context.TotalOutgoing != 0 ? "İlgili müşterileri göster" : null)"
+                                      @onclick="@(() => ShowBalanceDetails(context, isOutgoing: true))">
+                                    @context.TotalOutgoing.ToString("N2")
+                                </span>
                             </MudTd>
-                            <MudTd DataLabel="Toplam Gelen" Style="text-align: right; color: #4caf50; font-weight: bold;">
-                                @context.TotalIncoming.ToString("N2")
+                            <MudTd DataLabel="Toplam Gelen" Style="text-align: right;">
+                                <span style="@GetAmountLinkStyle(context.TotalIncoming, isOutgoing: false)"
+                                      title="@(context.TotalIncoming != 0 ? "İlgili müşterileri göster" : null)"
+                                      @onclick="@(() => ShowBalanceDetails(context, isOutgoing: false))">
+                                    @context.TotalIncoming.ToString("N2")
+                                </span>
                             </MudTd>
                             <MudTd DataLabel="Fark" Style="@GetDifferenceStyle(context.Difference)">
                                 @context.Difference.ToString("N2")
                             </MudTd>
                         </RowTemplate>
                     </MudTable>
+
+                    <MudText Typo="Typo.caption" Class="mt-2 d-block mud-text-secondary">
+                        Detayları görmek için Toplam Giden veya Toplam Gelen tutarına tıklayın.
+                    </MudText>
+
+                    @if (showBalanceDetails)
+                    {
+                        <MudPaper Elevation="0" Outlined="true" Class="pa-4 mt-4">
+                            <div class="d-flex justify-space-between align-center mb-3">
+                                <MudText Typo="Typo.subtitle1">@balanceDetailTitle</MudText>
+                                <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small"
+                                               OnClick="@CloseBalanceDetails" aria-label="Kapat" />
+                            </div>
+
+                            @if (balanceDetailList.Any())
+                            {
+                                <MudTable Items="@balanceDetailList" Hover="true" Striped="true" Dense="true"
+                                          OnRowClick="@OnBalanceDetailRowClick" T="CustomerCurrencyBalance">
+                                    <HeaderContent>
+                                        <MudTh>Müşteri</MudTh>
+                                        <MudTh Style="text-align: right;">Bakiye</MudTh>
+                                    </HeaderContent>
+                                    <RowTemplate>
+                                        <MudTd DataLabel="Müşteri">@context.CustomerName</MudTd>
+                                        <MudTd DataLabel="Bakiye" Style="@balanceDetailAmountStyle">
+                                            @Math.Abs(context.NetBalance).ToString("N2") @context.CurrencyType.GetSymbol()
+                                        </MudTd>
+                                    </RowTemplate>
+                                    <FooterContent>
+                                        <MudTd Style="font-weight: bold;">Toplam (@balanceDetailList.Count müşteri)</MudTd>
+                                        <MudTd Style="@balanceDetailAmountStyle">
+                                            @balanceDetailList.Sum(b => Math.Abs(b.NetBalance)).ToString("N2") @balanceDetailCurrencySymbol
+                                        </MudTd>
+                                    </FooterContent>
+                                </MudTable>
+                            }
+                            else
+                            {
+                                <MudText Typo="Typo.body2">Bu tutarla ilişkili müşteri bulunamadı.</MudText>
+                            }
+                        </MudPaper>
+                    }
                 }
                 else
                 {
@@ -174,6 +224,13 @@ ShowToolTips = true,
     // Currency balance summary
     private CurrencyBalanceSummaryResult currencyBalanceSummary;
     private List<CurrencyBalanceRow> currencyBalanceSummaryList = new();
+
+    // Para birimi bazlı toplamların müşteri detayları
+    private bool showBalanceDetails;
+    private string balanceDetailTitle = string.Empty;
+    private string balanceDetailCurrencySymbol = string.Empty;
+    private string balanceDetailAmountStyle = string.Empty;
+    private List<CustomerCurrencyBalance> balanceDetailList = new();
 
     public PatternMask mask2 = new PatternMask("XXX-XXX-XX-XX")
         {
@@ -665,26 +722,83 @@ ShowToolTips = true,
             // Convert to list for table display
             currencyBalanceSummaryList = new List<CurrencyBalanceRow>
             {
-                new CurrencyBalanceRow { CurrencyName = "TL", TotalIncoming = result.ToplamGelenTL, TotalOutgoing = result.ToplamGidenTL },
-                new CurrencyBalanceRow { CurrencyName = "Dolar", TotalIncoming = result.ToplamGelenDolar, TotalOutgoing = result.ToplamGidenDolar },
-                new CurrencyBalanceRow { CurrencyName = "Euro", TotalIncoming = result.ToplamGelenEuro, TotalOutgoing = result.ToplamGidenEuro },
-                new CurrencyBalanceRow { CurrencyName = "Sterlin", TotalIncoming = result.ToplamGelenSterlin, TotalOutgoing = result.ToplamGidenSterlin },
-                new CurrencyBalanceRow { CurrencyName = "Riyal", TotalIncoming = result.ToplamGelenRiyal, TotalOutgoing = result.ToplamGidenRiyal },
-                new CurrencyBalanceRow { CurrencyName = "14 Ayar", TotalIncoming = result.ToplamGelen14Ayar, TotalOutgoing = result.ToplamGiden14Ayar },
-                new CurrencyBalanceRow { CurrencyName = "22 Ayar", TotalIncoming = result.ToplamGelen22Ayar, TotalOutgoing = result.ToplamGiden22Ayar },
-                new CurrencyBalanceRow { CurrencyName = "24 Ayar", TotalIncoming = result.ToplamGelen24Ayar, TotalOutgoing = result.ToplamGiden24Ayar },
-                new CurrencyBalanceRow { CurrencyName = "Çeyrek Altın", TotalIncoming = result.ToplamGelenCeyrekAltin, TotalOutgoing = result.ToplamGidenCeyrekAltin },
-                new CurrencyBalanceRow { CurrencyName = "Yarım Altın", TotalIncoming = result.ToplamGelenYarimAltin, TotalOutgoing = result.ToplamGidenYarimAltin },
-                new CurrencyBalanceRow { CurrencyName = "Tam Altın", TotalIncoming = result.ToplamGelenTamAltin, TotalOutgoing = result.ToplamGidenTamAltin },
-                new CurrencyBalanceRow { CurrencyName = "Ziynet Altın", TotalIncoming = result.ToplamGelenZiynetAltin, TotalOutgoing = result.ToplamGidenZiynetAltin }
+                new CurrencyBalanceRow { CurrencyName = "TL", CurrencyType = CurrencyType.TurkishLira, TotalIncoming = result.ToplamGelenTL, TotalOutgoing = result.ToplamGidenTL },
+                new CurrencyBalanceRow { CurrencyName = "Dolar", CurrencyType = CurrencyType.Dollar, TotalIncoming = result.ToplamGelenDolar, TotalOutgoing = result.ToplamGidenDolar },
+                new CurrencyBalanceRow { CurrencyName = "Euro", CurrencyType = CurrencyType.Euro, TotalIncoming = result.ToplamGelenEuro, TotalOutgoing = result.ToplamGidenEuro },
+                new CurrencyBalanceRow { CurrencyName = "Sterlin", CurrencyType = CurrencyType.Sterlin, TotalIncoming = result.ToplamGelenSterlin, TotalOutgoing = result.ToplamGidenSterlin },
+                new CurrencyBalanceRow { CurrencyName = "Riyal", CurrencyType = CurrencyType.Riyal, TotalIncoming = result.ToplamGelenRiyal, TotalOutgoing = result.ToplamGidenRiyal },
+                new CurrencyBalanceRow { CurrencyName = "14 Ayar", CurrencyType = CurrencyType.Gold14K, TotalIncoming = result.ToplamGelen14Ayar, TotalOutgoing = result.ToplamGiden14Ayar },
+                new CurrencyBalanceRow { CurrencyName = "22 Ayar", CurrencyType = CurrencyType.Gold22K, TotalIncoming = result.ToplamGelen22Ayar, TotalOutgoing = result.ToplamGiden22Ayar },
+                new CurrencyBalanceRow { CurrencyName = "24 Ayar", CurrencyType = CurrencyType.Gold24K, TotalIncoming = result.ToplamGelen24Ayar, TotalOutgoing = result.ToplamGiden24Ayar },
+                new CurrencyBalanceRow { CurrencyName = "Çeyrek Altın", CurrencyType = CurrencyType.QuarterGold, TotalIncoming = result.ToplamGelenCeyrekAltin, TotalOutgoing = result.ToplamGidenCeyrekAltin },
+                new CurrencyBalanceRow { CurrencyName = "Yarım Altın", CurrencyType = CurrencyType.HalfGold, TotalIncoming = result.ToplamGelenYarimAltin, TotalOutgoing = result.ToplamGidenYarimAltin },
+                new CurrencyBalanceRow { CurrencyName = "Tam Altın", CurrencyType = CurrencyType.FullGold, TotalIncoming = result.ToplamGelenTamAltin, TotalOutgoing = result.ToplamGidenTamAltin },
+                new CurrencyBalanceRow { CurrencyName = "Ziynet Altın", CurrencyType = CurrencyType.Ziynet, TotalIncoming = result.ToplamGelenZiynetAltin, TotalOutgoing = result.ToplamGidenZiynetAltin }
             };
             
+            CloseBalanceDetails();
+
             StateHasChanged();
         }
         catch (Exception ex)
         {
             Console.WriteLine($"Para birimi bakiye özeti yüklenirken hata: {ex.Message}");
         }
+    }
+
+    // Toplam Giden / Toplam Gelen tutarına tıklandığında ilgili müşterileri listeler
+    private void ShowBalanceDetails(CurrencyBalanceRow row, bool isOutgoing)
+    {
+        var amount = isOutgoing ? row.TotalOutgoing : row.TotalIncoming;
+        if (amount == 0)
+        {
+            CloseBalanceDetails();
+            return;
+        }
+
+        // NetBalance > 0 => giden (mağaza müşteriye borçlu), < 0 => gelen (müşteri mağazaya borçlu)
+        balanceDetailList = (currencyBalanceSummary?.CustomerBalances ?? new List<CustomerCurrencyBalance>())
+            .Where(cb => cb.CurrencyType == row.CurrencyType && (isOutgoing ? cb.NetBalance > 0 : cb.NetBalance < 0))
+            .OrderByDescending(cb => Math.Abs(cb.NetBalance))
+            .ToList();
+
+        balanceDetailCurrencySymbol = row.CurrencyType.GetSymbol();
+        balanceDetailTitle = isOutgoing
+            ? $"{row.CurrencyName} - Toplam Giden Bakiyesi Olan Müşteriler"
+            : $"{row.CurrencyName} - Toplam Gelen Bakiyesi Olan Müşteriler";
+        balanceDetailAmountStyle = isOutgoing
+            ? "text-align: right; color: #f44336; font-weight: bold;"
+            : "text-align: right; color: #4caf50; font-weight: bold;";
+        showBalanceDetails = true;
+    }
+
+    private void CloseBalanceDetails()
+    {
+        showBalanceDetails = false;
+        balanceDetailList = new List<CustomerCurrencyBalance>();
+        balanceDetailTitle = string.Empty;
+        balanceDetailCurrencySymbol = string.Empty;
+        balanceDetailAmountStyle = string.Empty;
+    }
+
+    private void OnBalanceDetailRowClick(TableRowClickEventArgs<CustomerCurrencyBalance> args)
+    {
+        if (args.Item != null)
+        {
+            NavigateToCustomerDetail(args.Item.CustomerId);
+        }
+    }
+
+    // Tutar sıfır değilse tıklanabilir bir bağlantı gibi gösterilir
+    private string GetAmountLinkStyle(decimal amount, bool isOutgoing)
+    {
+        var color = isOutgoing ? "#f44336" : "#4caf50";
+        if (amount == 0)
+        {
+            return $"color: {color}; font-weight: bold;";
+        }
+
+        return $"color: {color}; font-weight: bold; cursor: pointer; text-decoration: underline;";
     }
 
     // Fark sütunu için renk stili: pozitif (giden fazla) kırmızı, negatif (gelen fazla) yeşil
@@ -698,6 +812,7 @@ ShowToolTips = true,
     public class CurrencyBalanceRow
     {
         public string CurrencyName { get; set; }
+        public CurrencyType CurrencyType { get; set; }
         public decimal TotalIncoming { get; set; }
         public decimal TotalOutgoing { get; set; }
         public decimal Difference => TotalOutgoing - TotalIncoming;

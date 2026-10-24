@@ -723,7 +723,7 @@ namespace Kuyumcu.Services
             var allTransactions = await GetTransactionsAsync();
 
             // Her müşteri için her para birimindeki net durumu hesapla
-            var customerBalances = new List<CustomerBalance>();
+            var customerBalances = new List<CustomerCurrencyBalance>();
 
             foreach (var customer in customers)
             {
@@ -743,7 +743,7 @@ namespace Kuyumcu.Services
 
                     if (netBalance != 0)
                     {
-                        customerBalances.Add(new CustomerBalance
+                        customerBalances.Add(new CustomerCurrencyBalance
                         {
                             CustomerId = customer.Id,
                             CustomerName = customer.Name,
@@ -791,15 +791,10 @@ namespace Kuyumcu.Services
             result.ToplamGelenZiynetAltin = customerBalances.Where(cb => cb.CurrencyType == CurrencyType.Ziynet && cb.NetBalance < 0).Sum(cb => Math.Abs(cb.NetBalance));
             result.ToplamGidenZiynetAltin = customerBalances.Where(cb => cb.CurrencyType == CurrencyType.Ziynet && cb.NetBalance > 0).Sum(cb => cb.NetBalance);
 
-            return result;
-        }
+            // Toplamların hangi müşterilerden oluştuğunu gösterebilmek için detayları da döndür
+            result.CustomerBalances = customerBalances;
 
-        private class CustomerBalance
-        {
-            public int CustomerId { get; set; }
-            public string CustomerName { get; set; }
-            public CurrencyType CurrencyType { get; set; }
-            public decimal NetBalance { get; set; }
+            return result;
         }
 
         // AppSettings methods
@@ -869,6 +864,23 @@ namespace Kuyumcu.Services
         public decimal ToplamGidenTamAltin { get; set; }
         public decimal ToplamGelenZiynetAltin { get; set; }
         public decimal ToplamGidenZiynetAltin { get; set; }
+
+        /// <summary>
+        /// Toplamları oluşturan müşteri bazlı net bakiyeler.
+        /// NetBalance &gt; 0 ise giden (mağaza borçlu), &lt; 0 ise gelen (müşteri borçlu).
+        /// </summary>
+        public List<CustomerCurrencyBalance> CustomerBalances { get; set; } = new();
+    }
+
+    /// <summary>
+    /// Bir müşterinin tek bir para birimindeki net bakiyesi
+    /// </summary>
+    public class CustomerCurrencyBalance
+    {
+        public int CustomerId { get; set; }
+        public string CustomerName { get; set; }
+        public CurrencyType CurrencyType { get; set; }
+        public decimal NetBalance { get; set; }
     }
 
     public enum SortDirection
