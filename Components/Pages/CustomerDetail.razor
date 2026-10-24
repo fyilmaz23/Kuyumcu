@@ -4,6 +4,8 @@
 @inject NavigationManager NavigationManager
 @inject IDialogService Dialog
 @inject PrintService PrintService
+@inject CustomerSummaryImageService CustomerSummaryImageService
+@inject ISnackbar Snackbar
 @using System.Globalization
 @using Kuyumcu.Components.Helper
 
@@ -55,10 +57,23 @@ else
 
         <MudGrid>
             <MudItem xs="12" md="12">
-                <MudText Typo="Typo.h5" @onclick="ToggleHiddenTransactions"
-                Color="@(hasHiddenTransactions ? Color.Primary : Color.Default)">
-                    @customer.Name
-                </MudText>
+                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                    <MudText Typo="Typo.h5" @onclick="ToggleHiddenTransactions"
+                    Color="@(hasHiddenTransactions ? Color.Primary : Color.Default)">
+                        @customer.Name
+                    </MudText>
+                    <MudTooltip Text="Özeti görsel olarak kopyala (WhatsApp'a yapıştırabilirsiniz)">
+                        @if (isCopyingSummary)
+                        {
+                            <MudProgressCircular Color="Color.Primary" Indeterminate="true" Size="Size.Small" />
+                        }
+                        else
+                        {
+                            <MudIconButton Icon="@Icons.Material.Filled.ContentCopy" Color="Color.Primary"
+                            Size="Size.Small" OnClick="CopySummaryImage" aria-label="Özeti kopyala" />
+                        }
+                    </MudTooltip>
+                </MudStack>
             </MudItem>
             <MudItem xs="12" md="12">
                 <MudText><b>Telefon:</b> @customer.PhoneNumber.FormatPhoneNumber()</MudText>
@@ -451,6 +466,9 @@ else
     private DateTime? currentTransactionDate;
     private TimeSpan? currentTransactionTime;
 
+    // Özet görseli kopyalanıyor mu?
+    private bool isCopyingSummary = false;
+
     // Printer selection
     private List<string> availablePrinters = new List<string>();
     private string selectedPrinter;
@@ -686,6 +704,50 @@ else
         catch (Exception ex)
         {
             Console.WriteLine($"LoadMoreTransactions error: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Müşterinin özet bilgilerini (bakiyeler ve emanetler) görsel olarak panoya kopyalar.
+    /// Panoya görsel kopyalanamayan platformlarda paylaşım menüsü açılır.
+    /// </summary>
+    private async Task CopySummaryImage()
+    {
+        if (customer == null || isCopyingSummary)
+        {
+            return;
+        }
+
+        isCopyingSummary = true;
+        try
+        {
+            var settings = await DatabaseService.GetSettingsAsync();
+            var result = await CustomerSummaryImageService.CopySummaryAsync(
+                customer, groupedTransactions, depositTransactions, settings?.BusinessName);
+
+            switch (result)
+            {
+                case CustomerSummaryCopyResult.ImageCopied:
+                    Snackbar.Add("Özet görseli panoya kopyalandı. WhatsApp gibi uygulamalara yapıştırabilirsiniz.", Severity.Success);
+                    break;
+                case CustomerSummaryCopyResult.ImageShared:
+                    Snackbar.Add("Özet görseli paylaşıma hazır.", Severity.Success);
+                    break;
+                case CustomerSummaryCopyResult.TextCopied:
+                    Snackbar.Add("Görsel oluşturulamadı, özet metin olarak panoya kopyalandı.", Severity.Warning);
+                    break;
+                default:
+                    Snackbar.Add("Özet kopyalanamadı.", Severity.Error);
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Özet kopyalanamadı: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isCopyingSummary = false;
         }
     }
 
