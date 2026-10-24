@@ -38,6 +38,7 @@ public static class MauiProgram
         };
         builder.Services.AddSingleton<HttpClient>(new HttpClient(handler));
         builder.Services.AddSingleton<GoldPriceExportService>();
+        builder.Services.AddSingleton<CustomerSummaryImageService>();
         
         // Register File Import Services
 #if ANDROID
