@@ -40,6 +40,29 @@ namespace Kuyumcu.Models
             };
         }
 
+        /// <summary>
+        /// Dar alanlarda (ör. son işlem rozetleri) kullanılacak kısa ad.
+        /// </summary>
+        public static string GetShortName(this CurrencyType currencyType)
+        {
+            return currencyType switch
+            {
+                CurrencyType.TurkishLira => "TL",
+                CurrencyType.Dollar => "Dolar",
+                CurrencyType.Euro => "Euro",
+                CurrencyType.Sterlin => "Sterlin",
+                CurrencyType.Riyal => "Riyal",
+                CurrencyType.Gold14K => "14 Ayar",
+                CurrencyType.Gold22K => "22 Ayar",
+                CurrencyType.Gold24K => "24 Ayar",
+                CurrencyType.QuarterGold => "Çeyrek",
+                CurrencyType.HalfGold => "Yarım",
+                CurrencyType.FullGold => "Tam",
+                CurrencyType.Ziynet => "Ziynet",
+                _ => currencyType.ToString()
+            };
+        }
+
         public static string GetSymbol(this CurrencyType currencyType)
         {
             return currencyType switch

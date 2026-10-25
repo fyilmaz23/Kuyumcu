@@ -56,7 +56,7 @@ else
     <MudPaper Elevation="1" Class="pa-4 mb-4">
 
         <MudGrid>
-            <MudItem xs="12" md="12">
+            <MudItem xs="12" md="8">
                 <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
                     <MudText Typo="Typo.h5" @onclick="ToggleHiddenTransactions"
                     Color="@(hasHiddenTransactions ? Color.Primary : Color.Default)">
@@ -74,10 +74,32 @@ else
                         }
                     </MudTooltip>
                 </MudStack>
-            </MudItem>
-            <MudItem xs="12" md="12">
                 <MudText><b>Telefon:</b> @customer.PhoneNumber.FormatPhoneNumber()</MudText>
             </MudItem>
+            @if (RecentTransactions.Any())
+            {
+                <!-- Son işlemler: özet bilgileriyle karışmaması için kartın sağında,
+                     alt alta ve soluk (ikincil) bir görünümde duruyor. -->
+                <MudItem xs="12" md="4">
+                    <MudStack Spacing="0" AlignItems="AlignItems.End" Class="recent-transactions">
+                        <MudText Typo="Typo.caption" Class="recent-transactions-title">Son İşlemler</MudText>
+                        @foreach (var recent in RecentTransactions)
+                        {
+                            var isGiden = recent.Type == TransactionType.CustomerDebt;
+                            var recentLabel = recent.IsDeposit ? "Emanet" : (isGiden ? "Giden" : "Gelen");
+                            var recentIcon = recent.IsDeposit
+                                ? Icons.Material.Filled.Lock
+                                : (isGiden ? Icons.Material.Filled.NorthEast : Icons.Material.Filled.SouthWest);
+                            <MudTooltip Text="@($"{recent.Date:dd.MM.yyyy HH:mm} · {recentLabel} {Helper.HelperMethods.FormatPrice(recent.Amount)} {recent.CurrencyType.GetDisplayName()}")">
+                                <MudText Typo="Typo.caption" Class="recent-transactions-item">
+                                    <MudIcon Icon="@recentIcon" Size="Size.Small" Class="recent-transactions-icon" />
+                                    @recentLabel @Helper.HelperMethods.FormatPrice(recent.Amount) @recent.CurrencyType.GetShortName()
+                                </MudText>
+                            </MudTooltip>
+                        }
+                    </MudStack>
+                </MudItem>
+            }
         </MudGrid>
 
         @if (groupedTransactions != null && groupedTransactions.Any())
@@ -87,7 +109,9 @@ else
                 @foreach (var group in groupedTransactions)
                 {
                     <MudItem xs="12" sm="6" md="4">
-                        <MudPaper Elevation="1" Class="pa-2" Style="@(group.Balance == 0 ? "" : group.Balance > 0 ? "background-color: rgba(244,67,54,0.1)" : "background-color: rgba(76,175,80,0.1)")">
+                        <MudPaper Elevation="1" Class="pa-2 summary-box" @onclick="@(() => ScrollToCurrencyCard(group.Key))"
+                        title="@($"{group.Key.GetDisplayName()} işlemlerine git")"
+                        Style="@(group.Balance == 0 ? "" : group.Balance > 0 ? "background-color: rgba(244,67,54,0.1)" : "background-color: rgba(76,175,80,0.1)")">
                             <MudStack Row="true" Justify="Justify.SpaceBetween">
                                 <MudText><b>@group.Key.GetDisplayName():</b></MudText>
                                 @if (group.Balance == 0)
@@ -116,7 +140,8 @@ else
                     @foreach (var group in depositTransactions.GroupBy(t => t.CurrencyType))
                     {
                         <MudItem xs="12" sm="6" md="4">
-                            <MudPaper Elevation="1" Class="pa-2" Style="background-color: rgba(158,158,158,0.1)">
+                            <MudPaper Elevation="1" Class="pa-2 summary-box" @onclick="ScrollToDepositSection"
+                            title="Emanet işlemlerine git" Style="background-color: rgba(158,158,158,0.1)">
                                 <MudStack Row="true" Justify="Justify.SpaceBetween">
                                     <MudText><b>@group.Key.GetDisplayName():</b></MudText>
                                     <MudText>@Helper.HelperMethods.FormatPrice(group.Sum(t => t.Amount)) @group.Key.GetSymbol() (Emanet)</MudText>
@@ -167,6 +192,7 @@ else
             @foreach (var currencyGroup in groupedTransactions)
             {
                 <MudItem xs="12" md="4">
+                    <div id="@GetCurrencyCardId(currencyGroup.Key)">
                     <MudCard Class="mud-height-full mb-4">
                         <MudCardHeader>
                             <CardHeaderContent>
@@ -291,6 +317,7 @@ else
                             </MudAlert>
                         </MudCardContent>
                     </MudCard>
+                    </div>
                 </MudItem>
             }
         </MudGrid>
@@ -299,7 +326,7 @@ else
     <!-- Emanet İşlemler -->
     @if (depositTransactions != null && depositTransactions.Any())
     {
-        <MudPaper Elevation="1" Class="mb-4">
+        <MudPaper Elevation="1" Class="mb-4" id="@DEPOSIT_SECTION_ID">
             <MudCardHeader>
                 <CardHeaderContent>
                     <MudText Typo="Typo.h5">Emanet İşlemler</MudText>
@@ -445,6 +472,27 @@ else
     private Dictionary<CurrencyType, int> loadedTransactionsCount = new Dictionary<CurrencyType, int>();
     // Default number of transactions to load initially and each time "Show more" is clicked
     private const int PAGE_SIZE = 5;
+
+    /// <summary>
+    /// Özet kartında gösterilecek son işlem rozeti sayısı.
+    /// </summary>
+    private const int RECENT_TRANSACTIONS_COUNT = 5;
+
+    /// <summary>
+    /// Emanet İşlemler bölümünün element id'si (özet kutusundan kaydırma için).
+    /// </summary>
+    private const string DEPOSIT_SECTION_ID = "deposit-transactions-section";
+
+    /// <summary>
+    /// Özet kartındaki kısa "Son İşlemler" rozetleri için en yeni işlemler
+    /// (emanetler dahil, gizli işlemler görünürlük ayarına göre).
+    /// </summary>
+    private IEnumerable<Transaction> RecentTransactions =>
+        (allTransactions ?? new List<Transaction>())
+            .Where(t => showHiddenTransactions || !t.IsHidden)
+            .OrderByDescending(t => t.Date)
+            .ThenByDescending(t => t.Id)
+            .Take(RECENT_TRANSACTIONS_COUNT);
 
     private readonly DialogOptions _dialogOptions = new() { NoHeader = true, MaxWidth = MaxWidth.Small, FullWidth = true };
 
@@ -650,6 +698,26 @@ else
                     }
                 };
 
+                // Bir elemanı yumuşak geçişle görünür alanın ortasına kaydırır ve
+                // hangi karta gidildiği belli olsun diye kısa süre çerçevesini yakıp söndürür.
+                window.scrollElementIntoView = function(id) {
+                    var element = document.getElementById(id);
+                    if (!element) {
+                        return;
+                    }
+
+                    element.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+
+                    // Aynı karta tekrar tıklanırsa animasyon baştan başlasın
+                    element.classList.remove('scroll-highlight');
+                    void element.offsetWidth;
+                    element.classList.add('scroll-highlight');
+
+                    window.setTimeout(function () {
+                        element.classList.remove('scroll-highlight');
+                    }, 1600);
+                };
+
                 // Scroll pozisyonunu kaydetmek için değişkenler
                 window.scrollData = {
                     scrollTop: 0,
@@ -682,6 +750,27 @@ else
             ");
         }
         await base.OnAfterRenderAsync(firstRender);
+    }
+
+    /// <summary>
+    /// Özet kutusundan ilgili para biriminin işlem kartına kaydırmak için kullanılan element id'si.
+    /// </summary>
+    private static string GetCurrencyCardId(CurrencyType currencyType) => $"currency-card-{currencyType}";
+
+    /// <summary>
+    /// Özetteki para birimi kutusuna tıklanınca aynı sayfadaki ilgili işlem kartına kaydırır.
+    /// </summary>
+    private async Task ScrollToCurrencyCard(CurrencyType currencyType)
+    {
+        await JSRuntime.InvokeVoidAsync("scrollElementIntoView", GetCurrencyCardId(currencyType));
+    }
+
+    /// <summary>
+    /// Özetteki emanet kutusuna tıklanınca Emanet İşlemler bölümüne kaydırır.
+    /// </summary>
+    private async Task ScrollToDepositSection()
+    {
+        await JSRuntime.InvokeVoidAsync("scrollElementIntoView", DEPOSIT_SECTION_ID);
     }
 
     private async Task LoadMoreTransactions(CurrencyType currencyType, string buttonId)

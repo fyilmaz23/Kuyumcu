@@ -84,3 +84,62 @@ h1:focus {
         padding-left: env(safe-area-inset-left);
     }
 }
+
+/* Müşteri detayındaki "Son İşlemler" listesi: özet bilgileriyle karışmaması için
+   kasıtlı olarak soluk ve ikincil bir görünümde. Üzerine gelince netleşir. */
+.recent-transactions {
+    opacity: 0.45;
+    transition: opacity 0.15s ease-in-out;
+}
+
+.recent-transactions:hover {
+    opacity: 0.85;
+}
+
+.recent-transactions-title {
+    font-size: 0.65rem;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+}
+
+.recent-transactions-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    line-height: 1.5;
+    white-space: nowrap;
+    font-weight: 400;
+}
+
+.recent-transactions-icon {
+    font-size: 0.8rem !important;
+    width: 0.8rem;
+    height: 0.8rem;
+}
+
+/* Özet kutuları: tıklanınca ilgili işlem kartına kaydırdığı için tıklanabilir görünür. */
+.summary-box {
+    cursor: pointer;
+    transition: box-shadow 0.15s ease-in-out, transform 0.15s ease-in-out;
+}
+
+.summary-box:hover {
+    box-shadow: var(--mud-elevation-4);
+    transform: translateY(-1px);
+}
+
+/* Özet kutusundan kaydırılan kartı kısa süre yanıp sönen bir çerçeveyle belirginleştirir. */
+.scroll-highlight {
+    border-radius: var(--mud-default-borderradius);
+    animation: scroll-highlight-flash 0.5s ease-in-out 3;
+}
+
+@keyframes scroll-highlight-flash {
+    0%, 100% {
+        box-shadow: 0 0 0 0 rgba(var(--mud-palette-primary-rgb), 0);
+    }
+
+    50% {
+        box-shadow: 0 0 0 3px rgba(var(--mud-palette-primary-rgb), 0.9);
+    }
+}
