@@ -117,17 +117,17 @@
                         </HeaderContent>
                         <RowTemplate>
                             <MudTd DataLabel="Para Birimi">@context.CurrencyName</MudTd>
-                            <MudTd DataLabel="Toplam Giden" Style="text-align: right;">
-                                <span style="@GetAmountLinkStyle(context.TotalOutgoing, isOutgoing: true)"
-                                      title="@(context.TotalOutgoing != 0 ? "İlgili müşterileri göster" : null)"
-                                      @onclick="@(() => ShowBalanceDetails(context, isOutgoing: true))">
+                            <MudTd DataLabel="Toplam Giden" Style="@GetAmountCellStyle(context.TotalOutgoing)"
+                                   title="@(context.TotalOutgoing != 0 ? "İlgili müşterileri göster" : null)"
+                                   @onclick="@(() => ShowBalanceDetails(context, isOutgoing: true))">
+                                <span style="@GetAmountLinkStyle(context.TotalOutgoing, isOutgoing: true)">
                                     @context.TotalOutgoing.ToString("N2")
                                 </span>
                             </MudTd>
-                            <MudTd DataLabel="Toplam Gelen" Style="text-align: right;">
-                                <span style="@GetAmountLinkStyle(context.TotalIncoming, isOutgoing: false)"
-                                      title="@(context.TotalIncoming != 0 ? "İlgili müşterileri göster" : null)"
-                                      @onclick="@(() => ShowBalanceDetails(context, isOutgoing: false))">
+                            <MudTd DataLabel="Toplam Gelen" Style="@GetAmountCellStyle(context.TotalIncoming)"
+                                   title="@(context.TotalIncoming != 0 ? "İlgili müşterileri göster" : null)"
+                                   @onclick="@(() => ShowBalanceDetails(context, isOutgoing: false))">
+                                <span style="@GetAmountLinkStyle(context.TotalIncoming, isOutgoing: false)">
                                     @context.TotalIncoming.ToString("N2")
                                 </span>
                             </MudTd>
@@ -143,7 +143,7 @@
 
                     @if (showBalanceDetails)
                     {
-                        <MudPaper Elevation="0" Outlined="true" Class="pa-4 mt-4">
+                        <MudPaper id="balance-detail-panel" Elevation="0" Outlined="true" Class="pa-4 mt-4">
                             <div class="d-flex justify-space-between align-center mb-3">
                                 <MudText Typo="Typo.subtitle1">@balanceDetailTitle</MudText>
                                 <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small"
@@ -231,6 +231,7 @@ ShowToolTips = true,
     private string balanceDetailCurrencySymbol = string.Empty;
     private string balanceDetailAmountStyle = string.Empty;
     private List<CustomerCurrencyBalance> balanceDetailList = new();
+    private bool scrollToBalanceDetails;
 
     public PatternMask mask2 = new PatternMask("XXX-XXX-XX-XX")
         {
@@ -708,7 +709,17 @@ ShowToolTips = true,
                 window.scrollToTop = function() {
                     window.scrollTo({ top: 0, behavior: 'smooth' });
                 }
+                window.scrollElementIntoView = function(id) {
+                    var el = document.getElementById(id);
+                    if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
+                }
             ");
+        }
+
+        if (scrollToBalanceDetails)
+        {
+            scrollToBalanceDetails = false;
+            await JSRuntime.InvokeVoidAsync("scrollElementIntoView", "balance-detail-panel");
         }
     }
 
@@ -770,11 +781,13 @@ ShowToolTips = true,
             ? "text-align: right; color: #f44336; font-weight: bold;"
             : "text-align: right; color: #4caf50; font-weight: bold;";
         showBalanceDetails = true;
+        scrollToBalanceDetails = true;
     }
 
     private void CloseBalanceDetails()
     {
         showBalanceDetails = false;
+        scrollToBalanceDetails = false;
         balanceDetailList = new List<CustomerCurrencyBalance>();
         balanceDetailTitle = string.Empty;
         balanceDetailCurrencySymbol = string.Empty;
@@ -787,6 +800,14 @@ ShowToolTips = true,
         {
             NavigateToCustomerDetail(args.Item.CustomerId);
         }
+    }
+
+    // Tutarın yanındaki boşluğa tıklandığında da detay açılsın diye hücrenin tamamı tıklanabilir
+    private string GetAmountCellStyle(decimal amount)
+    {
+        return amount == 0
+            ? "text-align: right;"
+            : "text-align: right; cursor: pointer;";
     }
 
     // Tutar sıfır değilse tıklanabilir bir bağlantı gibi gösterilir
