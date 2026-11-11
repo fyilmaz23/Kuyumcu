@@ -1,0 +1,45 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+  <!-- Android uygulaması (salt okunur): bilgisayardaki uygulamanın yedeğini açıp görüntüler. Google Play'e AAB olarak gönderilir. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0-android</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Kuyumcu.Mobile</RootNamespace>
+    <UseMaui>true</UseMaui>
+    <SingleProject>true</SingleProject>
+    <EnableDefaultCssItems>false</EnableDefaultCssItems>
+
+    <!-- Uygulama adı ve kimliği. DİKKAT: ApplicationId Google Play'e ilk yüklemeden sonra DEĞİŞTİRİLEMEZ. -->
+    <ApplicationTitle>Kuyumcu Defteri</ApplicationTitle>
+    <ApplicationId>com.kuyumcudefteri.app</ApplicationId>
+
+    <!-- Sürüm: CI, etiketten (v2.1.0) ve çalıştırma numarasından doldurur -->
+    <ApplicationDisplayVersion>2.0.0</ApplicationDisplayVersion>
+    <ApplicationVersion>1</ApplicationVersion>
+
+    <SupportedOSPlatformVersion>24.0</SupportedOSPlatformVersion>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <!-- Google Play AAB ister -->
+    <AndroidPackageFormat>aab</AndroidPackageFormat>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <MauiIcon Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\appiconfg.svg" Color="#1F1A14" />
+    <MauiSplashScreen Include="Resources\Splash\splash.svg" Color="#1F1A14" BaseSize="128,128" />
+    <MauiFont Include="Resources\Fonts\*" />
+    <MauiAsset Include="Resources\Raw\**" LogicalName="%(RecursiveDir)%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Maui.Controls" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebView.Maui" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Debug" />
+    <PackageReference Include="MudBlazor" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Kuyumcu.Core\Kuyumcu.Core.csproj" />
+    <ProjectReference Include="..\Kuyumcu.UI\Kuyumcu.UI.csproj" />
+  </ItemGroup>
+</Project>

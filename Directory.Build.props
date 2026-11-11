@@ -1,0 +1,13 @@
+<Project>
+  <!-- Tüm projeler için ortak ayarlar -->
+  <PropertyGroup>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <!-- Mevcut kod tabanındaki nullable uyarıları geçiş sırasında gürültü yapmasın -->
+    <NoWarn>$(NoWarn);CS8600;CS8601;CS8602;CS8603;CS8604;CS8618;CS8619;CS8620;CS8625;CS8629;CS8767;CS0618;CS1998;CS4014</NoWarn>
+    <Company>Kuyumcu Defteri</Company>
+    <Product>Kuyumcu Defteri</Product>
+    <Version>2.0.0</Version>
+  </PropertyGroup>
+</Project>

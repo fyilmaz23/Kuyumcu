@@ -1,0 +1,41 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+  <!-- Windows masaüstü uygulaması: WPF penceresi içinde ortak Blazor arayüzü (Microsoft Store'a MSIX olarak gönderilir) -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <RootNamespace>Kuyumcu.Desktop</RootNamespace>
+    <AssemblyName>KuyumcuDefteri</AssemblyName>
+    <ApplicationIcon>Packaging\app.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- Linux/macOS üzerinde de derlenebilsin (CI ve geliştirme için) -->
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <!-- Müşteri bilgisayarına ayrıca .NET kurulumu gerekmesin -->
+    <SelfContained>true</SelfContained>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- WPF projelerinde System.IO örtük olarak eklenmez -->
+    <Using Include="System.IO" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebView.Wpf" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Debug" />
+    <PackageReference Include="MudBlazor" />
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" />
+    <PackageReference Include="System.Drawing.Common" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Kuyumcu.Core\Kuyumcu.Core.csproj" />
+    <ProjectReference Include="..\Kuyumcu.UI\Kuyumcu.UI.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- MSIX paketleme dosyaları derleme çıktısına değil, CI'daki paketleme adımına girer -->
+    <None Include="Packaging\**" />
+    <Content Remove="Packaging\**" />
+  </ItemGroup>
+</Project>

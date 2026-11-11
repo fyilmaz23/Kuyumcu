@@ -1,0 +1,86 @@
+@using Microsoft.AspNetCore.Components.Routing
+@inject NavigationManager NavigationManager
+@inject Kuyumcu.Services.LicenseService LicenseService
+@inject Kuyumcu.Services.DatabaseService DatabaseService
+@inject IAppEnvironment AppEnvironment
+@inject AppState AppState
+
+@if (!AppState.IsLoaded)
+{
+    <div style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;color:#777;">
+        Yükleniyor...
+    </div>
+}
+else
+{
+<Router AppAssembly="@typeof(Routes).Assembly">
+    <Found Context="routeData">
+        @if (AppEnvironment.IsReadOnlyClient)
+        {
+            // Mobil uygulama salt okunurdur: sadece veri görüntüleme ekranı açılır
+            if (routeData.PageType != typeof(Pages.ImportData))
+            {
+                NavigationManager.NavigateTo("import-data");
+                return;
+            }
+        }
+        else if (!AppState.IsSetupCompleted && routeData.PageType != typeof(Pages.Setup))
+        {
+            NavigationManager.NavigateTo("setup");
+            return;
+        }
+        else if (AppState.IsLicenseExpired
+                 && routeData.PageType != typeof(Pages.LicenseExpired)
+                 && routeData.PageType != typeof(Pages.Settings)
+                 && routeData.PageType != typeof(Pages.Setup))
+        {
+            NavigationManager.NavigateTo("license-expired");
+            return;
+        }
+
+        <RouteView RouteData="@routeData" DefaultLayout="@typeof(Layout.MainLayout)" />
+        <FocusOnNavigate RouteData="@routeData" Selector="h1" />
+    </Found>
+    <NotFound>
+        <LayoutView Layout="@typeof(Layout.MainLayout)">
+            @if (AppEnvironment.IsReadOnlyClient)
+            {
+                NavigationManager.NavigateTo("import-data");
+                return;
+            }
+            <div class="container text-center mt-5">
+                <h1 class="text-danger">404 - Sayfa Bulunamadı</h1>
+                <p class="lead">Aradığınız sayfa bulunamadı.</p>
+                <a href="/" class="btn btn-primary">Ana Sayfaya Dön</a>
+            </div>
+        </LayoutView>
+    </NotFound>
+</Router>
+}
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        if (AppState.IsLoaded)
+            return;
+
+        try
+        {
+            if (!AppEnvironment.IsReadOnlyClient)
+            {
+                AppState.IsSetupCompleted = await DatabaseService.IsSetupCompletedAsync();
+                var status = await LicenseService.GetLicenseStatusAsync();
+                AppState.IsLicenseExpired = status == Models.LicenseStatus.Expired;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Routes başlangıç kontrolü hata: {ex.Message}");
+            AppState.IsLicenseExpired = false; // Hata durumunda engelleme
+        }
+        finally
+        {
+            AppState.IsLoaded = true;
+        }
+    }
+}

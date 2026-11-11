@@ -1,0 +1,24 @@
+<Project>
+  <!-- Merkezi paket sürüm yönetimi: sürümler sadece burada değiştirilir -->
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <MauiVersion>10.0.130</MauiVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageVersion Include="Google.Apis.Drive.v3" Version="1.78.0.4327" />
+    <PackageVersion Include="HtmlAgilityPack" Version="1.13.1" />
+    <PackageVersion Include="MudBlazor" Version="8.15.0" />
+    <PackageVersion Include="SkiaSharp" Version="3.119.4" />
+    <PackageVersion Include="sqlite-net-pcl" Version="1.9.172" />
+    <PackageVersion Include="SQLitePCLRaw.bundle_e_sqlite3" Version="2.1.14" />
+    <PackageVersion Include="System.Security.Cryptography.ProtectedData" Version="10.0.15" />
+    <PackageVersion Include="System.Drawing.Common" Version="10.0.15" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.15" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Debug" Version="10.0.15" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.15" />
+    <PackageVersion Include="Microsoft.AspNetCore.Components.Web" Version="10.0.15" />
+    <PackageVersion Include="Microsoft.AspNetCore.Components.WebView.Wpf" Version="10.0.130" />
+    <PackageVersion Include="Microsoft.AspNetCore.Components.WebView.Maui" Version="$(MauiVersion)" />
+    <PackageVersion Include="Microsoft.Maui.Controls" Version="$(MauiVersion)" />
+  </ItemGroup>
+</Project>

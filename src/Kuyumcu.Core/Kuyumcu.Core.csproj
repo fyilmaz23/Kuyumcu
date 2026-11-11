@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- İş mantığı: modeller ve servisler. Platformdan bağımsızdır (Windows ve Android ortak kullanır). -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>Kuyumcu</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Google.Apis.Drive.v3" />
+    <PackageReference Include="HtmlAgilityPack" />
+    <PackageReference Include="SkiaSharp" />
+    <PackageReference Include="sqlite-net-pcl" />
+    <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+  </ItemGroup>
+
+  <!-- CI gizli dosyaları üretmediyse (yerel geliştirme) geliştirici varsayılanlarını kullan -->
+  <ItemGroup Condition="Exists('Services\LicenseService.Secrets.cs')">
+    <Compile Remove="Services\LicenseService.DevSecrets.cs" />
+  </ItemGroup>
+  <ItemGroup Condition="Exists('Platform\ProductSecrets.Secrets.cs')">
+    <Compile Remove="Platform\ProductSecrets.DevSecrets.cs" />
+  </ItemGroup>
+</Project>

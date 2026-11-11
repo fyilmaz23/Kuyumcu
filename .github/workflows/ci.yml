@@ -1,0 +1,19 @@
+# Her push ve PR'da derleme kontrolü (Windows masaüstü projesi Linux'ta da derlenebilir)
+name: CI
+
+on:
+  push:
+    branches: ['**']
+    tags-ignore: ['v*']
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Core + UI + Windows masaüstü derle
+        run: dotnet build src/Kuyumcu.Desktop/Kuyumcu.Desktop.csproj -c Release

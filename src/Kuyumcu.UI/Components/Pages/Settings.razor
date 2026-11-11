@@ -1,0 +1,497 @@
+@page "/settings"
+@inject DatabaseService DatabaseService
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+@inject NavigationManager NavigationManager
+@inject Services.LicenseService LicenseService
+@inject GoogleDriveService GoogleDriveService
+@inject BackupService BackupService
+@inject IFilePickerService FilePicker
+@inject IShareService ShareService
+@inject ILegacyDataLocator LegacyDataLocator
+@inject AppState AppState
+
+<MudContainer MaxWidth="MaxWidth.Small" Class="mt-4 pb-8">
+    <MudText Typo="Typo.h5" Class="mb-4">
+        <MudIcon Icon="@Icons.Material.Filled.Settings" Class="mr-2" />
+        Ayarlar
+    </MudText>
+
+    @if (isLoading)
+    {
+        <MudProgressCircular Indeterminate="true" Class="d-block mx-auto my-8" />
+    }
+    else
+    {
+        @if (legacyDatabasePath != null)
+        {
+            <MudAlert Severity="Severity.Info" Variant="Variant.Filled" Class="mb-4"
+                      ContentAlignment="HorizontalAlignment.Left">
+                <div class="d-flex flex-column gap-2">
+                    <span><b>Eski sürümün verileri bulundu.</b> Müşterilerinizi, işlemlerinizi ve ayarlarınızı bu sürüme tek tıkla aktarabilirsiniz.</span>
+                    <div>
+                        <MudButton Variant="Variant.Filled" Color="Color.Surface" Size="Size.Small"
+                                   StartIcon="@Icons.Material.Filled.MoveDown"
+                                   OnClick="ImportLegacyData" Disabled="@isRestoreInProgress">
+                            Eski Verileri Aktar
+                        </MudButton>
+                    </div>
+                </div>
+            </MudAlert>
+        }
+
+        <MudPaper Class="pa-6 mb-4" Elevation="2">
+            <MudText Typo="Typo.h6" Class="mb-3">
+                <MudIcon Icon="@Icons.Material.Filled.Store" Class="mr-1" /> İş Yeri Bilgileri
+            </MudText>
+            <MudTextField @bind-Value="settings.BusinessName"
+                           Label="İş Yeri Adı"
+                           Variant="Variant.Outlined"
+                           Required="true"
+                           Class="mb-3" />
+        </MudPaper>
+
+        <MudPaper Class="pa-6 mb-4" Elevation="2">
+            <MudText Typo="Typo.h6" Class="mb-1">
+                <MudIcon Icon="@Icons.Material.Filled.CloudUpload" Class="mr-1" /> Google Drive Yedekleme
+            </MudText>
+
+            @if (ProductSecrets.HasBuiltInGoogleClient || settings.HasCustomGoogleClient)
+            {
+                <MudAlert Severity="Severity.Success" Variant="Variant.Outlined" Dense="true" Class="my-3">
+                    Google Drive yedeklemesi hazır. Üst menüdeki <b>Yedek Al</b> düğmesine ilk bastığınızda
+                    tarayıcıda Google hesabınızla giriş yapmanız istenir; sonraki yedeklemeler otomatik bağlanır.
+                </MudAlert>
+            }
+            else
+            {
+                <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Dense="true" Class="my-3">
+                    Google Drive bağlantısı yapılandırılmamış. Aşağıdaki gelişmiş ayarlardan OAuth bilgilerini girin.
+                </MudAlert>
+            }
+
+            <MudExpansionPanels Elevation="0" Outlined="true">
+                <MudExpansionPanel Text="Gelişmiş: kendi Google OAuth bilgilerim">
+                    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-3 d-block">
+                        Sadece kendi Google Cloud projenizi kullanmak istiyorsanız doldurun. Boş bırakırsanız uygulamanın kendi bağlantısı kullanılır.
+                    </MudText>
+                    <MudTextField @bind-Value="settings.GoogleClientId"
+                                   Label="Google Client ID"
+                                   Variant="Variant.Outlined"
+                                   Class="mb-3" />
+                    <MudTextField @bind-Value="settings.GoogleClientSecret"
+                                   Label="Google Client Secret"
+                                   Variant="Variant.Outlined"
+                                   InputType="InputType.Password" />
+                </MudExpansionPanel>
+            </MudExpansionPanels>
+        </MudPaper>
+
+        <MudPaper Class="pa-6 mb-4" Elevation="2">
+            <MudText Typo="Typo.h6" Class="mb-1">
+                <MudIcon Icon="@Icons.Material.Filled.CurrencyExchange" Class="mr-1" /> Altın Fiyatı Görseli
+            </MudText>
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-3 d-block">
+                Mobil uygulamadaki "Altın fiyatlarını paylaş" özelliği için. fiyat.ekeo.org.tr üyelik bilgilerinizi girin.
+                Bu bilgiler yedekle birlikte telefonunuza aktarılır.
+            </MudText>
+            <MudTextField @bind-Value="settings.GoldPriceSiteCode"
+                           Label="Üye Kodu"
+                           Variant="Variant.Outlined"
+                           Class="mb-3" />
+            <MudTextField @bind-Value="settings.GoldPriceSitePassword"
+                           Label="Şifre"
+                           Variant="Variant.Outlined"
+                           InputType="InputType.Password"
+                           Class="mb-3" />
+
+            <div class="d-flex align-center gap-2 flex-wrap">
+                <MudButton Variant="Variant.Outlined" Color="Color.Primary"
+                           StartIcon="@Icons.Material.Filled.Image" OnClick="PickGoldPriceTemplate">
+                    @(settings.GoldPriceTemplateImage is { Length: > 0 } ? "Şablonu Değiştir" : "Şablon Görseli Yükle")
+                </MudButton>
+                @if (settings.GoldPriceTemplateImage is { Length: > 0 })
+                {
+                    <MudChip T="string" Color="Color.Success" Variant="Variant.Text" Icon="@Icons.Material.Filled.CheckCircle">
+                        Şablon yüklendi (@(settings.GoldPriceTemplateImage.Length / 1024) KB)
+                    </MudChip>
+                    <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small"
+                               OnClick="@(() => settings.GoldPriceTemplateImage = null)">Kaldır</MudButton>
+                }
+                else
+                {
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">Şablon yüklenmezse sade bir tasarım kullanılır.</MudText>
+                }
+            </div>
+        </MudPaper>
+
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Primary"
+                   FullWidth="true"
+                   Size="Size.Large"
+                   StartIcon="@Icons.Material.Filled.Save"
+                   OnClick="SaveSettings"
+                   Disabled="@(string.IsNullOrWhiteSpace(settings.BusinessName))">
+            Kaydet
+        </MudButton>
+
+        <MudDivider Class="my-6" />
+
+        <MudPaper Class="pa-6 mb-4" Elevation="2">
+            <MudText Typo="Typo.h6" Class="mb-1">
+                <MudIcon Icon="@Icons.Material.Filled.Save" Class="mr-1" /> Bilgisayardaki Otomatik Yedekler
+            </MudText>
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-3 d-block">
+                Uygulama her gün bu bilgisayara otomatik yedek alır ve son @BackupService.DaysToKeep günün yedeklerini saklar.
+                Son yedek: <b>@(lastLocalBackup ?? "henüz yok")</b>
+            </MudText>
+            <div class="d-flex gap-2 flex-wrap">
+                <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Backup"
+                           OnClick="BackupLocalNow" Disabled="@isLocalBackupInProgress">
+                    @(isLocalBackupInProgress ? "Yedekleniyor..." : "Şimdi Yedekle")
+                </MudButton>
+                <MudButton Variant="Variant.Text" Color="Color.Primary" StartIcon="@Icons.Material.Filled.FolderOpen"
+                           OnClick="OpenBackupFolder">
+                    Yedek Klasörünü Aç
+                </MudButton>
+            </div>
+        </MudPaper>
+
+        <MudPaper Class="pa-6 mb-4" Elevation="2" Style="border: 2px solid var(--mud-palette-error);">
+            <MudText Typo="Typo.h6" Class="mb-1" Color="Color.Error">
+                <MudIcon Icon="@Icons.Material.Filled.RestorePage" Class="mr-1" /> Yedeği İçe Aktar
+            </MudText>
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-3 d-block">
+                Daha önce alınmış bir .db3 yedek dosyasını içe aktararak müşteri ve işlem verilerini değiştirir.
+                Bu bilgisayarın ayarları ve lisansı korunur.
+            </MudText>
+
+            <MudAlert Severity="Severity.Error" Variant="Variant.Filled" Dense="true" Class="mb-3">
+                <strong>DİKKAT:</strong> Bu işlem mevcut TÜM müşteri ve işlem verilerinizi yedek dosyasındaki verilerle değiştirir. İşlemden önce otomatik bir yerel yedek alınır.
+            </MudAlert>
+
+            <MudButton Variant="Variant.Outlined"
+                       Color="Color.Error"
+                       FullWidth="true"
+                       Size="Size.Large"
+                       StartIcon="@Icons.Material.Filled.FileUpload"
+                       OnClick="RestoreDatabase"
+                       Disabled="@isRestoreInProgress">
+                @(isRestoreInProgress ? "İçe aktarılıyor..." : "Yedek Dosyası Seç ve İçe Aktar")
+            </MudButton>
+        </MudPaper>
+
+        <MudDivider Class="my-4" />
+
+        @* Lisans Bilgileri Bölümü *@
+        <MudPaper Class="pa-6 mb-4" Elevation="2" Style="@($"border-left: 4px solid {(licenseStatus == Models.LicenseStatus.Licensed ? "#4caf50" : licenseStatus == Models.LicenseStatus.Trial ? "#ff9800" : "#f44336")};")">
+            <MudText Typo="Typo.h6" Class="mb-3">
+                <MudIcon Icon="@Icons.Material.Filled.VerifiedUser" Class="mr-1" /> Lisans Bilgileri
+            </MudText>
+
+            <MudStack Spacing="2" Class="mb-4">
+                <div class="d-flex justify-space-between align-center">
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">Lisans Durumu:</MudText>
+                    @if (licenseStatus == Models.LicenseStatus.Licensed)
+                    {
+                        <MudChip T="string" Color="Color.Success" Size="Size.Small" Variant="Variant.Filled" Icon="@Icons.Material.Filled.CheckCircle">
+                            Lisanslı (Tam Sürüm)
+                        </MudChip>
+                    }
+                    else if (licenseStatus == Models.LicenseStatus.Trial)
+                    {
+                        <MudChip T="string" Color="@(remainingDays <= 7 ? Color.Error : Color.Warning)" Size="Size.Small" Variant="Variant.Filled" Icon="@Icons.Material.Filled.Timer">
+                            Deneme Sürümü — @remainingDays gün kaldı
+                        </MudChip>
+                    }
+                    else
+                    {
+                        <MudChip T="string" Color="Color.Error" Size="Size.Small" Variant="Variant.Filled" Icon="@Icons.Material.Filled.Error">
+                            Süresi Dolmuş
+                        </MudChip>
+                    }
+                </div>
+
+                <div class="d-flex justify-space-between align-center">
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">Cihaz Kimliği:</MudText>
+                    <MudText Typo="Typo.body2" Style="font-family: monospace;"><strong>@deviceId</strong></MudText>
+                </div>
+
+                @if (licenseStatus == Models.LicenseStatus.Licensed && licenseInfo != null)
+                {
+                    <div class="d-flex justify-space-between align-center">
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">Aktivasyon Tarihi:</MudText>
+                        <MudText Typo="Typo.body2"><strong>@licenseInfo.LicenseActivationDate?.ToLocalTime().ToString("dd.MM.yyyy HH:mm")</strong></MudText>
+                    </div>
+                }
+            </MudStack>
+
+            @if (licenseStatus != Models.LicenseStatus.Licensed)
+            {
+                <MudDivider Class="my-3" />
+
+                <MudTextField @bind-Value="licenseKeyInput"
+                              Label="Lisans Anahtarı"
+                              Placeholder="KUYM-XXXXX-XXXXX-XXXXX-XXXXX"
+                              Variant="Variant.Outlined"
+                              Adornment="Adornment.Start"
+                              AdornmentIcon="@Icons.Material.Filled.VpnKey"
+                              Style="font-family: monospace; letter-spacing: 1px;"
+                              Class="mb-3" />
+
+                @if (!string.IsNullOrEmpty(licenseErrorMessage))
+                {
+                    <MudAlert Severity="Severity.Error" Variant="Variant.Filled" Dense="true" Class="mb-3">
+                        @licenseErrorMessage
+                    </MudAlert>
+                }
+
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Success"
+                           FullWidth="true"
+                           StartIcon="@Icons.Material.Filled.CheckCircle"
+                           OnClick="ActivateLicense"
+                           Disabled="@(string.IsNullOrWhiteSpace(licenseKeyInput) || isActivatingLicense)">
+                    @(isActivatingLicense ? "Doğrulanıyor..." : "Lisansı Etkinleştir")
+                </MudButton>
+            }
+        </MudPaper>
+    }
+</MudContainer>
+
+@code {
+    private AppSettings settings = new();
+    private bool isLoading = true;
+    private bool isRestoreInProgress = false;
+    private bool isLocalBackupInProgress = false;
+    private string? lastLocalBackup;
+    private string? legacyDatabasePath;
+    private Models.LicenseStatus licenseStatus = Models.LicenseStatus.Trial;
+    private int remainingDays = 30;
+    private string deviceId = string.Empty;
+    private string licenseKeyInput = string.Empty;
+    private string licenseErrorMessage = string.Empty;
+    private bool isActivatingLicense = false;
+    private Models.LicenseInfo licenseInfo;
+
+    protected override async Task OnInitializedAsync()
+    {
+        settings = await DatabaseService.GetSettingsAsync();
+        RefreshLocalBackupInfo();
+
+        try
+        {
+            legacyDatabasePath = LegacyDataLocator.FindLegacyDatabase();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Eski sürüm verisi aranırken hata: {ex.Message}");
+        }
+
+        // Lisans durumunu yükle
+        try
+        {
+            licenseStatus = await LicenseService.GetLicenseStatusAsync();
+            remainingDays = await LicenseService.GetRemainingTrialDaysAsync();
+            deviceId = await LicenseService.GetDeviceIdAsync();
+            licenseInfo = await LicenseService.GetLicenseInfoAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Settings lisans kontrolü hata: {ex.Message}");
+        }
+
+        isLoading = false;
+    }
+
+    private void RefreshLocalBackupInfo()
+    {
+        var latest = BackupService.GetBackupsList().FirstOrDefault();
+        lastLocalBackup = latest == null ? null : File.GetLastWriteTime(latest).ToString("dd.MM.yyyy HH:mm");
+    }
+
+    private async Task SaveSettings()
+    {
+        if (string.IsNullOrWhiteSpace(settings.BusinessName))
+            return;
+
+        settings.IsSetupCompleted = true;
+        await DatabaseService.SaveSettingsAsync(settings);
+        AppState.IsSetupCompleted = true;
+        GoogleDriveService.ResetConnection();
+
+        Snackbar.Add("Ayarlar kaydedildi.", Severity.Success);
+    }
+
+    private async Task PickGoldPriceTemplate()
+    {
+        var file = await FilePicker.PickFileAsync("Altın fiyatı şablon görseli seçin", ".jpg", ".jpeg", ".png");
+        if (file == null)
+            return;
+
+        var bytes = await File.ReadAllBytesAsync(file.FullPath);
+        if (bytes.Length > 5 * 1024 * 1024)
+        {
+            Snackbar.Add("Görsel 5 MB'tan küçük olmalıdır.", Severity.Warning);
+            return;
+        }
+
+        settings.GoldPriceTemplateImage = bytes;
+        Snackbar.Add("Şablon seçildi. Kalıcı olması için Kaydet'e basın.", Severity.Info);
+    }
+
+    private async Task BackupLocalNow()
+    {
+        isLocalBackupInProgress = true;
+        try
+        {
+            var path = await BackupService.BackupNowAsync();
+            if (path != null)
+                Snackbar.Add("Yerel yedek alındı.", Severity.Success);
+            else
+                Snackbar.Add("Yedek alınamadı.", Severity.Error);
+            RefreshLocalBackupInfo();
+        }
+        finally
+        {
+            isLocalBackupInProgress = false;
+        }
+    }
+
+    private async Task OpenBackupFolder()
+    {
+        var latest = BackupService.GetBackupsList().FirstOrDefault();
+        if (latest == null)
+        {
+            Snackbar.Add("Henüz yerel yedek yok.", Severity.Info);
+            return;
+        }
+        await ShareService.ShareFileAsync(latest, "Yerel yedek");
+    }
+
+    private async Task ImportLegacyData()
+    {
+        var confirm = await DialogService.ShowMessageBox(
+            "Eski Verileri Aktar",
+            "Eski sürümdeki müşteri, işlem ve ayarlarınız bu sürüme aktarılacak. Bu sürümde girdiğiniz veriler varsa üzerine yazılır.\n\nDevam edilsin mi?",
+            yesText: "Aktar",
+            noText: "Vazgeç");
+        if (confirm != true || legacyDatabasePath == null)
+            return;
+
+        isRestoreInProgress = true;
+        StateHasChanged();
+        try
+        {
+            await BackupService.BackupNowAsync();
+            var result = await DatabaseService.RestoreDatabaseAsync(legacyDatabasePath, keepCurrentSettingsAndLicense: false);
+            if (result.Success)
+            {
+                LegacyDataLocator.MarkImported();
+                await DialogService.ShowMessageBox("Başarılı", result.Message, yesText: "Tamam");
+                NavigationManager.NavigateTo("/", forceLoad: true);
+            }
+            else
+            {
+                await DialogService.ShowMessageBox("Hata", result.Message, yesText: "Tamam");
+            }
+        }
+        finally
+        {
+            isRestoreInProgress = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task RestoreDatabase()
+    {
+        var firstConfirm = await DialogService.ShowMessageBox(
+            "Yedeği İçe Aktar",
+            "Bu işlem mevcut TÜM müşteri ve işlem verilerinizi seçeceğiniz yedek dosyasındaki verilerle değiştirecektir.\n\nDevam etmek istiyor musunuz?",
+            yesText: "Evet, Devam Et",
+            noText: "İptal");
+
+        if (firstConfirm != true) return;
+
+        try
+        {
+            var file = await FilePicker.PickFileAsync("Yedek dosyasını seçin (.db3)", ".db3", ".db");
+            if (file == null) return;
+
+            var finalConfirm = await DialogService.ShowMessageBox(
+                "Son Onay",
+                $"Seçilen dosya: {file.FileName}\n\nMevcut müşteri ve işlem verileri bu dosyadakilerle değiştirilecek. Emin misiniz?",
+                yesText: "Evet, İçe Aktar",
+                noText: "Vazgeç");
+
+            if (finalConfirm != true) return;
+
+            isRestoreInProgress = true;
+            StateHasChanged();
+
+            // Geri dönüş imkânı için önce mevcut verinin yerel yedeğini al
+            await BackupService.BackupNowAsync();
+
+            var result = await DatabaseService.RestoreDatabaseAsync(file.FullPath);
+
+            if (result.Success)
+            {
+                await DialogService.ShowMessageBox("Başarılı", result.Message, yesText: "Tamam");
+                NavigationManager.NavigateTo("/");
+            }
+            else
+            {
+                await DialogService.ShowMessageBox("Hata", result.Message, yesText: "Tamam");
+            }
+        }
+        catch (Exception ex)
+        {
+            await DialogService.ShowMessageBox("Hata", $"Dosya seçilirken bir hata oluştu: {ex.Message}", yesText: "Tamam");
+        }
+        finally
+        {
+            isRestoreInProgress = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task ActivateLicense()
+    {
+        licenseErrorMessage = string.Empty;
+        isActivatingLicense = true;
+        StateHasChanged();
+
+        try
+        {
+            var result = await LicenseService.ActivateLicenseAsync(licenseKeyInput);
+
+            if (result.Success)
+            {
+                await DialogService.ShowMessageBox(
+                    "Başarılı! 🎉",
+                    result.Message,
+                    yesText: "Tamam");
+
+                // Durumu güncelle
+                licenseStatus = Models.LicenseStatus.Licensed;
+                AppState.IsLicenseExpired = false;
+                licenseInfo = await LicenseService.GetLicenseInfoAsync();
+                licenseKeyInput = string.Empty;
+                StateHasChanged();
+            }
+            else
+            {
+                licenseErrorMessage = result.Message;
+            }
+        }
+        catch (Exception ex)
+        {
+            licenseErrorMessage = $"Beklenmeyen bir hata oluştu: {ex.Message}";
+        }
+        finally
+        {
+            isActivatingLicense = false;
+            StateHasChanged();
+        }
+    }
+}

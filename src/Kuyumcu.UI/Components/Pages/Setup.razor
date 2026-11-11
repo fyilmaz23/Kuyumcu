@@ -1,0 +1,137 @@
+@page "/setup"
+@inject DatabaseService DatabaseService
+@inject NavigationManager NavigationManager
+@inject AppState AppState
+@inject ILegacyDataLocator LegacyDataLocator
+@inject BackupService BackupService
+@inject IDialogService DialogService
+
+<MudContainer MaxWidth="MaxWidth.Small" Class="d-flex align-center" Style="min-height: 80vh;">
+    <MudPaper Class="pa-8 w-100" Elevation="3">
+        <MudText Typo="Typo.h4" Align="Align.Center" Class="mb-2">
+            <MudIcon Icon="@Icons.Material.Filled.Diamond" Size="Size.Large" Class="mr-2" />
+            Hoş Geldiniz
+        </MudText>
+        <MudText Typo="Typo.body1" Align="Align.Center" Color="Color.Secondary" Class="mb-6">
+            Uygulamayı kullanmaya başlamak için aşağıdaki bilgileri doldurun.
+        </MudText>
+
+        <MudDivider Class="mb-6" />
+
+        @if (legacyDatabasePath != null)
+        {
+            <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="mb-6">
+                <div class="d-flex flex-column gap-2">
+                    <span><b>Eski sürümün verileri bulundu.</b> Daha önce kullandığınız uygulamadaki müşteri, işlem ve ayarlarınızı aktarabilirsiniz.</span>
+                    <div>
+                        <MudButton Variant="Variant.Filled" Color="Color.Info" StartIcon="@Icons.Material.Filled.MoveDown"
+                                   OnClick="ImportLegacyData" Disabled="@isImporting">
+                            @(isImporting ? "Aktarılıyor..." : "Eski Verileri Aktar")
+                        </MudButton>
+                    </div>
+                </div>
+            </MudAlert>
+        }
+
+        <MudText Typo="Typo.h6" Class="mb-3">
+            <MudIcon Icon="@Icons.Material.Filled.Store" Class="mr-1" /> İş Yeri Bilgileri
+        </MudText>
+
+        <MudTextField @bind-Value="settings.BusinessName"
+                       Label="İş Yeri Adı"
+                       Placeholder="Örn: Kuyumcu Mehmet"
+                       Variant="Variant.Outlined"
+                       Required="true"
+                       RequiredError="İş yeri adı zorunludur"
+                       Class="mb-4" />
+
+        <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true" Class="mb-4">
+            Google Drive yedeklemesini ve altın fiyatı ayarlarını daha sonra <b>Ayarlar</b> sayfasından yapabilirsiniz.
+        </MudAlert>
+
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Primary"
+                   FullWidth="true"
+                   Size="Size.Large"
+                   StartIcon="@Icons.Material.Filled.Check"
+                   OnClick="SaveAndContinue"
+                   Disabled="@(string.IsNullOrWhiteSpace(settings.BusinessName))">
+            Kaydet ve Başla
+        </MudButton>
+    </MudPaper>
+</MudContainer>
+
+@code {
+    private AppSettings settings = new();
+    private string? legacyDatabasePath;
+    private bool isImporting;
+
+    protected override async Task OnInitializedAsync()
+    {
+        settings = await DatabaseService.GetSettingsAsync();
+
+        try
+        {
+            legacyDatabasePath = LegacyDataLocator.FindLegacyDatabase();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Eski sürüm verisi aranırken hata: {ex.Message}");
+        }
+
+        // Kurulum zaten tamamlanmışsa (ör. yedekten geri yüklenmiş veri) ana sayfaya yönlendir
+        if (settings.IsSetupCompleted)
+        {
+            AppState.IsSetupCompleted = true;
+            NavigationManager.NavigateTo("/");
+        }
+    }
+
+    private async Task SaveAndContinue()
+    {
+        if (string.IsNullOrWhiteSpace(settings.BusinessName))
+            return;
+
+        settings.IsSetupCompleted = true;
+        await DatabaseService.SaveSettingsAsync(settings);
+        AppState.IsSetupCompleted = true;
+        NavigationManager.NavigateTo("/");
+    }
+
+    private async Task ImportLegacyData()
+    {
+        if (legacyDatabasePath == null)
+            return;
+
+        isImporting = true;
+        try
+        {
+            await BackupService.BackupNowAsync();
+            var result = await DatabaseService.RestoreDatabaseAsync(legacyDatabasePath, keepCurrentSettingsAndLicense: false);
+            if (!result.Success)
+            {
+                await DialogService.ShowMessageBox("Hata", result.Message, yesText: "Tamam");
+                return;
+            }
+
+            LegacyDataLocator.MarkImported();
+
+            var imported = await DatabaseService.GetSettingsAsync();
+            if (!imported.IsSetupCompleted || string.IsNullOrWhiteSpace(imported.BusinessName))
+            {
+                // Eski veride iş yeri adı yoksa formu doldurmaya devam etsin
+                settings = imported;
+                legacyDatabasePath = null;
+                return;
+            }
+
+            await DialogService.ShowMessageBox("Başarılı", result.Message, yesText: "Tamam");
+            AppState.IsSetupCompleted = true;
+            NavigationManager.NavigateTo("/", forceLoad: true);
+        }
+        finally
+        {
+            isImporting = false;
+        }
+    }
+}

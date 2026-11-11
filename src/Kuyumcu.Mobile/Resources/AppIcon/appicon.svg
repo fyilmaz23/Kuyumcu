@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Kuyumcu Defteri uygulama simgesi (geçici marka): koyu zemin üzerinde altın pırlanta -->
+  <defs>
+    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#F6D77A"/>
+      <stop offset="0.55" stop-color="#D4A73C"/>
+      <stop offset="1" stop-color="#A9781F"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="#1F1A14"/>
+  <g fill="url(#gold)" stroke="#1F1A14" stroke-width="6" stroke-linejoin="round">
+    <polygon points="146,196 196,132 316,132 366,196 256,388"/>
+  </g>
+  <g fill="none" stroke="#1F1A14" stroke-width="6" stroke-linejoin="round">
+    <polyline points="146,196 366,196"/>
+    <polyline points="196,132 226,196 256,388 286,196 316,132"/>
+    <polyline points="226,196 256,132 286,196"/>
+  </g>
+</svg>
