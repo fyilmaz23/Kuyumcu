@@ -1,0 +1,21 @@
+@using Kuyumcu.Helpers
+@* Net bakiye gösterimi. Pozitif = Giden (müşteri borçlu, kırmızı), negatif = Gelen (yeşil). *@
+@if (Balance == 0)
+{
+    <span class="kd-num kd-muted @Class">@ZeroText</span>
+}
+else
+{
+    <span class="kd-num @(Balance > 0 ? "kd-giden" : "kd-gelen") @Class">
+        @FormatHelper.FormatPrice(Math.Abs(Balance)) @Currency.GetSymbol()@if (ShowDirection)
+        {<span class="kd-direction">&nbsp;@(Balance > 0 ? "Giden" : "Gelen")</span>}
+    </span>
+}
+
+@code {
+    [Parameter] public decimal Balance { get; set; }
+    [Parameter] public CurrencyType Currency { get; set; }
+    [Parameter] public bool ShowDirection { get; set; } = true;
+    [Parameter] public string ZeroText { get; set; } = "Hesap sıfır";
+    [Parameter] public string? Class { get; set; }
+}

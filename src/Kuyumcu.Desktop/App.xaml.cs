@@ -89,6 +89,7 @@ public partial class App : Application
         // Ortak servisler ve arayüz durumu
         services.AddKuyumcuCore();
         services.AddScoped<AppState>();
+        services.AddScoped<ShortcutService>();
 
         return services.BuildServiceProvider();
     }

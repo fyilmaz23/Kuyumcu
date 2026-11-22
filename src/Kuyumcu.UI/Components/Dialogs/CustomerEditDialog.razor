@@ -1,0 +1,93 @@
+@inject DatabaseService DatabaseService
+@inject IDialogService DialogService
+@* Yeni müşteri / müşteri düzenleme penceresi. Kaydedilen müşteriyi döndürür. *@
+
+<MudDialog>
+    <DialogContent>
+        <EditForm Model="model" OnValidSubmit="Save" id="customer-form">
+            <DataAnnotationsValidator />
+            <MudStack Spacing="3" Class="pb-2">
+                <MudTextField @bind-Value="model.Name" Label="Ad Soyad" AutoFocus="true" Variant="Variant.Outlined"
+                              For="@(() => model.Name)" />
+                <MudTextField @bind-Value="model.PhoneNumber" Mask="phoneMask" Label="Telefon (isteğe bağlı)"
+                              Variant="Variant.Outlined" Immediate="true" autocomplete="new-password"
+                              Adornment="Adornment.Start" AdornmentText="+90" For="@(() => model.PhoneNumber)" />
+            </MudStack>
+        </EditForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" OnClick="@(() => MudDialog.Cancel())">İptal</MudButton>
+        <MudButton ButtonType="ButtonType.Submit" form="customer-form" Variant="Variant.Filled" Color="Color.Primary" Disabled="saving">
+            Kaydet
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public Customer? Customer { get; set; }
+
+    private Customer model = new();
+    private bool saving;
+
+    private readonly PatternMask phoneMask = new("XXX XXX XX XX")
+    {
+        MaskChars = new[] { new MaskChar('X', @"[0-9]") },
+        CleanDelimiters = true,
+    };
+
+    protected override void OnInitialized()
+    {
+        model = Customer == null
+            ? new Customer()
+            : new Customer { Id = Customer.Id, Name = Customer.Name, PhoneNumber = Customer.PhoneNumber };
+    }
+
+    private async Task Save()
+    {
+        saving = true;
+        try
+        {
+            // Yeni müşteri eklerken aynı isimde müşteri var mı?
+            if (model.Id == 0 && !string.IsNullOrWhiteSpace(model.Name))
+            {
+                var existing = await DatabaseService.GetCustomerByNameAsync(model.Name);
+                if (existing != null)
+                {
+                    var result = await DialogService.ShowMessageBox(
+                        "Aynı isimde müşteri var",
+                        $"\"{model.Name}\" adında bir müşteri zaten kayıtlı. Ne yapmak istersiniz?",
+                        yesText: "Mevcut müşteriye git",
+                        noText: "Yine de kaydet",
+                        cancelText: "İptal");
+
+                    if (result == true)
+                    {
+                        MudDialog.Close(DialogResult.Ok(existing));
+                        return;
+                    }
+                    if (result == null)
+                        return;
+                }
+            }
+
+            await DatabaseService.SaveCustomerAsync(model);
+            MudDialog.Close(DialogResult.Ok(model));
+        }
+        finally
+        {
+            saving = false;
+        }
+    }
+
+    /// <summary>Pencereyi açar; kaydedilirse müşteriyi, iptal edilirse null döndürür.</summary>
+    public static async Task<Customer?> ShowAsync(IDialogService dialogs, Customer? customer = null)
+    {
+        var parameters = new DialogParameters<CustomerEditDialog> { { x => x.Customer, customer } };
+        var options = new DialogOptions { MaxWidth = MaxWidth.ExtraSmall, FullWidth = true, CloseButton = true };
+        var title = customer == null || customer.Id == 0 ? "Yeni Müşteri" : "Müşteriyi Düzenle";
+        var dialog = await dialogs.ShowAsync<CustomerEditDialog>(title, parameters, options);
+        var result = await dialog.Result;
+        return result is { Canceled: false } ? result.Data as Customer : null;
+    }
+}

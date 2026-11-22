@@ -2,539 +2,272 @@
 @inject DatabaseService DatabaseService
 @inject NavigationManager NavigationManager
 
-<MudContainer Class="mt-4">
-    <MudPaper Elevation="0" Class="mb-4">
-        <MudGrid>
-            <MudItem xs="12">
-                <MudText Typo="Typo.h4">Tüm İşlemler</MudText>
-            </MudItem>
-        </MudGrid>
-    </MudPaper>
+<div class="kd-page">
+    <PageHeader Title="İşlemler" Subtitle="Tüm müşterilerin hareketleri ve takip gerektiren borçlar" />
 
-    <MudPaper Elevation="1" Class="pa-4 mb-4">
-        <MudGrid>
-            <MudItem xs="12" sm="4">
-                <MudSelect T="TransactionType?" Label="İşlem Türü" Value="filterType" Variant="Variant.Outlined"
-                           ValueChanged="@(async (value) => await OnFilterTypeChanged(value))">
-                    <MudSelectItem T="TransactionType?" Value="@((TransactionType?)null)">Tümü</MudSelectItem>
-                    <MudSelectItem T="TransactionType?" Value="@(TransactionType.CustomerDebt)">Giden</MudSelectItem>
-                    <MudSelectItem T="TransactionType?" Value="@(TransactionType.StoreDebt)">Gelen</MudSelectItem>
-                </MudSelect>
-            </MudItem>
-            @*     <MudItem xs="12" sm="8" Class="d-flex justify-end">
-                <MudStack Row="true" Spacing="2">
-                    <MudTextField T="string" Value="@searchTerm" ValueChanged="@(s => OnSearch(s))"
-                    Placeholder="İşlem ara..." Adornment="Adornment.Start"
-                    AdornmentIcon="@Icons.Material.Filled.Search" IconSize="Size.Medium"
-                    Immediate="true" Class="mt-0"></MudTextField>
-                    <MudButton Variant="Variant.Outlined" Color="Color.Secondary" StartIcon="@Icons.Material.Filled.ArrowBack" 
-                    OnClick="@(() => NavigationManager.NavigateTo("/"))">
-                        Ana Sayfa
-                    </MudButton>
-                </MudStack>
-            </MudItem> *@
-        </MudGrid>
-    </MudPaper>
+    <MudTabs Elevation="0" Rounded="true" ApplyEffectsToContainer="true" PanelClass="pt-4" Color="Color.Transparent"
+             SliderColor="Color.Primary" ActiveTabClass="kd-strong">
+        <MudTabPanel Text="Tüm İşlemler" Icon="@Icons.Material.Outlined.ReceiptLong">
+            <div class="kd-card">
+                <div class="kd-card-header">
+                    <MudChipSet T="TransactionType?" SelectedValue="filterType" SelectedValueChanged="OnFilterTypeChanged"
+                                SelectionMode="SelectionMode.SingleSelection" CheckMark="false" Variant="Variant.Text" Color="Color.Primary">
+                        <MudChip T="TransactionType?" Value="@((TransactionType?)null)" Default="true">Tümü</MudChip>
+                        <MudChip T="TransactionType?" Value="@(TransactionType.CustomerDebt)">Giden</MudChip>
+                        <MudChip T="TransactionType?" Value="@(TransactionType.StoreDebt)">Gelen</MudChip>
+                    </MudChipSet>
+                    <MudText Typo="Typo.caption" Class="kd-muted">Satıra tıklayarak müşterinin hesabını açın.</MudText>
+                </div>
+                <MudTable T="Transaction" ServerData="ServerReload" @ref="table" Class="kd-table" Elevation="0"
+                          Hover="true" Breakpoint="Breakpoint.Sm" OnRowClick="OnRowClick" RowClass="kd-row-link"
+                          LoadingProgressColor="Color.Primary">
+                    <HeaderContent>
+                        <MudTh><MudTableSortLabel SortLabel="date" T="Transaction" InitialDirection="MudBlazor.SortDirection.Descending">Tarih</MudTableSortLabel></MudTh>
+                        <MudTh>Müşteri</MudTh>
+                        <MudTh><MudTableSortLabel SortLabel="type" T="Transaction">Tür</MudTableSortLabel></MudTh>
+                        <MudTh><MudTableSortLabel SortLabel="currency" T="Transaction">Cins</MudTableSortLabel></MudTh>
+                        <MudTh Class="kd-right"><MudTableSortLabel SortLabel="amount" T="Transaction">Tutar</MudTableSortLabel></MudTh>
+                        <MudTh>Açıklama</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd DataLabel="Tarih" Class="kd-num">
+                            @context.Date.ToString("dd.MM.yyyy") <span class="kd-muted" style="font-size:.75rem">@context.Date.ToString("HH:mm")</span>
+                        </MudTd>
+                        <MudTd DataLabel="Müşteri">
+                            @{ var name = customerNames.TryGetValue(context.CustomerId, out var n) ? n : "Bilinmeyen müşteri"; }
+                            <div class="d-flex align-center gap-2">
+                                <Avatar Name="@name" />
+                                <span class="kd-strong">@name</span>
+                            </div>
+                        </MudTd>
+                        <MudTd DataLabel="Tür"><TypeBadge Type="context.Type" IsDeposit="context.IsDeposit" /></MudTd>
+                        <MudTd DataLabel="Cins">@context.CurrencyType.GetDisplayName()</MudTd>
+                        <MudTd DataLabel="Tutar" Class="kd-right kd-num kd-strong">@FormatHelper.FormatPrice(context.Amount) @context.CurrencyType.GetSymbol()</MudTd>
+                        <MudTd DataLabel="Açıklama" Class="kd-muted">@context.Description</MudTd>
+                    </RowTemplate>
+                    <NoRecordsContent>
+                        <EmptyState Icon="@Icons.Material.Outlined.ReceiptLong" Title="İşlem bulunamadı" />
+                    </NoRecordsContent>
+                    <PagerContent>
+                        <MudTablePager RowsPerPageString="Sayfa başına:" InfoFormat="{first_item}-{last_item} / {all_items}" PageSizeOptions="new[] { 25, 50, 100 }" />
+                    </PagerContent>
+                </MudTable>
+            </div>
+        </MudTabPanel>
 
-    @if (isLoading)
-    {
-        <MudProgressCircular Color="Color.Primary" Indeterminate="true" Class="my-7" Size="Size.Large" />
-    }
-    else
-    {
-        <MudTabs Elevation="2" Rounded="true" ApplyEffectsToContainer="true" PanelClass="pa-6">
-            <MudTabPanel Text="Tüm İşlemler">
-                @if (transactions == null || transactions.Count == 0)
+        <MudTabPanel Text="@(customersWithLongDebt.Count > 0 ? $"Uzun Süreli Borçlar ({customersWithLongDebt.Count})" : "Uzun Süreli Borçlar")" Icon="@Icons.Material.Outlined.HourglassBottom">
+            <div class="kd-card">
+                <div class="kd-card-header">
+                    <MudText Typo="Typo.body2" Class="kd-muted">30 günden uzun süredir giden bakiyesi kapanmamış hesaplar (en eskisi en üstte).</MudText>
+                </div>
+                @if (isLoading)
                 {
-                    <MudAlert Severity="Severity.Info" Class="ma-4">Henüz işlem kaydı bulunmamaktadır.</MudAlert>
+                    <MudProgressLinear Color="Color.Primary" Indeterminate="true" />
                 }
-                @*   else if (filteredTransactions.Count == 0)
+                else if (customersWithLongDebt.Count == 0)
                 {
-                    <MudAlert Severity="Severity.Info" Class="ma-4">Seçilen kriterlere uygun işlem bulunamadı.</MudAlert>
-                } *@
+                    <EmptyState Icon="@Icons.Material.Outlined.TaskAlt" Title="Uzun süreli borç yok" />
+                }
                 else
                 {
-                    <MudTable T="Transaction" ServerData="@ServerReload"
-                              Dense="true" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@isLoading"
-                              LoadingProgressColor="Color.Primary" @ref="table">
-                        <ToolBarContent>
-                            <MudText Typo="Typo.h6">İşlemler Listesi</MudText>
-                            <MudSpacer />
-                        </ToolBarContent>
-                        <HeaderContent>
-                            <MudTh><MudTableSortLabel SortLabel="date" T="Transaction" InitialDirection="MudBlazor.SortDirection.Descending">Tarih</MudTableSortLabel></MudTh>
-                            <MudTh>Müşteri</MudTh>
-                            <MudTh><MudTableSortLabel SortLabel="type" T="Transaction">Tür</MudTableSortLabel></MudTh>
-                            <MudTh><MudTableSortLabel SortLabel="amount" T="Transaction">Tutar</MudTableSortLabel></MudTh>
-                            <MudTh><MudTableSortLabel SortLabel="currency" T="Transaction">Para/Değer</MudTableSortLabel></MudTh>
-                            <MudTh>Açıklama</MudTh>
-                            <MudTh>İşlemler</MudTh>
-                        </HeaderContent>
-                        <RowTemplate>
-                            <MudTd DataLabel="Tarih">@context.Date.ToString("dd.MM.yyyy HH:mm")</MudTd>
-                            <MudTd DataLabel="Müşteri">
-                                @if (customerNames.ContainsKey(context.CustomerId))
-                                {
-                                    <MudLink Href="@($"/customer/{context.CustomerId}")">@customerNames[context.CustomerId]</MudLink>
-                                }
-                                else
-                                {
-                                    <MudText>Bilinmeyen Müşteri</MudText>
-                                }
-                            </MudTd>
-                            <MudTd DataLabel="Tür">
-                                @if (context.Type == TransactionType.CustomerDebt)
-                                {
-                                    <MudChip T="string" Color="Color.Error" Size="Size.Small">Giden</MudChip>
-                                }
-                                else
-                                {
-                                    <MudChip T="string" Color="Color.Success" Size="Size.Small">Gelen</MudChip>
-                                }
-                            </MudTd>
-                            <MudTd DataLabel="Tutar">@Helper.HelperMethods.FormatPrice(context.Amount)</MudTd>
-                            <MudTd DataLabel="Para/Değer">@context.CurrencyType.GetDisplayName() (@context.CurrencyType.GetSymbol())</MudTd>
-                            <MudTd DataLabel="Açıklama">@(context.Description ?? "-")</MudTd>
-                            <MudTd DataLabel="İşlemler">
-                                <MudIconButton Icon="@Icons.Material.Filled.Visibility" Color="Color.Info" Size="Size.Small"
-                                               OnClick="@(() => ViewTransactionDetails(context))" />
-                            </MudTd>
-                        </RowTemplate>
-                        <PagerContent>
-                            <MudTablePager RowsPerPageString="Sayfa başına:" InfoFormat="{first_item}-{last_item} / {all_items}" PageSizeOptions="new int[] {10, 25, 50, 100}" />
-                        </PagerContent>
-                    </MudTable>
-
-               @*      <MudPaper Elevation="2" Class="mt-4 pa-4">
-                        <MudText Typo="Typo.h6" Class="mb-3">Özet</MudText>
-
-                        @foreach (var currencyType in Enum.GetValues<CurrencyType>())
-                        {
-                            @if (currencySummaries.ContainsKey(currencyType) &&
-                           (currencySummaries[currencyType].TotalCustomerDebt > 0 || currencySummaries[currencyType].TotalStoreDebt > 0))
+                    <MudSimpleTable Dense="true" Hover="true" Elevation="0" Class="kd-table">
+                        <thead>
+                            <tr>
+                                <th>Müşteri</th>
+                                <th>Borç başlangıcı</th>
+                                <th>Süre</th>
+                                <th>Cins</th>
+                                <th class="kd-right">Bakiye</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var d in customersWithLongDebt)
                             {
-                                <MudText Typo="Typo.subtitle1" Class="mt-3 mb-2">
-                                    <strong>@currencyType.GetDisplayName() (@currencyType.GetSymbol())</strong>
-                                </MudText>
-                                <MudGrid>
-                                    <MudItem xs="12" sm="4">
-                                        <MudPaper Elevation="0" Class="pa-3">
-                                            <MudText Typo="Typo.subtitle1"><strong>Toplam Giden:</strong></MudText>
-                                            <MudText Typo="Typo.h6" Color="Color.Error">
-                                                @Helper.HelperMethods.FormatPrice(currencySummaries[currencyType].TotalCustomerDebt) @currencyType.GetDisplayName()
-                                            </MudText>
-                                        </MudPaper>
-                                    </MudItem>
-                                    <MudItem xs="12" sm="4">
-                                        <MudPaper Elevation="0" Class="pa-3">
-                                            <MudText Typo="Typo.subtitle1"><strong>Toplam Gelen:</strong></MudText>
-                                            <MudText Typo="Typo.h6" Color="Color.Success">
-                                                @Helper.HelperMethods.FormatPrice(currencySummaries[currencyType].TotalStoreDebt) @currencyType.GetDisplayName()
-                                            </MudText>
-                                        </MudPaper>
-                                    </MudItem>
-                                    <MudItem xs="12" sm="4">
-                                        <MudPaper Elevation="0" Class="pa-3">
-                                            <MudText Typo="Typo.subtitle1"><strong>Net Durum:</strong></MudText>
-                                            @{
-                                                decimal netBalance = currencySummaries[currencyType].TotalCustomerDebt - currencySummaries[currencyType].TotalStoreDebt;
-                                            }
-                                            @if (netBalance > 0)
-                                            {
-                                                <MudText Typo="Typo.h6" Color="Color.Error">
-                                                    @Helper.HelperMethods.FormatPrice(netBalance) @currencyType.GetDisplayName() (Giden)
-                                                </MudText>
-                                            }
-                                            else if (netBalance < 0)
-                                            {
-                                                <MudText Typo="Typo.h6" Color="Color.Success">
-                                                    @Helper.HelperMethods.FormatPrice(Math.Abs(netBalance)) @currencyType.GetDisplayName() (Gelen)
-                                                </MudText>
-                                            }
-                                            else
-                                            {
-                                                <MudText Typo="Typo.h6">
-                                                    0.00 @currencyType.GetDisplayName() (Eşit)
-                                                </MudText>
-                                            }
-                                        </MudPaper>
-                                    </MudItem>
-                                </MudGrid>
-                                <MudDivider Class="my-3" />
+                                <tr class="kd-clickable" @onclick="@(() => ViewCustomerDetails(d.CustomerId))">
+                                    <td>
+                                        <div class="d-flex align-center gap-2"><Avatar Name="@d.CustomerName" /><span class="kd-strong">@d.CustomerName</span></div>
+                                    </td>
+                                    <td class="kd-num">@d.EarliestDebtDate.ToString("dd.MM.yyyy")</td>
+                                    <td><span class="kd-badge @((DateTime.Now - d.EarliestDebtDate).TotalDays >= 90 ? "giden" : "notr")">@GetDebtDurationText(d.EarliestDebtDate)</span></td>
+                                    <td>@d.CurrencyType.GetDisplayName()</td>
+                                    <td class="kd-right"><BalanceAmount Balance="d.Balance" Currency="d.CurrencyType" ShowDirection="false" Class="kd-strong" /></td>
+                                </tr>
                             }
-                        }
-                    </MudPaper> *@
+                        </tbody>
+                    </MudSimpleTable>
                 }
-            </MudTabPanel>
-            <MudTabPanel Text="Uzun Süreli Borçlar">
+            </div>
+        </MudTabPanel>
+
+        <MudTabPanel Text="Tüm Kalemlerde Borçlu" Icon="@Icons.Material.Outlined.PersonSearch">
+            <div class="kd-card">
+                <div class="kd-card-header">
+                    <MudText Typo="Typo.body2" Class="kd-muted">İşlem yaptığı her cinste giden bakiyesi olan müşteriler.</MudText>
+                </div>
                 @if (isLoading)
                 {
-                    <MudProgressCircular Color="Color.Primary" Indeterminate="true" Class="my-7" Size="Size.Large" />
+                    <MudProgressLinear Color="Color.Primary" Indeterminate="true" />
                 }
-                else if (customersWithLongDebt == null || customersWithLongDebt.Count == 0)
+                else if (customersWithPositiveBalance.Count == 0)
                 {
-                    <MudAlert Severity="Severity.Info" Class="ma-4">Borçlu müşteri bulunmamaktadır.</MudAlert>
+                    <EmptyState Icon="@Icons.Material.Outlined.TaskAlt" Title="Tüm kalemlerde borçlu müşteri yok" />
                 }
                 else
                 {
-                    <MudTable Items="@customersWithLongDebt" Hover="true" Breakpoint="Breakpoint.Sm">
-                        <HeaderContent>
-                            <MudTh>Müşteri</MudTh>
-                            <MudTh>Borç Başlangıç Tarihi</MudTh>
-                            <MudTh>Borç Süresi</MudTh>
-                            <MudTh>Bakiye</MudTh>
-                            <MudTh>Para Birimi</MudTh>
-                            <MudTh>İşlemler</MudTh>
-                        </HeaderContent>
-                        <RowTemplate>
-                            <MudTd DataLabel="Müşteri">
-                                <MudLink Href="@($"/customer/{context.CustomerId}")">@context.CustomerName</MudLink>
-                            </MudTd>
-                            <MudTd DataLabel="Borç Başlangıç Tarihi">@context.EarliestDebtDate.ToString("dd.MM.yyyy HH:mm")</MudTd>
-                            <MudTd DataLabel="Borç Süresi">@GetDebtDurationText(context.EarliestDebtDate)</MudTd>
-                            <MudTd DataLabel="Bakiye">
-                                <MudText Color="Color.Error">@Helper.HelperMethods.FormatPrice(context.Balance)</MudText>
-                            </MudTd>
-                            <MudTd DataLabel="Para Birimi">@context.CurrencyType.GetDisplayName() (@context.CurrencyType.GetSymbol())</MudTd>
-                            <MudTd DataLabel="İşlemler">
-                                <MudIconButton Icon="@Icons.Material.Filled.Visibility" Color="Color.Info" Size="Size.Small"
-                                               OnClick="@(() => ViewCustomerDetails(context.CustomerId))" />
-                            </MudTd>
-                        </RowTemplate>
-                    </MudTable>
-                }
-            </MudTabPanel>
-            <MudTabPanel Text="Borçlu Müşteriler">
-                @if (isLoading)
-                {
-                    <MudProgressCircular Color="Color.Primary" Indeterminate="true" Class="my-7" Size="Size.Large" />
-                }
-                else if (customersWithPositiveBalance == null || customersWithPositiveBalance.Count == 0)
-                {
-                    <MudAlert Severity="Severity.Info" Class="ma-4">Tüm kalemlerde borcu olan müşteri bulunmamaktadır.</MudAlert>
-                }
-                else
-                {
-                    <MudTable Items="@customersWithPositiveBalance" Hover="true" Breakpoint="Breakpoint.Sm">
-                        <HeaderContent>
-                            <MudTh>Müşteri</MudTh>
-                            <MudTh>İşlemler</MudTh>
-                        </HeaderContent>
-                        <RowTemplate>
-                            <MudTd DataLabel="Müşteri">
-                                <MudLink Href="@($"/customer/{context.CustomerId}")">@context.CustomerName</MudLink>
-                            </MudTd>
-                            <MudTd DataLabel="İşlemler">
-                                <MudIconButton Icon="@Icons.Material.Filled.Visibility" Color="Color.Info" Size="Size.Small"
-                                               OnClick="@(() => ViewCustomerDetails(context.CustomerId))" />
-                            </MudTd>
-                        </RowTemplate>
-                    </MudTable>
-                }
-            </MudTabPanel>
-            <!-- Add this section -->
-        </MudTabs>
-    }
-    </MudContainer>
-
-    @code {
-
-    private List<Transaction> transactions;
-    private Dictionary<int, string> customerNames = new Dictionary<int, string>();
-    private bool isLoading = true;
-    private TransactionType? filterType = null;
-    private string searchTerm = string.Empty;
-
-    // private Dictionary<CurrencyType, CurrencySummary> currencySummaries = new Dictionary<CurrencyType, CurrencySummary>();
-
-    private List<CustomerDebtInfo> customersWithLongDebt = new List<CustomerDebtInfo>();
-    private List<CustomerDebtInfo> customersWithPositiveBalance = new List<CustomerDebtInfo>();
-
-    private MudTable<Transaction> table;
-
-    private async Task<TableData<Transaction>> ServerReload(TableState state, CancellationToken cancellationToken = default)
-    {
-
-        try
-        {
-
-            // Convert MudBlazor sort direction to our SortDirection
-
-            var sortDirection = Helper.HelperMethods.GetSortDirection(state?.SortDirection);
-
-            var transactions = await DatabaseService.GetTransactionsPaginationAsync(
-                state.Page,
-                state.PageSize,
-                state?.SortLabel,
-                sortDirection,
-                searchTerm,
-                filterType);
-
-
-
-            int totalItems = await DatabaseService.GetTransactionCountAsync(searchTerm, filterType);
-
-            // Update customer names for displayed transactions if needed
-            foreach (var transaction in transactions)
-            {
-                if (transaction.CustomerId > 0 && !customerNames.ContainsKey(transaction.CustomerId))
-                {
-                    var customer = await DatabaseService.GetCustomerAsync(transaction.CustomerId);
-                    if (customer != null)
+                    @foreach (var c in customersWithPositiveBalance)
                     {
-                        customerNames[transaction.CustomerId] = customer.Name;
+                        <div class="kd-list-row kd-clickable" @onclick="@(() => ViewCustomerDetails(c.CustomerId))">
+                            <Avatar Name="@c.CustomerName" />
+                            <div style="flex:1" class="kd-strong">@c.CustomerName</div>
+                            <MudIcon Icon="@Icons.Material.Filled.ChevronRight" Class="kd-muted" />
+                        </div>
                     }
                 }
-            }
+            </div>
+        </MudTabPanel>
+    </MudTabs>
+</div>
 
-            // Only load all transactions for summary if needed
-            if (transactions.Count > 0 && ( customersWithLongDebt.Count == 0 || customersWithPositiveBalance.Count == 0))
-            {
-                // Load all transactions for summaries
-                this.transactions = await DatabaseService.GetTransactionsAsync();
-
-                // Filter out "Emanet" transactions (IsDeposit=true)
-                this.transactions = this.transactions.Where(t => !t.IsDeposit).ToList();
-
-                // Update currency summaries
-                // CalculateTotals();
-                await CalculateCustomersWithLongDebt();
-                await CalculateCustomersWithPositiveBalance();
-            }
-
-
-            return new TableData<Transaction>
-                {
-                    Items = transactions,
-                    TotalItems = totalItems
-                };
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine(ex);
-            return new TableData<Transaction>
-                {
-                    Items = new List<Transaction>(),
-                    TotalItems = 0
-                };
-        }
-    }
+@code {
+    private List<Transaction> transactions = new();
+    private Dictionary<int, string> customerNames = new();
+    private bool isLoading = true;
+    private TransactionType? filterType;
+    private string searchTerm = string.Empty;
+    private List<CustomerDebtInfo> customersWithLongDebt = new();
+    private List<CustomerDebtInfo> customersWithPositiveBalance = new();
+    private MudTable<Transaction>? table;
 
     protected override async Task OnInitializedAsync()
     {
         isLoading = true;
 
-        // Load all customers for names lookup
         var customers = await DatabaseService.GetCustomersAsync();
-        foreach (var customer in customers)
-        {
-            customerNames[customer.Id] = customer.Name;
-        }
+        customerNames = customers.ToDictionary(c => c.Id, c => c.Name);
 
-        // Initial load will be handled by ServerReload when the table is initialized
-        // Just load all transactions for summary calculations
-        transactions = await DatabaseService.GetTransactionsAsync();
-
-        // Filter out "Emanet" transactions (IsDeposit=true)
-        transactions = transactions.Where(t => !t.IsDeposit).ToList();
-
-        // CalculateTotals();
-        await CalculateCustomersWithLongDebt();
-        await CalculateCustomersWithPositiveBalance();
+        // Özet hesapları emanetler hariç tüm işlemler üzerinden yapılır
+        transactions = (await DatabaseService.GetTransactionsAsync()).Where(t => !t.IsDeposit).ToList();
+        CalculateCustomersWithLongDebt(customers);
+        CalculateCustomersWithPositiveBalance(customers);
 
         isLoading = false;
     }
 
-    private async Task CalculateCustomersWithPositiveBalance()
+    private async Task<TableData<Transaction>> ServerReload(TableState state, CancellationToken cancellationToken = default)
     {
-        var customers = await DatabaseService.GetCustomersAsync();
-        customersWithPositiveBalance.Clear();
-
-        foreach (var customer in customers)
+        try
         {
-            // Only consider non-Emanet transactions but include all currency types
-            var customerTransactions = transactions.Where(t => t.CustomerId == customer.Id &&
-                                                   !t.IsDeposit).ToList();
-            // Group transactions by currency type
-            var transactionsByCurrency = customerTransactions.GroupBy(t => t.CurrencyType);
-            if (transactionsByCurrency.All(x => (x.Where(t => t.Type == TransactionType.CustomerDebt).Sum(y => y.Amount) - x.Where(t => t.Type == TransactionType.StoreDebt).Sum(y => y.Amount)) > 0))
+            var page = await DatabaseService.GetTransactionsPaginationAsync(
+                state.Page, state.PageSize, state.SortLabel, Helper.HelperMethods.GetSortDirection(state.SortDirection), searchTerm, filterType);
+            var total = await DatabaseService.GetTransactionCountAsync(searchTerm, filterType);
+
+            foreach (var t in page.Where(t => t.CustomerId > 0 && !customerNames.ContainsKey(t.CustomerId)))
             {
-
-                customersWithPositiveBalance.Add(new CustomerDebtInfo
-                    {
-                        CustomerId = customer.Id,
-                        CustomerName = customer.Name,
-                    });
+                var customer = await DatabaseService.GetCustomerAsync(t.CustomerId);
+                if (customer != null)
+                    customerNames[t.CustomerId] = customer.Name;
             }
-        }
 
-        customersWithPositiveBalance = customersWithPositiveBalance
-            .OrderByDescending(c => c.Balance) // Order by highest positive balance first
+            return new TableData<Transaction> { Items = page, TotalItems = total };
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex);
+            return new TableData<Transaction> { Items = new List<Transaction>(), TotalItems = 0 };
+        }
+    }
+
+    /// <summary>İşlem yaptığı her para biriminde giden bakiyesi olan müşteriler.</summary>
+    private void CalculateCustomersWithPositiveBalance(List<Customer> customers)
+    {
+        customersWithPositiveBalance = customers
+            .Where(customer =>
+            {
+                var byCurrency = transactions.Where(t => t.CustomerId == customer.Id).GroupBy(t => t.CurrencyType).ToList();
+                return byCurrency.Count > 0 && byCurrency.All(g =>
+                    g.Where(t => t.Type == TransactionType.CustomerDebt).Sum(t => t.Amount) -
+                    g.Where(t => t.Type == TransactionType.StoreDebt).Sum(t => t.Amount) > 0);
+            })
+            .Select(c => new CustomerDebtInfo { CustomerId = c.Id, CustomerName = c.Name })
             .ToList();
     }
 
-    private async Task CalculateCustomersWithLongDebt()
+    /// <summary>
+    /// Giden bakiyesi 30 günden uzun süredir kapanmamış hesaplar. Borç başlangıcı, kümülatif bakiyenin
+    /// en son sıfırın üstüne çıktığı işlemin tarihidir.
+    /// </summary>
+    private void CalculateCustomersWithLongDebt(List<Customer> customers)
     {
-        var customers = await DatabaseService.GetCustomersAsync();
-        customersWithLongDebt.Clear();
+        var result = new List<CustomerDebtInfo>();
 
         foreach (var customer in customers)
         {
-            // Only consider non-Emanet transactions but include all currency types
-            var customerTransactions = transactions.Where(t => t.CustomerId == customer.Id &&
-                                                   !t.IsDeposit).ToList();
-
-            // Group transactions by currency type
-            var transactionsByCurrency = customerTransactions.GroupBy(t => t.CurrencyType);
-
-            foreach (var currencyGroup in transactionsByCurrency)
+            foreach (var group in transactions.Where(t => t.CustomerId == customer.Id).GroupBy(t => t.CurrencyType))
             {
-                var currencyType = currencyGroup.Key;
-                var currencyTransactions = currencyGroup.ToList();
+                var netBalance = group.Where(t => t.Type == TransactionType.CustomerDebt).Sum(t => t.Amount) -
+                                 group.Where(t => t.Type == TransactionType.StoreDebt).Sum(t => t.Amount);
+                if (netBalance <= 0)
+                    continue;
 
-                if (currencyTransactions.Count > 0)
+                var earliestDebtDate = DateTime.MaxValue;
+                decimal running = 0;
+                foreach (var t in group.OrderBy(t => t.Date))
                 {
-                    // Calculate total "Giden" (outgoing) amounts
-                    decimal totalGiden = currencyTransactions
-                        .Where(t => t.Type == TransactionType.CustomerDebt)
-                        .Sum(t => t.Amount);
+                    running += t.Type == TransactionType.CustomerDebt ? t.Amount : -t.Amount;
+                    if (running > 0 && earliestDebtDate == DateTime.MaxValue)
+                        earliestDebtDate = t.Date;
+                    else if (running <= 0)
+                        earliestDebtDate = DateTime.MaxValue;
+                }
 
-                    // Calculate total "Gelen" (incoming) amounts
-                    decimal totalGelen = currencyTransactions
-                        .Where(t => t.Type == TransactionType.StoreDebt)
-                        .Sum(t => t.Amount);
-
-                    // Net balance (positive means customer owes money)
-                    decimal netBalance = totalGiden - totalGelen;
-
-                    // Only proceed if customer has more "Giden" than "Gelen"
-                    if (netBalance > 0)
+                if (earliestDebtDate != DateTime.MaxValue && (DateTime.Now - earliestDebtDate).TotalDays >= 30)
+                {
+                    result.Add(new CustomerDebtInfo
                     {
-                        // Find the earliest debt transaction date where the running balance became positive
-                        DateTime earliestDebtDate = DateTime.MaxValue;
-                        decimal runningBalance = 0;
-
-                        foreach (var transaction in currencyTransactions.OrderBy(t => t.Date))
-                        {
-                            if (transaction.Type == TransactionType.CustomerDebt)
-                            {
-                                runningBalance += transaction.Amount;
-                            }
-                            else
-                            {
-                                runningBalance -= transaction.Amount;
-                            }
-
-                            if (runningBalance > 0 && earliestDebtDate == DateTime.MaxValue)
-                            {
-                                earliestDebtDate = transaction.Date;
-                            }
-                            else if (runningBalance <= 0)
-                            {
-                                earliestDebtDate = DateTime.MaxValue;
-                            }
-                        }
-
-                        // Only add to long-term debt list if debt is older than 30 days
-                        if (earliestDebtDate != DateTime.MaxValue &&
-                            (DateTime.Now - earliestDebtDate).TotalDays >= 30)
-                        {
-                            customersWithLongDebt.Add(new CustomerDebtInfo
-                                {
-                                    CustomerId = customer.Id,
-                                    CustomerName = customer.Name,
-                                    Balance = netBalance,
-                                    EarliestDebtDate = earliestDebtDate,
-                                    CurrencyType = currencyType
-                                });
-                        }
-                    }
+                        CustomerId = customer.Id,
+                        CustomerName = customer.Name,
+                        Balance = netBalance,
+                        EarliestDebtDate = earliestDebtDate,
+                        CurrencyType = group.Key
+                    });
                 }
             }
         }
 
-        customersWithLongDebt = customersWithLongDebt
-            .OrderBy(c => c.EarliestDebtDate)
-            .ToList();
+        customersWithLongDebt = result.OrderBy(c => c.EarliestDebtDate).ToList();
     }
 
-    // private void CalculateTotals()
-    // {
-    //     currencySummaries.Clear();
-    //     foreach (var currencyType in Enum.GetValues<CurrencyType>())
-    //     {
-    //         currencySummaries[currencyType] = new CurrencySummary();
-    //     }
-
-    //     if (transactions != null)
-    //     {
-    //         foreach (var transaction in transactions)
-    //         {
-    //             if (transaction.Type == TransactionType.CustomerDebt)
-    //             {
-    //                 currencySummaries[transaction.CurrencyType].TotalCustomerDebt += transaction.Amount;
-    //             }
-    //             else
-    //             {
-    //                 currencySummaries[transaction.CurrencyType].TotalStoreDebt += transaction.Amount;
-    //             }
-    //         }
-    //     }
-    // }
-    private void ViewTransactionDetails(Transaction transaction)
+    private void OnRowClick(TableRowClickEventArgs<Transaction> args)
     {
-        NavigationManager.NavigateTo($"/customer/{transaction.CustomerId}");
+        if (args?.Item != null)
+            ViewCustomerDetails(args.Item.CustomerId);
     }
 
-    private void ViewCustomerDetails(int customerId)
-    {
-        NavigationManager.NavigateTo($"/customer/{customerId}");
-    }
+    private void ViewCustomerDetails(int customerId) => NavigationManager.NavigateTo($"/customer/{customerId}");
 
-    private string GetDebtDurationText(DateTime debtDate)
+    private static string GetDebtDurationText(DateTime debtDate)
     {
-        TimeSpan duration = DateTime.Now - debtDate;
-
+        var duration = DateTime.Now - debtDate;
         if (duration.TotalDays >= 365)
-        {
-            int years = (int)(duration.TotalDays / 365);
-            return $"{years} yıl, {(int)((duration.TotalDays % 365) / 30)} ay";
-        }
-        else if (duration.TotalDays >= 30)
-        {
-            int months = (int)(duration.TotalDays / 30);
-            return $"{months} ay, {(int)(duration.TotalDays % 30)} gün";
-        }
-        else
-        {
-            return $"{(int)duration.TotalDays} gün";
-        }
+            return $"{(int)(duration.TotalDays / 365)} yıl, {(int)(duration.TotalDays % 365 / 30)} ay";
+        if (duration.TotalDays >= 30)
+            return $"{(int)(duration.TotalDays / 30)} ay, {(int)(duration.TotalDays % 30)} gün";
+        return $"{(int)duration.TotalDays} gün";
     }
 
-    private async Task OnSearch(string text)
+    private async Task OnFilterTypeChanged(TransactionType? value)
     {
-        searchTerm = text;
-        await table.ReloadServerData();
+        filterType = value;
+        if (table != null)
+            await table.ReloadServerData();
     }
 
-    private async Task OnFilterTypeChanged(TransactionType? filterType)
-    {
-        this.filterType = filterType;
-        await table.ReloadServerData();
-    }
-
-    private class CustomerDebtInfo
+    private sealed class CustomerDebtInfo
     {
         public int CustomerId { get; set; }
-        public string CustomerName { get; set; }
+        public string CustomerName { get; set; } = string.Empty;
         public decimal Balance { get; set; }
         public DateTime EarliestDebtDate { get; set; }
         public CurrencyType CurrencyType { get; set; } = CurrencyType.TurkishLira;
-    }
-
-    private class CurrencySummary
-    {
-        public decimal TotalCustomerDebt { get; set; } = 0;
-        public decimal TotalStoreDebt { get; set; } = 0;
     }
 }

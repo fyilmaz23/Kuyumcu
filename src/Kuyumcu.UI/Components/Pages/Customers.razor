@@ -1,261 +1,171 @@
 @page "/customers"
-@using Kuyumcu.Components.Helper
 @inject DatabaseService DatabaseService
 @inject NavigationManager NavigationManager
 @inject IDialogService Dialog
+@inject ISnackbar Snackbar
 
+<div class="kd-page">
+    <PageHeader Title="Müşteriler" Subtitle="@($"{totalCount:N0} müşteri")" />
 
-<MudContainer Class="mt-4">
-    <MudPaper Elevation="0" Class="mb-4">
-        <MudGrid>
-            <MudItem xs="12">
-                <MudText Typo="Typo.h4">Müşteriler</MudText>
-            </MudItem>
-        </MudGrid>
-    </MudPaper>
+    <div class="kd-card">
+        <div class="kd-card-header">
+            <div style="width: min(420px, 100%)">
+                <MudTextField T="string" Placeholder="İsim veya telefon ile ara…" Variant="Variant.Outlined" Margin="Margin.Dense"
+                              Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                              Value="searchTerm" ValueChanged="OnSearch" Immediate="true" DebounceInterval="250" Clearable="true" />
+            </div>
+            <MudText Typo="Typo.caption" Class="kd-muted">Satıra tıklayarak müşterinin hesabını açın.</MudText>
+        </div>
 
-    <MudPaper Elevation="1" Class="pa-4 mb-4">
-        <MudGrid>
-            <MudItem xs="12" sm="6">
-                <MudTextField T="string" Label="Müşteri ara..." Variant="Variant.Outlined" Adornment="Adornment.Start"
-                AdornmentIcon="@Icons.Material.Filled.Search" @bind-Value="searchTerm"
-                Immediate="true" OnKeyUp="@(() => Search())" />
-            </MudItem>
-            <MudItem xs="12" sm="6" Class="d-flex justify-end">
-                <MudStack Row="true" Spacing="2">
-                    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
-                    OnClick="@(() => ShowCustomerModal(new Customer()))">
-                        Yeni Müşteri
-                    </MudButton>
-                    <MudButton Variant="Variant.Outlined" Color="Color.Secondary" StartIcon="@Icons.Material.Filled.ArrowBack"
-                    OnClick="GoBack">
-                        Ana Sayfa
-                    </MudButton>
-                </MudStack>
-            </MudItem>
-        </MudGrid>
-    </MudPaper>
-
-    @if (isLoading)
-    {
-        <MudProgressCircular Color="Color.Primary" Indeterminate="true" Class="my-7" Size="Size.Large" />
-    }
-    else if (customers == null || customers.Count == 0)
-    {
-        <MudAlert Severity="Severity.Info" Class="ma-4">Henüz müşteri kaydı bulunmamaktadır.</MudAlert>
-    }
-    else
-    {
-        <MudTable T="Customer" ServerData="@ServerReload"
-        Dense="true" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@isLoading" 
-        OnRowClick="RowClickEvent" LoadingProgressColor="Color.Primary" 
-        Elevation="0" @ref="table">
+        <MudTable T="Customer" ServerData="ServerReload" @ref="table" Class="kd-table" Elevation="0"
+                  Hover="true" Breakpoint="Breakpoint.Sm" OnRowClick="RowClickEvent" RowClass="kd-row-link"
+                  LoadingProgressColor="Color.Primary">
             <HeaderContent>
-                <MudTh><MudTableSortLabel SortLabel="name" T="Customer">İsim</MudTableSortLabel></MudTh>
+                <MudTh><MudTableSortLabel SortLabel="name" T="Customer" InitialDirection="MudBlazor.SortDirection.Ascending">Müşteri</MudTableSortLabel></MudTh>
                 <MudTh><MudTableSortLabel SortLabel="phone" T="Customer">Telefon</MudTableSortLabel></MudTh>
-                <MudTh>İşlemler</MudTh>
+                <MudTh>Açık bakiyeler</MudTh>
+                <MudTh Style="width:96px"></MudTh>
             </HeaderContent>
             <RowTemplate>
-                <MudTd DataLabel="İsim">@context.Name</MudTd>
-                <MudTd DataLabel="Telefon">@context.PhoneNumber.FormatPhoneNumber()</MudTd>
-                <MudTd DataLabel="İşlemler">
-                    <MudStack Row="true">
-                        <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
-                        OnClick="@(() => ShowCustomerModal(context))" />
-                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small"
-                        OnClick="@(() => DeleteCustomer(context))" />
-                    </MudStack>
+                <MudTd DataLabel="Müşteri">
+                    <div class="d-flex align-center gap-3">
+                        <Avatar Name="@context.Name" />
+                        <span class="kd-strong">@context.Name</span>
+                    </div>
+                </MudTd>
+                <MudTd DataLabel="Telefon"><span class="kd-num kd-muted">@context.PhoneNumber.FormatPhoneNumber()</span></MudTd>
+                <MudTd DataLabel="Açık bakiyeler">
+                    @if (balances.TryGetValue(context.Id, out var list) && list.Count > 0)
+                    {
+                        <div class="d-flex flex-wrap" style="gap:6px">
+                            @foreach (var b in list.Take(4))
+                            {
+                                <span class="kd-badge @(b.NetBalance > 0 ? "giden" : "gelen")" title="@(b.NetBalance > 0 ? "Giden" : "Gelen")">
+                                    <span class="kd-num">@FormatHelper.FormatPrice(Math.Abs(b.NetBalance)) @b.CurrencyType.GetShortName()</span>
+                                </span>
+                            }
+                            @if (list.Count > 4)
+                            {
+                                <span class="kd-badge notr">+@(list.Count - 4)</span>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <span class="kd-muted" style="font-size:.8rem">Hesap sıfır</span>
+                    }
+                </MudTd>
+                <MudTd Style="text-align:right">
+                    <div @onclick:stopPropagation="true" style="display:inline-flex">
+                    <MudTooltip Text="Düzenle">
+                        <MudIconButton Icon="@Icons.Material.Outlined.Edit" Size="Size.Small"
+                                       OnClick="@(() => ShowCustomerModal(context))" />
+                    </MudTooltip>
+                    <MudTooltip Text="Sil">
+                        <MudIconButton Icon="@Icons.Material.Outlined.Delete" Size="Size.Small" Color="Color.Error"
+                                       OnClick="@(() => DeleteCustomer(context))" />
+                    </MudTooltip>
+                    </div>
                 </MudTd>
             </RowTemplate>
+            <NoRecordsContent>
+                @if (string.IsNullOrWhiteSpace(searchTerm))
+                {
+                    <EmptyState Icon="@Icons.Material.Outlined.PersonAddAlt" Title="Henüz müşteri yok" Text="İlk müşterinizi ekleyerek başlayın.">
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="@(() => ShowCustomerModal(new Customer()))">Yeni Müşteri</MudButton>
+                    </EmptyState>
+                }
+                else
+                {
+                    <EmptyState Icon="@Icons.Material.Outlined.SearchOff" Title="Sonuç bulunamadı" Text="@($"\"{searchTerm}\" ile eşleşen müşteri yok.")" />
+                }
+            </NoRecordsContent>
             <PagerContent>
-                    <MudTablePager RowsPerPageString="Sayfa başına:" InfoFormat="{first_item}-{last_item} / {all_items}" PageSizeOptions="new int[] {10, 25, 50, 100}" />
+                <MudTablePager RowsPerPageString="Sayfa başına:" InfoFormat="{first_item}-{last_item} / {all_items}" PageSizeOptions="new[] { 25, 50, 100 }" />
             </PagerContent>
         </MudTable>
-    }
-    </MudContainer>
+    </div>
+</div>
 
-    <MudDialog @bind-Visible="showCustomerModal" DefaultFocus="DefaultFocus.FirstChild">
-        <DialogContent>
-            <MudContainer Style="max-height: 500px; overflow-y: auto">
-                <MudText Typo="Typo.h6" Class="mb-4">@(currentCustomer.Id == 0 ? "Yeni Müşteri" : "Müşteri Düzenle")</MudText>
-                <EditForm Model="@currentCustomer" OnValidSubmit="SaveCustomer">
-                    <DataAnnotationsValidator />
-                    <MudGrid>
-                        <MudItem xs="12">
-                            <MudTextField @bind-Value="currentCustomer.Name" Label="Müşteri Adı" AutoFocus Variant="Variant.Outlined"
-                            Required="true" RequiredError="Müşteri adı gereklidir" />
-                            <ValidationMessage For="@(() => currentCustomer.Name)" />
-                        </MudItem>
-                        <MudItem xs="12">
-                            <MudTextField @bind-Value="currentCustomer.PhoneNumber" Mask=@mask2 Label="Telefon"
-                                          Variant="Variant.Outlined" Immediate MaxLength="10" autocomplete="new-password" />
-                            <ValidationMessage For="@(() => currentCustomer.PhoneNumber)" />
-                        </MudItem>
-                    </MudGrid>
-                    <MudDivider Class="my-4" />
-                    <MudStack Row="true" Justify="Justify.FlexEnd">
-                        <MudButton Variant="Variant.Text" Color="Color.Default" OnClick="CloseCustomerModal">İptal</MudButton>
-                        <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary">Kaydet</MudButton>
-                    </MudStack>
-                </EditForm>
-            </MudContainer>
-        </DialogContent>
-    </MudDialog>
 
-    @code {
-    private List<Customer> customers;
-    private List<Customer> filteredCustomers;
-    private bool isLoading = true;
-    private string searchTerm = "";
-    private MudTable<Customer> table;
-    private PatternMask mask2 = new PatternMask("XXX-XXX-XX-XX")
-        {
-            MaskChars = new[] { new MaskChar('X', @"[0-9]") },
-            Placeholder = '_',
-            CleanDelimiters = true,
-        };
-    private bool showCustomerModal;
-    private Customer currentCustomer = new Customer();
+
+@code {
+    private MudTable<Customer>? table;
+    private string searchTerm = string.Empty;
+    private int totalCount;
+    private Dictionary<int, List<CustomerCurrencyBalance>> balances = new();
 
     protected override async Task OnInitializedAsync()
     {
-        await LoadCustomers();
+        totalCount = await DatabaseService.GetCustomerCountAsync(string.Empty);
+        var summary = await DatabaseService.GetCurrencyBalanceSummaryAsync();
+        balances = summary.CustomerBalances
+            .GroupBy(b => b.CustomerId)
+            .ToDictionary(g => g.Key, g => g.OrderByDescending(b => Math.Abs(b.NetBalance)).ToList());
     }
 
-    private void GoBack()
-    {
-        NavigationManager.NavigateTo("/");
-    }
-
-    private async Task LoadCustomers()
-    {
-        isLoading = true;
-        customers = await DatabaseService.GetCustomersAsync();
-        filteredCustomers = customers;
-        isLoading = false;
-    }
-
- 
     private async Task<TableData<Customer>> ServerReload(TableState state, CancellationToken cancellationToken)
     {
         try
         {
-
-            var customers = await DatabaseService.GetCustomersPaginationAsync(state.Page, state.PageSize, state?.SortLabel, Helper.HelperMethods.GetSortDirection(state?.SortDirection), searchTerm);
-            int totalItems = await DatabaseService.GetCustomerCountAsync(searchTerm);
-
-            return new TableData<Customer>
-            {
-                Items = customers,
-                TotalItems = totalItems
-            };
+            var items = await DatabaseService.GetCustomersPaginationAsync(state.Page, state.PageSize, state.SortLabel,
+                Helper.HelperMethods.GetSortDirection(state.SortDirection), searchTerm);
+            var total = await DatabaseService.GetCustomerCountAsync(searchTerm);
+            return new TableData<Customer> { Items = items, TotalItems = total };
         }
         catch (Exception ex)
         {
             Console.WriteLine(ex);
-            // Handle errors
-            return new TableData<Customer>
-            {
-                Items = new List<Customer>(),
-                TotalItems = 0
-            };
+            return new TableData<Customer> { Items = new List<Customer>(), TotalItems = 0 };
         }
     }
 
     private async Task OnSearch(string text)
     {
-        searchTerm = text;
-        await table.ReloadServerData();
+        searchTerm = text ?? string.Empty;
+        if (table != null)
+            await table.ReloadServerData();
     }
 
-    private void Search()
+    private async Task ShowCustomerModal(Customer customer)
     {
-        // Legacy method, replaced by server-side filtering
-        // Keep for compatibility
-        table?.ReloadServerData();
-    }
+        var isNew = customer.Id == 0;
+        var saved = await CustomerEditDialog.ShowAsync(Dialog, customer);
+        if (saved == null)
+            return;
 
-    private void ShowCustomerModal(Customer customer)
-    {
-        currentCustomer = new Customer
-            {
-                Id = customer.Id,
-                Name = customer.Name,
-                PhoneNumber = customer.PhoneNumber
-            };
-        showCustomerModal = true;
-    }
-
-    private void CloseCustomerModal()
-    {
-        showCustomerModal = false;
-    }
-
-    private async Task SaveCustomer()
-    {
-        // Yeni müşteri ekliyorsak aynı isimde başka müşteri var mı kontrol et
-        if (currentCustomer.Id == 0 && !string.IsNullOrWhiteSpace(currentCustomer.Name))
+        if (isNew || saved.Id != customer.Id)
         {
-            var existingCustomer = await DatabaseService.GetCustomerByNameAsync(currentCustomer.Name);
-            if (existingCustomer != null)
-            {
-                // Varolan müşteri bulundu, uyarı göster
-                bool? result = await Dialog.ShowMessageBox(
-                    "Aynı İsimde Müşteri Bulundu",
-                    $"\"{currentCustomer.Name}\" adında bir müşteri zaten var. Ne yapmak istersiniz?",
-                    yesText: "Varolan Müşteriye Git",
-                    noText: "Yine de Kaydet",
-                    cancelText: "İptal");
-
-                if (result == true) // Varolan müşteriye git
-                {
-                    CloseCustomerModal();
-                    NavigationManager.NavigateTo($"/customer/{existingCustomer.Id}");
-                    return;
-                }
-                else if (result == null) // İptal
-                {
-                    return;
-                }
-                // Else: Yine de kaydet - devam et
-            }
+            NavigationManager.NavigateTo($"/customer/{saved.Id}");
+            return;
         }
 
-        await DatabaseService.SaveCustomerAsync(currentCustomer);
-        CloseCustomerModal();
-        // await table.ReloadServerData();
-        NavigationManager.NavigateTo($"/customer/{currentCustomer.Id}");
+        Snackbar.Add("Müşteri bilgileri güncellendi.", Severity.Success);
+        if (table != null)
+            await table.ReloadServerData();
     }
 
     private async Task DeleteCustomer(Customer customer)
     {
-        // var transactions = await DatabaseService.GetCustomerTransactionsAsync(customer.Id);
-        // if (transactions.Count > 0)
-        // {
-        //     // TODO: Show error message
-        //     return;
-        // }
-        var confirmResult = await Dialog.ShowMessageBox(
-           "Emin misiniz?",
-           $"{customer.Name} sistemden silinecek",
-           yesText: "Evet",
-           noText: "Hayır");
+        var confirm = await Dialog.ShowMessageBox(
+            "Müşteriyi sil",
+            $"{customer.Name} silinecek. Devam edilsin mi?",
+            yesText: "Sil",
+            cancelText: "Vazgeç");
 
-        if (confirmResult == true)
+        if (confirm == true)
         {
             await DatabaseService.DeleteCustomerAsync(customer);
-            await table.ReloadServerData();
+            totalCount = await DatabaseService.GetCustomerCountAsync(string.Empty);
+            Snackbar.Add($"{customer.Name} silindi.", Severity.Info);
+            if (table != null)
+                await table.ReloadServerData();
         }
     }
 
-    private void ViewCustomerTransactions(Customer customer)
+    private void RowClickEvent(TableRowClickEventArgs<Customer> args)
     {
-        NavigationManager.NavigateTo($"/customer/{customer.Id}");
-    }
-    private void RowClickEvent(TableRowClickEventArgs<Customer> customer)
-    {
-        if (customer?.Item != null)
-            NavigationManager.NavigateTo($"/customer/{customer.Item.Id}");
-
+        if (args?.Item != null)
+            NavigationManager.NavigateTo($"/customer/{args.Item.Id}");
     }
 }

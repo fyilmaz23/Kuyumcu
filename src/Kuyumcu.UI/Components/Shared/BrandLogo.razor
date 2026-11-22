@@ -1,0 +1,21 @@
+@* Ürün logosu (altın pırlanta) *@
+<svg class="@Class" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <defs>
+        <linearGradient id="kdGold" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="#F6D77A" />
+            <stop offset="0.55" stop-color="#D4A73C" />
+            <stop offset="1" stop-color="#A9781F" />
+        </linearGradient>
+    </defs>
+    <rect width="512" height="512" rx="112" fill="#2B241B" />
+    <polygon points="146,196 196,132 316,132 366,196 256,388" fill="url(#kdGold)" stroke="#2B241B" stroke-width="6" stroke-linejoin="round" />
+    <g fill="none" stroke="#2B241B" stroke-width="6" stroke-linejoin="round">
+        <polyline points="146,196 366,196" />
+        <polyline points="196,132 226,196 256,388 286,196 316,132" />
+        <polyline points="226,196 256,132 286,196" />
+    </g>
+</svg>
+
+@code {
+    [Parameter] public string? Class { get; set; }
+}

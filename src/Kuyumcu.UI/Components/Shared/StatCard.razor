@@ -1,0 +1,32 @@
+@* Özet sayı kartı (ana sayfa) *@
+<div class="kd-card kd-stat @(OnClick.HasDelegate ? "kd-clickable" : "")" @onclick="OnClick">
+    <div class="kd-stat-icon" style="@IconStyle">
+        <MudIcon Icon="@Icon" />
+    </div>
+    <div style="min-width:0">
+        <div class="kd-stat-label">@Label</div>
+        <div class="kd-stat-value">@Value</div>
+        @if (!string.IsNullOrEmpty(Hint))
+        {
+            <div class="kd-stat-label">@Hint</div>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter] public string Label { get; set; } = string.Empty;
+    [Parameter] public string Value { get; set; } = string.Empty;
+    [Parameter] public string? Hint { get; set; }
+    [Parameter] public string Icon { get; set; } = Icons.Material.Outlined.Info;
+    /// <summary>"giden", "gelen" veya boş (altın vurgusu)</summary>
+    [Parameter] public string? Tone { get; set; }
+    [Parameter] public EventCallback OnClick { get; set; }
+
+    private string IconStyle => Tone switch
+    {
+        "giden" => "background: rgba(var(--kd-giden-rgb), .12); color: var(--kd-giden);",
+        "gelen" => "background: rgba(var(--kd-gelen-rgb), .12); color: var(--kd-gelen);",
+        "info" => "background: rgba(var(--mud-palette-info-rgb), .12); color: var(--mud-palette-info);",
+        _ => string.Empty
+    };
+}

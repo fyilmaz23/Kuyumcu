@@ -1,0 +1,19 @@
+@* Müşteri baş harfleri *@
+<span class="kd-avatar @(Large ? "lg" : "")" title="@Name">@Initials</span>
+
+@code {
+    [Parameter] public string? Name { get; set; }
+    [Parameter] public bool Large { get; set; }
+
+    private string Initials
+    {
+        get
+        {
+            var parts = (Name ?? "?").Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length == 0) return "?";
+            var first = parts[0][0].ToString();
+            var last = parts.Length > 1 ? parts[^1][0].ToString() : string.Empty;
+            return (first + last).ToUpper(new System.Globalization.CultureInfo("tr-TR"));
+        }
+    }
+}

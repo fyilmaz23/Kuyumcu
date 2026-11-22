@@ -1,0 +1,33 @@
+@inherits LayoutComponentBase
+@inject IJSRuntime JS
+@* Menüsüz sade yerleşim: ilk kurulum ve lisans ekranları *@
+
+<MudThemeProvider Theme="KuyumcuTheme.Theme" IsDarkMode="isDarkMode" />
+<MudPopoverProvider />
+<MudDialogProvider CloseOnEscapeKey="true" />
+<MudSnackbarProvider />
+
+<div style="min-height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:32px 16px; background: var(--mud-palette-background)">
+    <div class="d-flex align-center gap-3 mb-6">
+        <BrandLogo Class="kd-brand-logo" />
+        <MudText Typo="Typo.h6">@ProductInfo.Name</MudText>
+    </div>
+    <div style="width:100%; max-width:620px">
+        @Body
+    </div>
+</div>
+
+@code {
+    private bool isDarkMode;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        try
+        {
+            isDarkMode = await JS.InvokeAsync<string?>("kuyumcu.getPreference", "darkMode") == "1";
+            if (isDarkMode) StateHasChanged();
+        }
+        catch (JSDisconnectedException) { }
+    }
+}

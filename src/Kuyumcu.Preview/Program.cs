@@ -27,6 +27,7 @@ builder.Services.AddSingleton<IReceiptPrinter, NoPrinter>();
 builder.Services.AddSingleton<ILegacyDataLocator, NoLegacyData>();
 builder.Services.AddKuyumcuCore();
 builder.Services.AddScoped<AppState>();
+builder.Services.AddScoped<ShortcutService>();
 
 var app = builder.Build();
 

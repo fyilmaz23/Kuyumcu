@@ -1,0 +1,22 @@
+@* Sayfa başlığı: başlık, açıklama ve sağda eylem düğmeleri *@
+<div class="kd-page-header">
+    <div>
+        <MudText Typo="Typo.h4" Class="kd-title">@Title</MudText>
+        @if (!string.IsNullOrEmpty(Subtitle))
+        {
+            <MudText Typo="Typo.body2" Class="kd-subtitle kd-muted">@Subtitle</MudText>
+        }
+        @SubtitleContent
+    </div>
+    @if (Actions != null)
+    {
+        <div class="kd-page-actions">@Actions</div>
+    }
+</div>
+
+@code {
+    [Parameter] public string Title { get; set; } = string.Empty;
+    [Parameter] public string? Subtitle { get; set; }
+    [Parameter] public RenderFragment? SubtitleContent { get; set; }
+    [Parameter] public RenderFragment? Actions { get; set; }
+}

@@ -1,0 +1,20 @@
+@* Boş liste / veri yok durumu *@
+<div class="kd-empty">
+    <MudIcon Icon="@Icon" />
+    <MudText Typo="Typo.subtitle1" Style="color: var(--mud-palette-text-primary)">@Title</MudText>
+    @if (!string.IsNullOrEmpty(Text))
+    {
+        <MudText Typo="Typo.body2" Class="mt-1">@Text</MudText>
+    }
+    @if (ChildContent != null)
+    {
+        <div class="mt-4">@ChildContent</div>
+    }
+</div>
+
+@code {
+    [Parameter] public string Icon { get; set; } = Icons.Material.Outlined.Inbox;
+    [Parameter] public string Title { get; set; } = string.Empty;
+    [Parameter] public string? Text { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

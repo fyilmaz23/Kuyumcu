@@ -11,11 +11,8 @@
 @inject ILegacyDataLocator LegacyDataLocator
 @inject AppState AppState
 
-<MudContainer MaxWidth="MaxWidth.Small" Class="mt-4 pb-8">
-    <MudText Typo="Typo.h5" Class="mb-4">
-        <MudIcon Icon="@Icons.Material.Filled.Settings" Class="mr-2" />
-        Ayarlar
-    </MudText>
+<div class="kd-page" style="max-width:820px">
+    <PageHeader Title="Ayarlar" Subtitle="İşletme bilgileri, yedekleme ve lisans" />
 
     @if (isLoading)
     {
@@ -40,7 +37,7 @@
             </MudAlert>
         }
 
-        <MudPaper Class="pa-6 mb-4" Elevation="2">
+        <MudPaper Class="pa-6 mb-4" Elevation="0" Outlined="true">
             <MudText Typo="Typo.h6" Class="mb-3">
                 <MudIcon Icon="@Icons.Material.Filled.Store" Class="mr-1" /> İş Yeri Bilgileri
             </MudText>
@@ -51,7 +48,7 @@
                            Class="mb-3" />
         </MudPaper>
 
-        <MudPaper Class="pa-6 mb-4" Elevation="2">
+        <MudPaper Class="pa-6 mb-4" Elevation="0" Outlined="true">
             <MudText Typo="Typo.h6" Class="mb-1">
                 <MudIcon Icon="@Icons.Material.Filled.CloudUpload" Class="mr-1" /> Google Drive Yedekleme
             </MudText>
@@ -87,7 +84,7 @@
             </MudExpansionPanels>
         </MudPaper>
 
-        <MudPaper Class="pa-6 mb-4" Elevation="2">
+        <MudPaper Class="pa-6 mb-4" Elevation="0" Outlined="true">
             <MudText Typo="Typo.h6" Class="mb-1">
                 <MudIcon Icon="@Icons.Material.Filled.CurrencyExchange" Class="mr-1" /> Altın Fiyatı Görseli
             </MudText>
@@ -137,7 +134,7 @@
 
         <MudDivider Class="my-6" />
 
-        <MudPaper Class="pa-6 mb-4" Elevation="2">
+        <MudPaper Class="pa-6 mb-4" Elevation="0" Outlined="true">
             <MudText Typo="Typo.h6" Class="mb-1">
                 <MudIcon Icon="@Icons.Material.Filled.Save" Class="mr-1" /> Bilgisayardaki Otomatik Yedekler
             </MudText>
@@ -157,7 +154,7 @@
             </div>
         </MudPaper>
 
-        <MudPaper Class="pa-6 mb-4" Elevation="2" Style="border: 2px solid var(--mud-palette-error);">
+        <MudPaper Class="pa-6 mb-4" Elevation="0" Outlined="true" Style="border: 2px solid var(--mud-palette-error);">
             <MudText Typo="Typo.h6" Class="mb-1" Color="Color.Error">
                 <MudIcon Icon="@Icons.Material.Filled.RestorePage" Class="mr-1" /> Yedeği İçe Aktar
             </MudText>
@@ -184,7 +181,7 @@
         <MudDivider Class="my-4" />
 
         @* Lisans Bilgileri Bölümü *@
-        <MudPaper Class="pa-6 mb-4" Elevation="2" Style="@($"border-left: 4px solid {(licenseStatus == Models.LicenseStatus.Licensed ? "#4caf50" : licenseStatus == Models.LicenseStatus.Trial ? "#ff9800" : "#f44336")};")">
+        <MudPaper Class="pa-6 mb-4" Elevation="0" Outlined="true" Style="@($"border-left: 4px solid {(licenseStatus == Models.LicenseStatus.Licensed ? "var(--mud-palette-success)" : licenseStatus == Models.LicenseStatus.Trial ? "var(--mud-palette-warning)" : "var(--mud-palette-error)")};")">
             <MudText Typo="Typo.h6" Class="mb-3">
                 <MudIcon Icon="@Icons.Material.Filled.VerifiedUser" Class="mr-1" /> Lisans Bilgileri
             </MudText>
@@ -257,7 +254,7 @@
             }
         </MudPaper>
     }
-</MudContainer>
+</div>
 
 @code {
     private AppSettings settings = new();

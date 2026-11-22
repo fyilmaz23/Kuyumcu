@@ -597,7 +597,8 @@ namespace Kuyumcu.Services
         {
             await InitializeAsync();
             return await _database.Table<Transaction>()
-                .Where(t => t.CustomerId == customerId && !t.IsDeleted && t.CurrencyType == currencyType)
+                // Emanetler bakiyeye girmez ve ayrı bölümde gösterilir; para birimi kartına dahil edilmez
+                .Where(t => t.CustomerId == customerId && !t.IsDeleted && !t.IsDeposit && t.CurrencyType == currencyType)
                 .OrderByDescending(t => t.Date)
                 .Skip(skip)
                 .Take(take)

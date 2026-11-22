@@ -1,4 +1,5 @@
 @page "/setup"
+@layout Kuyumcu.Components.Layout.BareLayout
 @inject DatabaseService DatabaseService
 @inject NavigationManager NavigationManager
 @inject AppState AppState
@@ -6,8 +7,8 @@
 @inject BackupService BackupService
 @inject IDialogService DialogService
 
-<MudContainer MaxWidth="MaxWidth.Small" Class="d-flex align-center" Style="min-height: 80vh;">
-    <MudPaper Class="pa-8 w-100" Elevation="3">
+<div>
+    <MudPaper Class="pa-8 w-100" Elevation="0" Outlined="true">
         <MudText Typo="Typo.h4" Align="Align.Center" Class="mb-2">
             <MudIcon Icon="@Icons.Material.Filled.Diamond" Size="Size.Large" Class="mr-2" />
             Hoş Geldiniz
@@ -59,7 +60,7 @@
             Kaydet ve Başla
         </MudButton>
     </MudPaper>
-</MudContainer>
+</div>
 
 @code {
     private AppSettings settings = new();

@@ -36,6 +36,7 @@ public static class MauiProgram
         builder.Services.AddKuyumcuCore();
         builder.Services.AddSingleton<DatabaseImportService>();
         builder.Services.AddScoped<AppState>();
+        builder.Services.AddScoped<ShortcutService>();
 
 #if DEBUG
         builder.Services.AddBlazorWebViewDeveloperTools();

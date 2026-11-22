@@ -1,111 +1,143 @@
 @inherits LayoutComponentBase
+@implements IDisposable
 @inject GoogleDriveService GoogleDriveService
 @inject DatabaseService DatabaseService
 @inject IDialogService DialogService
+@inject ISnackbar Snackbar
 @inject LicenseService LicenseService
 @inject NavigationManager NavigationManager
 @inject IAppEnvironment AppEnvironment
+@inject IJSRuntime JS
+@inject ShortcutService Shortcuts
+
+<MudThemeProvider Theme="KuyumcuTheme.Theme" @bind-IsDarkMode="isDarkMode" />
+<MudPopoverProvider />
+<MudDialogProvider CloseOnEscapeKey="true" BackdropClick="false" />
+<MudSnackbarProvider />
 
 <MudLayout>
-    <MudAppBar Elevation="1" Color="Color.Primary">
-        <MudText Typo="Typo.h6" Class="ml-3">@businessName</MudText>
-        <MudSpacer />
-        @if (!AppEnvironment.IsReadOnlyClient)
-        {
-            <div style="width: 300px; margin-right: 16px;">
-                <MudAutocomplete @ref="searchAutocomplete" T="Kuyumcu.Models.Customer" Placeholder="Müşteri ara..." Variant="Variant.Outlined" Margin="Margin.Dense"
-                    SearchFunc="@SearchCustomers" ToStringFunc="@(e => e == null ? null : e.Name)"
-                    ValueChanged="OnCustomerSelected" AdornmentIcon="@Icons.Material.Filled.Search" Adornment="Adornment.Start"
-                    Clearable="true" Dense="true" MaxItems="10" MinCharacters="1" Style="background: white; border-radius: 4px;" />
+    @if (AppEnvironment.IsReadOnlyClient)
+    {
+        @* Mobil (salt okunur): sade üst bar *@
+        <MudAppBar Elevation="0" Class="kd-appbar" Dense="true">
+            <BrandLogo Class="kd-brand-logo" />
+            <MudText Typo="Typo.subtitle1" Class="ml-3">@ProductInfo.Name</MudText>
+        </MudAppBar>
+        <MudMainContent>
+            @Body
+        </MudMainContent>
+    }
+    else
+    {
+        <MudAppBar Elevation="0" Class="kd-appbar">
+            <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start"
+                           OnClick="ToggleDrawer" aria-label="Menüyü daralt/genişlet" />
+            <div class="kd-search ml-2" id="global-search">
+                <MudAutocomplete @ref="searchAutocomplete" T="Customer" Placeholder="Müşteri ara…  (Ctrl+K)"
+                                 Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true"
+                                 SearchFunc="SearchCustomers" ToStringFunc="@(c => c?.Name)"
+                                 ValueChanged="OnCustomerSelected" Clearable="true" MaxItems="10" MinCharacters="1"
+                                 AdornmentIcon="@Icons.Material.Filled.Search" Adornment="Adornment.Start"
+                                 ShowProgressIndicator="false">
+                    <ItemTemplate Context="c">
+                        <div class="d-flex align-center gap-3">
+                            <Avatar Name="@c.Name" />
+                            <div>
+                                <div>@c.Name</div>
+                                <div class="kd-muted" style="font-size:.75rem">@c.PhoneNumber.FormatPhoneNumber()</div>
+                            </div>
+                        </div>
+                    </ItemTemplate>
+                    <NoItemsTemplate>
+                        <div class="pa-3 kd-muted">Müşteri bulunamadı.</div>
+                    </NoItemsTemplate>
+                </MudAutocomplete>
             </div>
-            @if (licenseStatus == Models.LicenseStatus.Trial)
-            {
-                <MudChip T="string" Color="@(remainingDays <= 7 ? Color.Error : Color.Warning)" 
-                         Size="Size.Small" 
-                         Variant="Variant.Filled"
-                         Icon="@Icons.Material.Filled.Timer">
-                    Deneme Sürümü — @remainingDays gün kaldı
-                </MudChip>
-            }
-            <MudIconButton Icon="@Icons.Material.Filled.Home" Color="Color.Inherit" Href="/" />
-            <MudIconButton Icon="@Icons.Material.Filled.People" Color="Color.Inherit" Href="/customers" />
-            <MudIconButton Icon="@Icons.Material.Filled.Receipt" Color="Color.Inherit" Href="/transactions" />
-            <MudButton Variant="Variant.Filled" Color="Color.Secondary" StartIcon="@Icons.Material.Filled.Backup"
-            OnClick="@(() => BackupToGoogleDrive())" Disabled="@(isBackupInProgress || !isGoogleDriveConfigured)">
-                @(isBackupInProgress ? "Yedekleniyor..." : "Yedek Al")
+            <MudSpacer />
+            <MudTooltip Text="@(isDarkMode ? "Açık tema" : "Koyu tema")">
+                <MudIconButton Icon="@(isDarkMode ? Icons.Material.Outlined.LightMode : Icons.Material.Outlined.DarkMode)"
+                               Color="Color.Inherit" OnClick="ToggleDarkMode" aria-label="Temayı değiştir" />
+            </MudTooltip>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="ml-2"
+                       StartIcon="@Icons.Material.Filled.PersonAdd" OnClick="NewCustomer">
+                Yeni Müşteri
             </MudButton>
-            <MudIconButton Icon="@Icons.Material.Filled.Settings" Color="Color.Inherit" Href="/settings" />
-        }
-        else
-        {
-            <MudIconButton Icon="@Icons.Material.Filled.DataObject" Color="Color.Inherit" Href="/import-data" />
-        }
+        </MudAppBar>
 
-    </MudAppBar>
+        <MudDrawer @bind-Open="drawerOpen" ClipMode="DrawerClipMode.Never" Elevation="0"
+                   Variant="DrawerVariant.Mini" OpenMiniOnHover="false">
+            <div class="d-flex flex-column" style="height:100%">
+                <div class="kd-brand">
+                    <BrandLogo Class="kd-brand-logo" />
+                    @if (drawerOpen)
+                    {
+                        <div class="kd-brand-text">
+                            <div class="kd-brand-name" title="@businessName">@businessName</div>
+                            <div class="kd-brand-product">@ProductInfo.Name</div>
+                        </div>
+                    }
+                </div>
+                <NavMenu />
+                <div class="kd-drawer-footer">
+                    @if (licenseStatus == LicenseStatus.Trial && drawerOpen)
+                    {
+                        <a class="kd-trial" href="/settings" style="text-decoration:none">
+                            <MudIcon Icon="@Icons.Material.Filled.HourglassTop" Style="font-size:.95rem; vertical-align:-3px" />
+                            Deneme sürümü · @remainingDays gün kaldı
+                        </a>
+                    }
+                    <MudTooltip Text="@(isGoogleDriveConfigured ? "Verilerin yedeğini Google Drive'a yükle" : "Google Drive ayarlanmamış (Ayarlar)")" Placement="Placement.Right">
+                        <MudButton Variant="Variant.Outlined" FullWidth="true" Style="color:#F1CF7B; border-color: rgba(241,207,123,.35)"
+                                   StartIcon="@(drawerOpen ? Icons.Material.Filled.CloudUpload : null)"
+                                   OnClick="BackupToGoogleDrive" Disabled="@(isBackupInProgress || !isGoogleDriveConfigured)">
+                            @if (drawerOpen)
+                            {
+                                @(isBackupInProgress ? "Yedekleniyor…" : "Drive'a Yedekle")
+                            }
+                            else
+                            {
+                                <MudIcon Icon="@Icons.Material.Filled.CloudUpload" />
+                            }
+                        </MudButton>
+                    </MudTooltip>
+                </div>
+            </div>
+        </MudDrawer>
 
-    <MudMainContent Class="pt-16 px-4">
-        @Body
-    </MudMainContent>
+        <MudMainContent>
+            @Body
+        </MudMainContent>
+    }
 </MudLayout>
 
-<MudThemeProvider Theme="myCustomTheme" />
-<MudDialogProvider />
-<MudSnackbarProvider />
-<MudPopoverProvider />
 <MudScrollToTop>
-    <MudFab Color="Color.Tertiary" StartIcon="@Icons.Material.Filled.ArrowCircleUp" />
+    <MudFab Color="Color.Primary" StartIcon="@Icons.Material.Filled.KeyboardArrowUp" Size="Size.Small" />
 </MudScrollToTop>
 
 @code {
-    private bool isBackupInProgress = false;
-    private string backupResult = string.Empty;
+    private bool drawerOpen = true;
+    private bool isDarkMode;
+    private bool isBackupInProgress;
+    private bool isGoogleDriveConfigured;
     private string businessName = ProductInfo.Name;
-    private bool isGoogleDriveConfigured = false;
-    private Models.LicenseStatus licenseStatus = Models.LicenseStatus.Trial;
+    private LicenseStatus licenseStatus = LicenseStatus.Trial;
     private int remainingDays = 30;
-
-    private MudTheme myCustomTheme = new MudTheme()
-    {
-        PaletteLight = new PaletteLight()
-        {
-            Primary = "#5851db",
-            Secondary = "#833ab4",
-            AppbarBackground = "#5851db",
-            Background = "#f8f9fa",
-            DrawerBackground = "#FFF",
-            DrawerText = "rgba(0,0,0, 0.7)",
-            Success = "#06d79c"
-        },
-        Typography = new Typography()
-        {
-                Default = new DefaultTypography()
-                {
-                FontFamily = new[] { "Roboto", "Helvetica", "Arial", "sans-serif" },
-                FontSize = "0.875rem",
-                FontWeight = "400",
-                LineHeight = "1.43",
-                LetterSpacing = ".01071em"
-            }
-        }
-    };
+    private MudAutocomplete<Customer>? searchAutocomplete;
+    private DotNetObjectReference<ShortcutService>? shortcutRef;
 
     protected override async Task OnInitializedAsync()
     {
         var settings = await DatabaseService.GetSettingsAsync();
         if (!string.IsNullOrWhiteSpace(settings.BusinessName))
-        {
             businessName = settings.BusinessName;
-        }
+
         isGoogleDriveConfigured = await GoogleDriveService.IsConfiguredAsync();
 
-        // Lisans durumunu yükle
         try
         {
             licenseStatus = await LicenseService.GetLicenseStatusAsync();
-            if (licenseStatus == Models.LicenseStatus.Trial)
-            {
+            if (licenseStatus == LicenseStatus.Trial)
                 remainingDays = await LicenseService.GetRemainingTrialDaysAsync();
-            }
         }
         catch (Exception ex)
         {
@@ -113,62 +145,81 @@
         }
     }
 
-    private async Task BackupToGoogleDrive()
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        var confirmResult = await DialogService.ShowMessageBox(
-          "Google Drive Yedeği",
-          "Verilerinizin bir yedeği Google Drive'a yüklenecek. Devam edilsin mi?",
-          yesText: "Evet",
-          noText: "Hayır");
+        if (!firstRender)
+            return;
 
-        if (confirmResult == false) return;
         try
         {
-            isBackupInProgress = true;
+            isDarkMode = await JS.InvokeAsync<string?>("kuyumcu.getPreference", "darkMode") == "1";
+            drawerOpen = await JS.InvokeAsync<string?>("kuyumcu.getPreference", "drawer") != "0";
+            shortcutRef = DotNetObjectReference.Create(Shortcuts);
+            await JS.InvokeVoidAsync("kuyumcu.registerShortcuts", shortcutRef);
             StateHasChanged();
+        }
+        catch (JSDisconnectedException) { }
+    }
 
-            backupResult = await GoogleDriveService.BackupDatabaseAsync();
+    private async Task ToggleDarkMode()
+    {
+        isDarkMode = !isDarkMode;
+        await JS.InvokeVoidAsync("kuyumcu.setPreference", "darkMode", isDarkMode ? "1" : "0");
+    }
 
-            await DialogService.ShowMessageBox(
-                "Yedekleme",
-                backupResult,
-                yesText: "Tamam");
+    private async Task ToggleDrawer()
+    {
+        drawerOpen = !drawerOpen;
+        await JS.InvokeVoidAsync("kuyumcu.setPreference", "drawer", drawerOpen ? "1" : "0");
+    }
+
+    private async Task BackupToGoogleDrive()
+    {
+        var confirm = await DialogService.ShowMessageBox(
+            "Google Drive Yedeği",
+            "Verilerinizin bir yedeği Google Drive'a yüklenecek. Devam edilsin mi?",
+            yesText: "Yedekle", cancelText: "Vazgeç");
+        if (confirm != true)
+            return;
+
+        isBackupInProgress = true;
+        try
+        {
+            var result = await GoogleDriveService.BackupDatabaseAsync();
+            var ok = result.StartsWith("Yedekleme başarılı", StringComparison.Ordinal);
+            Snackbar.Add(result, ok ? Severity.Success : Severity.Error);
         }
         catch (Exception ex)
         {
-            await DialogService.ShowMessageBox(
-                "Hata",
-                $"Yedekleme sırasında bir hata oluştu: {ex.Message}",
-                yesText: "Tamam");
+            Snackbar.Add($"Yedekleme sırasında bir hata oluştu: {ex.Message}", Severity.Error);
         }
         finally
         {
             isBackupInProgress = false;
-            StateHasChanged();
         }
     }
 
-    private MudAutocomplete<Kuyumcu.Models.Customer> searchAutocomplete;
-    private Kuyumcu.Models.Customer selectedCustomer;
-
-    private async Task<IEnumerable<Kuyumcu.Models.Customer>> SearchCustomers(string value, CancellationToken cancellationToken)
+    private async Task<IEnumerable<Customer>> SearchCustomers(string value, CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(value))
-            return await DatabaseService.GetCustomersPaginationAsync(0, 10, null, null, null);
-
-        var customers = await DatabaseService.GetCustomersPaginationAsync(0, 10, null, null, value);
-        return customers;
+        return await DatabaseService.GetCustomersPaginationAsync(0, 10, null, null, string.IsNullOrWhiteSpace(value) ? null : value);
     }
 
-    private void OnCustomerSelected(Kuyumcu.Models.Customer customer)
+    private async Task OnCustomerSelected(Customer customer)
     {
-        if (customer != null)
-        {
-            NavigationManager.NavigateTo($"/customer/{customer.Id}");
-            if (searchAutocomplete != null)
-            {
-                searchAutocomplete.ResetAsync();
-            }
-        }
+        if (customer == null)
+            return;
+
+        NavigationManager.NavigateTo($"/customer/{customer.Id}");
+        if (searchAutocomplete != null)
+            await searchAutocomplete.ClearAsync();
     }
+
+    private async Task NewCustomer()
+    {
+        var saved = await CustomerEditDialog.ShowAsync(DialogService);
+        if (saved != null)
+            NavigationManager.NavigateTo($"/customer/{saved.Id}");
+    }
+
+    public void Dispose() => shortcutRef?.Dispose();
 }

@@ -48,10 +48,10 @@ else
                 NavigationManager.NavigateTo("import-data");
                 return;
             }
-            <div class="container text-center mt-5">
-                <h1 class="text-danger">404 - Sayfa Bulunamadı</h1>
-                <p class="lead">Aradığınız sayfa bulunamadı.</p>
-                <a href="/" class="btn btn-primary">Ana Sayfaya Dön</a>
+            <div class="kd-page">
+                <EmptyState Icon="@Icons.Material.Outlined.SearchOff" Title="Sayfa bulunamadı" Text="Aradığınız sayfa mevcut değil.">
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="/">Ana Sayfaya Dön</MudButton>
+                </EmptyState>
             </div>
         </LayoutView>
     </NotFound>
