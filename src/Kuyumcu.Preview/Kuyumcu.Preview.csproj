@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <!--
+    Tarayıcı önizlemesi: Windows dışındaki bilgisayarlarda (Mac/Linux) arayüzü görmek ve geliştirmek için.
+    Aynı ortak arayüzü (Kuyumcu.UI) Blazor Server ile çalıştırır, örnek verilerle açılır.
+    Müşteriye dağıtılmaz.  Çalıştırma:  "dotnet run" (src/Kuyumcu.Preview klasöründe) ve tarayıcıda http://localhost:5080
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>Kuyumcu.Preview</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MudBlazor" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Kuyumcu.Core\Kuyumcu.Core.csproj" />
+    <ProjectReference Include="..\Kuyumcu.UI\Kuyumcu.UI.csproj" />
+  </ItemGroup>
+</Project>

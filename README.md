@@ -13,6 +13,7 @@ src/
   Kuyumcu.UI        Ortak Blazor arayüzü (sayfalar, tema, stiller)
   Kuyumcu.Desktop   Windows uygulaması (WPF + BlazorWebView) → MSIX
   Kuyumcu.Mobile    Android uygulaması (.NET MAUI + BlazorWebView) → AAB
+  Kuyumcu.Preview   Tarayıcı önizlemesi (Mac/Linux'ta arayüzü görmek için, örnek verilerle) — dağıtılmaz
 build/              CI yardımcı betikleri (gizli dosya üretimi, MSIX paketleme)
 branding/           Uygulama simgesi kaynakları
 docs/YAYIN.md       Mağaza ve GitHub Secrets kurulumu
@@ -31,6 +32,18 @@ dotnet build src/Kuyumcu.Desktop      # Windows uygulaması (Linux/macOS'ta da d
 dotnet run --project src/Kuyumcu.Desktop
 dotnet build src/Kuyumcu.Mobile -f net10.0-android
 ```
+
+### Mac'te (veya Linux'ta) arayüzü görmek
+
+Windows uygulaması WPF olduğu için Mac'te çalışmaz; aynı arayüz tarayıcıda örnek verilerle açılabilir:
+
+```bash
+dotnet run --project src/Kuyumcu.Preview
+# tarayıcıda: http://localhost:5080
+```
+
+Önizleme verileri `src/Kuyumcu.Preview/.preview-data` klasöründedir; silinirse örnek veriler yeniden oluşturulur.
+Dosya seçme, pano, yazıcı ve paylaşım gibi Windows'a özgü özellikler önizlemede çalışmaz.
 
 Yerel derlemelerde lisans ve Google anahtarları için geliştirici varsayılanları kullanılır
 (`*.DevSecrets.cs`). Yayın derlemelerinde CI bunları GitHub Secrets'tan üretir.

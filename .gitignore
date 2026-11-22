@@ -368,4 +368,4 @@ FodyWeavers.xsd
 **/LicenseKeyGenerator.razor
 *.keystore
 *.jks
-artifacts/
+artifacts/.preview-data/
