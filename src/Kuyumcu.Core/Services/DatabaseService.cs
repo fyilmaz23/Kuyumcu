@@ -29,13 +29,41 @@ namespace Kuyumcu.Services
 
             var databasePath = _environment.DatabasePath;
             _database = new SQLiteAsyncConnection(databasePath);
-
-            await _database.CreateTableAsync<Customer>();
-            await _database.CreateTableAsync<Transaction>();
-            await _database.CreateTableAsync<AppSettings>();
-            await _database.CreateTableAsync<LicenseInfo>();
+            await CreateTablesAsync(_database);
 
             _initialized = true;
+        }
+
+        /// <summary>
+        /// Tabloları oluşturur; var olan tablolara yeni kolonları ekler (sqlite-net). Stok tabloları boşsa varsayılan
+        /// kayıtları (ayarlar, kategoriler, konumlar, kasa ürünleri, etiket ayarı) ekler.
+        /// </summary>
+        private static async Task CreateTablesAsync(SQLiteAsyncConnection db)
+        {
+            await db.CreateTableAsync<Customer>();
+            await db.CreateTableAsync<Transaction>();
+            await db.CreateTableAsync<AppSettings>();
+            await db.CreateTableAsync<LicenseInfo>();
+
+            // Barkodlu vitrin stoğu ve kasa
+            await db.CreateTableAsync<StockItem>();
+            await db.CreateTableAsync<StockMovement>();
+            await db.CreateTableAsync<StockCategory>();
+            await db.CreateTableAsync<KaratDefinition>();
+            await db.CreateTableAsync<StockLocation>();
+            await db.CreateTableAsync<BulkProduct>();
+            await db.CreateTableAsync<StockCountSession>();
+            await db.CreateTableAsync<StockCountLine>();
+            await db.CreateTableAsync<StockCodeCounter>();
+            await db.CreateTableAsync<LabelPrinterSettings>();
+            await Kuyumcu.Stock.StockDefaults.SeedAsync(db);
+        }
+
+        /// <summary>Ortak bağlantı (stok servisleri aynı veritabanını kullanır).</summary>
+        internal async Task<SQLiteAsyncConnection> GetConnectionAsync()
+        {
+            await InitializeAsync();
+            return _database;
         }
 
         /// <summary>
@@ -52,10 +80,7 @@ namespace Kuyumcu.Services
                 _database = new SQLiteAsyncConnection(databasePath);
 
                 // Tabloları oluştur veya güncelle
-                await _database.CreateTableAsync<Customer>();
-                await _database.CreateTableAsync<Transaction>();
-                await _database.CreateTableAsync<AppSettings>();
-                await _database.CreateTableAsync<LicenseInfo>();
+                await CreateTablesAsync(_database);
 
                 _initialized = true;
                 return true;
@@ -176,6 +201,9 @@ namespace Kuyumcu.Services
                 // Mevcut ayarları yedekle (kullanıcının ayarları kaybolmasın diye)
                 var currentSettings = await _database.Table<AppSettings>().FirstOrDefaultAsync();
                 var currentLicense = await _database.Table<LicenseInfo>().FirstOrDefaultAsync();
+                // Etiket yazıcısı ayarı cihaza özeldir; ürün kodu sayacı asla geri sarılmamalı
+                var currentLabelSettings = await _database.Table<LabelPrinterSettings>().FirstOrDefaultAsync();
+                var currentCodeCounter = await _database.Table<StockCodeCounter>().FirstOrDefaultAsync();
 
                 // Kullanımdaki veritabanı bağlantısını kapat
                 await _database.CloseAsync();
@@ -192,6 +220,11 @@ namespace Kuyumcu.Services
 
                 // Bağlantıyı yeniden başlat (Bu işlem yedekte eksik olan yeni tabloları vs. de otomatik kurar)
                 await InitializeAsync();
+
+                // Bu kurulumda basılmış etiketlerin kodları, eski bir yedek geri yüklense de yeniden verilmesin
+                var restoredCounter = await _database.Table<StockCodeCounter>().FirstOrDefaultAsync();
+                if (currentCodeCounter != null && (restoredCounter == null || restoredCounter.LastSequence < currentCodeCounter.LastSequence))
+                    await _database.InsertOrReplaceAsync(new StockCodeCounter { Id = 1, LastSequence = currentCodeCounter.LastSequence });
 
                 if (!keepCurrentSettingsAndLicense)
                     return (true, "Verileriniz ve ayarlarınız başarıyla aktarıldı.");
@@ -210,6 +243,9 @@ namespace Kuyumcu.Services
                     currentLicense.Id = 0;
                     await _database.InsertAsync(currentLicense);
                 }
+
+                if (currentLabelSettings != null)
+                    await _database.InsertOrReplaceAsync(currentLabelSettings);
 
                 return (true, "Veritabanı başarıyla geri yüklendi. Uygulama ayarlarınız korundu.");
             }

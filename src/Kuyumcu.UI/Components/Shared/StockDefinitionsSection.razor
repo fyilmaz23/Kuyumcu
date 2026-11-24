@@ -1,0 +1,212 @@
+@using Kuyumcu.Stock
+@inject StockService Stock
+@inject IDialogService Dialogs
+@inject ISnackbar Snackbar
+@* Ayarlar → Stok tanımları: kategoriler, ayarlar (milyem), konumlar ve kasa ürünleri. Silme = gizleme (IsDeleted). *@
+
+<section class="kd-card" id="stok-tanimlari">
+    <div class="kd-card-header">
+        <div class="kd-card-title"><MudIcon Icon="@Icons.Material.Outlined.Category" /> Stok Tanımları</div>
+    </div>
+    <div class="kd-card-pad">
+    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-3 d-block">
+        Kategoriler, ayarların has milyemleri, ürün konumları ve kasa ürünleri. Silinen tanım listelerden kalkar;
+        eski ürünlerde adı görünmeye devam eder.
+    </MudText>
+
+    <MudTabs Elevation="0" Rounded="true" PanelClass="pt-3" @bind-ActivePanelIndex="tab">
+        <MudTabPanel Text="Kategoriler">
+            <div class="kd-def-form">
+                <MudTextField @bind-Value="cat.Name" Label="Kategori adı" Variant="Variant.Outlined" Margin="Margin.Dense" MaxLength="50" Style="min-width:160px" />
+                <MudTextField @bind-Value="cat.ShortName" Label="Etiketteki kısa ad" Variant="Variant.Outlined" Margin="Margin.Dense" MaxLength="8" Style="max-width:150px" />
+                <MudSelect T="int" @bind-Value="cat.DefaultKarat" Label="Varsayılan ayar" Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width:150px">
+                    @foreach (var k in karats.Where(k => !k.IsDeleted))
+                    {
+                        <MudSelectItem Value="k.Karat">@k.DisplayName</MudSelectItem>
+                    }
+                </MudSelect>
+                <MudTextField @bind-Value="catLabor" Label="İşçilik milyemi" Placeholder="0,050" Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width:140px" />
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveCategory">@(cat.Id == 0 ? "Ekle" : "Güncelle")</MudButton>
+                @if (cat.Id != 0) { <MudButton Variant="Variant.Text" OnClick="@(() => EditCategory(null))">Vazgeç</MudButton> }
+            </div>
+            @foreach (var c in categories)
+            {
+                <div class="kd-list-row kd-spread">
+                    <span><b>@c.Name</b> <span class="kd-muted">· @(c.ShortName ?? "—") · @c.DefaultKarat ayar@(c.LaborMilyem > 0 ? $" · işçilik {WeightFormat.Milyem(c.LaborMilyem)}" : "")</span></span>
+                    @Buttons(() => EditCategory(c), () => Delete("kategori", c.Name, () => Stock.DeleteCategoryAsync(c)))
+                </div>
+            }
+        </MudTabPanel>
+
+        <MudTabPanel Text="Ayarlar ve milyem">
+            <div class="kd-def-form">
+                <MudNumericField T="int" @bind-Value="karat.Karat" Label="Ayar" Variant="Variant.Outlined" Margin="Margin.Dense" Min="1" Max="24" Style="max-width:110px" Disabled="@(karat.Id != 0)" />
+                <MudTextField @bind-Value="karatMilyem" Label="Has milyemi" Placeholder="0,916" Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width:150px" />
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveKarat">@(karat.Id == 0 ? "Ekle" : "Güncelle")</MudButton>
+                @if (karat.Id != 0) { <MudButton Variant="Variant.Text" OnClick="@(() => EditKarat(null))">Vazgeç</MudButton> }
+            </div>
+            @foreach (var k in karats.Where(k => !k.IsDeleted))
+            {
+                <div class="kd-list-row kd-spread">
+                    <span><b>@k.DisplayName</b> <span class="kd-muted kd-num">· milyem @WeightFormat.Milyem(k.Milyem)</span></span>
+                    @Buttons(() => EditKarat(k), () => Delete("ayar", k.DisplayName, () => Stock.DeleteKaratAsync(k)))
+                </div>
+            }
+        </MudTabPanel>
+
+        <MudTabPanel Text="Konumlar">
+            <div class="kd-def-form">
+                <MudTextField @bind-Value="location.Name" Label="Konum adı" Placeholder="Vitrin 3" Variant="Variant.Outlined" Margin="Margin.Dense" MaxLength="50" />
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveLocation">@(location.Id == 0 ? "Ekle" : "Güncelle")</MudButton>
+                @if (location.Id != 0) { <MudButton Variant="Variant.Text" OnClick="@(() => EditLocation(null))">Vazgeç</MudButton> }
+            </div>
+            @foreach (var l in locations)
+            {
+                <div class="kd-list-row kd-spread">
+                    <b>@l.Name</b>
+                    @Buttons(() => EditLocation(l), () => Delete("konum", l.Name, () => Stock.DeleteLocationAsync(l)))
+                </div>
+            }
+        </MudTabPanel>
+
+        <MudTabPanel Text="Kasa ürünleri">
+            <div class="kd-def-form">
+                <MudTextField @bind-Value="bulk.Name" Label="Ürün adı" Placeholder="Gremse" Variant="Variant.Outlined" Margin="Margin.Dense" MaxLength="50" Style="min-width:160px" />
+                <MudSelect T="BulkUnit" @bind-Value="bulk.Unit" Label="Birim" Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width:120px">
+                    <MudSelectItem Value="BulkUnit.Piece">Adet</MudSelectItem>
+                    <MudSelectItem Value="BulkUnit.Gram">Gram</MudSelectItem>
+                </MudSelect>
+                <MudSelect T="int" @bind-Value="bulk.Karat" Label="Ayar" Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width:120px">
+                    @foreach (var k in karats.Where(k => !k.IsDeleted))
+                    {
+                        <MudSelectItem Value="k.Karat">@k.DisplayName</MudSelectItem>
+                    }
+                </MudSelect>
+                @if (bulk.Unit == BulkUnit.Piece)
+                {
+                    <MudTextField @bind-Value="bulkPieceGram" Label="Bir adedi (gr)" Placeholder="1,754" Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width:140px" />
+                }
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveBulk">@(bulk.Id == 0 ? "Ekle" : "Güncelle")</MudButton>
+                @if (bulk.Id != 0) { <MudButton Variant="Variant.Text" OnClick="@(() => EditBulk(null))">Vazgeç</MudButton> }
+            </div>
+            @foreach (var b in bulkProducts)
+            {
+                <div class="kd-list-row kd-spread">
+                    <span><b>@b.Name</b> <span class="kd-muted">· @b.Karat ayar · @(b.Unit == BulkUnit.Piece ? $"adet ({WeightFormat.Gram(b.PieceWeightMg)} gr)" : "gram") · mevcut @StockService.FormatBulkAmount(b, b.Amount)</span></span>
+                    @Buttons(() => EditBulk(b), () => Delete("kasa ürünü", b.Name, () => Stock.DeleteBulkProductAsync(b)))
+                </div>
+            }
+        </MudTabPanel>
+    </MudTabs>
+    </div>
+</section>
+
+@code {
+    private int tab;
+    private List<StockCategory> categories = new();
+    private List<KaratDefinition> karats = new();
+    private List<StockLocation> locations = new();
+    private List<BulkProduct> bulkProducts = new();
+
+    private StockCategory cat = new();
+    private string? catLabor;
+    private KaratDefinition karat = new();
+    private string? karatMilyem;
+    private StockLocation location = new();
+    private BulkProduct bulk = new();
+    private string? bulkPieceGram;
+
+    protected override Task OnInitializedAsync() => Reload();
+
+    private async Task Reload()
+    {
+        categories = await Stock.GetCategoriesAsync();
+        karats = await Stock.GetKaratsAsync(true);
+        locations = await Stock.GetLocationsAsync();
+        bulkProducts = await Stock.GetBulkProductsAsync();
+        EditCategory(null);
+        EditKarat(null);
+        EditLocation(null);
+        EditBulk(null);
+    }
+
+    private void EditCategory(StockCategory? c)
+    {
+        cat = c == null ? new StockCategory { DefaultKarat = 22 }
+            : new StockCategory { Id = c.Id, Name = c.Name, ShortName = c.ShortName, DefaultKarat = c.DefaultKarat, LaborMilyem = c.LaborMilyem, SortOrder = c.SortOrder };
+        catLabor = c is { LaborMilyem: > 0 } ? WeightFormat.Milyem(c.LaborMilyem) : null;
+    }
+
+    private void EditKarat(KaratDefinition? k)
+    {
+        karat = k == null ? new KaratDefinition() : new KaratDefinition { Id = k.Id, Karat = k.Karat, Milyem = k.Milyem };
+        karatMilyem = k == null ? null : WeightFormat.Milyem(k.Milyem);
+    }
+
+    private void EditLocation(StockLocation? l) =>
+        location = l == null ? new StockLocation() : new StockLocation { Id = l.Id, Name = l.Name, SortOrder = l.SortOrder };
+
+    private void EditBulk(BulkProduct? b)
+    {
+        bulk = b == null ? new BulkProduct { Karat = 22 }
+            : new BulkProduct { Id = b.Id, Name = b.Name, Unit = b.Unit, Karat = b.Karat, PieceWeightMg = b.PieceWeightMg, SortOrder = b.SortOrder, Amount = b.Amount };
+        bulkPieceGram = b == null ? null : WeightFormat.ToInput(b.PieceWeightMg);
+    }
+
+    private Task SaveCategory()
+    {
+        if (!WeightFormat.TryParseMilyem(catLabor, out var labor)) { Snackbar.Add("İşçilik milyemi geçersiz (örn. 0,050).", Severity.Warning); return Task.CompletedTask; }
+        cat.LaborMilyem = labor ?? 0;
+        return Run(() => Stock.SaveCategoryAsync(cat), "Kategori kaydedildi.");
+    }
+
+    private Task SaveKarat()
+    {
+        if (!WeightFormat.TryParseMilyem(karatMilyem, out var milyem) || milyem is null or 0) { Snackbar.Add("Milyem girin (örn. 0,916).", Severity.Warning); return Task.CompletedTask; }
+        karat.Milyem = milyem.Value;
+        return Run(() => Stock.SaveKaratAsync(karat), "Ayar kaydedildi.");
+    }
+
+    private Task SaveLocation() => Run(() => Stock.SaveLocationAsync(location), "Konum kaydedildi.");
+
+    private Task SaveBulk()
+    {
+        if (bulk.Unit == BulkUnit.Piece)
+        {
+            if (!WeightFormat.TryParseGram(bulkPieceGram, out var mg, out var error)) { Snackbar.Add("Bir adedin gramı: " + error, Severity.Warning); return Task.CompletedTask; }
+            bulk.PieceWeightMg = mg;
+        }
+        else
+        {
+            bulk.PieceWeightMg = 0;
+        }
+        return Run(() => Stock.SaveBulkProductAsync(bulk), "Kasa ürünü kaydedildi.");
+    }
+
+    private async Task Delete(string kind, string name, Func<Task> action)
+    {
+        var ok = await Dialogs.ShowMessageBox("Sil", $"\"{name}\" {kind} listeden kaldırılsın mı?", yesText: "Kaldır", cancelText: "Vazgeç");
+        if (ok == true)
+            await Run(action, $"\"{name}\" kaldırıldı.");
+    }
+
+    private async Task Run(Func<Task> action, string message)
+    {
+        try
+        {
+            await action();
+            Snackbar.Add(message, Severity.Success);
+            await Reload();
+        }
+        catch (StockException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Warning);
+        }
+    }
+
+    private RenderFragment Buttons(Action edit, Func<Task> delete) =>
+        @<div class="d-flex">
+            <MudIconButton Icon="@Icons.Material.Outlined.Edit" Size="Size.Small" OnClick="edit" aria-label="Düzenle" />
+            <MudIconButton Icon="@Icons.Material.Outlined.Delete" Size="Size.Small" Color="Color.Error" OnClick="delete" aria-label="Sil" />
+        </div>;
+}

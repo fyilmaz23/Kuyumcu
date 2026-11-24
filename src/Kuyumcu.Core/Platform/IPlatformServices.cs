@@ -83,6 +83,21 @@ public interface IReceiptPrinter
 }
 
 /// <summary>
+/// Etiket yazıcısı (sadece Windows'ta). Hazır yazıcı komutlarını (TSPL vb.) Windows yazdırma kuyruğuna
+/// ham (RAW) olarak gönderir; çizim/GDI kullanılmaz. Ağ (TCP 9100) gönderimi platformdan bağımsızdır, Core'dadır.
+/// </summary>
+public interface ILabelPrinter
+{
+    bool IsSupported { get; }
+
+    /// <summary>Windows'ta kurulu yazıcıların adları.</summary>
+    List<string> GetAvailablePrinters();
+
+    /// <summary>Ham baytları adı verilen yazıcıya gönderir. Hata olursa açıklamalı istisna fırlatır.</summary>
+    Task SendRawAsync(string printerName, byte[] data, string documentName);
+}
+
+/// <summary>
 /// Ürünün eski sürümünden (MAUI tabanlı "Kuyumcu" uygulaması) kalan veritabanını bulur.
 /// </summary>
 public interface ILegacyDataLocator

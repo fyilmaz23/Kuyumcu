@@ -30,6 +30,7 @@ public static class MauiProgram
         builder.Services.AddSingleton<IClipboardService, MauiClipboardService>();
         builder.Services.AddSingleton<IShareService, MauiShareService>();
         builder.Services.AddSingleton<IReceiptPrinter, UnsupportedReceiptPrinter>();
+        builder.Services.AddSingleton<ILabelPrinter, UnsupportedLabelPrinter>();
         builder.Services.AddSingleton<ILegacyDataLocator, NoLegacyDataLocator>();
 
         // Ortak servisler. Mobil uygulama kendi veritabanına yazmaz; yedek dosyasını salt okunur açar.

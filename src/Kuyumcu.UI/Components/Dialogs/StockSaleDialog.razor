@@ -1,0 +1,267 @@
+@using Kuyumcu.Stock
+@inject StockService Stock
+@inject DatabaseService Database
+@inject GoldPriceExportService GoldPrices
+@inject IDialogService Dialogs
+@inject ISnackbar Snackbar
+@*
+    Satış penceresi. Fiyat isteğe bağlıdır; öneri = net gram × (ayar milyemi + işçilik milyemi) × has fiyatı.
+    "Müşteri hesabına yaz" seçilirse mevcut defterde Giden (müşteri borçlu) işlemi oluşturulur;
+    defterin kuralları aynen uygulanır: aynı gün mükerrer kontrolü ve kaydetmeden önce onay.
+*@
+
+<MudDialog>
+    <DialogContent>
+        <div class="kd-sale-item mb-4">
+            <div>
+                <div class="kd-strong">@Lookup.Title(Item)</div>
+                <div class="kd-muted" style="font-size:.85rem"><span class="kd-code">@Item.Code</span> · @Item.Karat ayar</div>
+            </div>
+            <div class="text-right">
+                <div class="kd-strong kd-num" style="font-size:1.25rem">@WeightFormat.Gram(Item.WeightMg) gr</div>
+                @if (Item.StoneWeightMg > 0)
+                {
+                    <div class="kd-muted kd-num" style="font-size:.8rem">net @WeightFormat.Gram(Item.NetWeightMg) gr (taş @WeightFormat.Gram(Item.StoneWeightMg))</div>
+                }
+            </div>
+        </div>
+
+        <MudGrid Spacing="2">
+            <MudItem xs="12" sm="5">
+                <MudNumericField T="decimal?" Value="hasPrice" ValueChanged="OnHasPrice" Label="Has fiyatı (TL/gr)" Variant="Variant.Outlined"
+                                 Margin="Margin.Dense" Format="N0" HideSpinButtons="true" Min="0"
+                                 HelperText="@hasPriceSource" Adornment="Adornment.End" AdornmentIcon="@Icons.Material.Filled.Refresh"
+                                 OnAdornmentClick="@(() => LoadHasPrice(true))" />
+            </MudItem>
+            <MudItem xs="12" sm="3">
+                <MudTextField T="string" Value="labor" ValueChanged="OnLabor" Label="İşçilik milyemi" Variant="Variant.Outlined" Margin="Margin.Dense"
+                              Placeholder="0,050" Immediate="true" />
+            </MudItem>
+            <MudItem xs="12" sm="4">
+                <div class="kd-suggest">
+                    <div class="kd-muted" style="font-size:.75rem">Önerilen fiyat</div>
+                    <div class="kd-num kd-strong">@(suggested > 0 ? suggested.ToString("N0") + " ₺" : "—")</div>
+                    @if (suggested > 0)
+                    {
+                        <MudLink Typo="Typo.caption" OnClick="UseSuggestion">Kullan</MudLink>
+                    }
+                </div>
+            </MudItem>
+            <MudItem xs="12">
+                <MudNumericField T="decimal?" Value="price" ValueChanged="@(v => { price = v; UpdateCreditSuggestion(); })" Label="Satış fiyatı (TL, isteğe bağlı)" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                 Format="N2" HideSpinButtons="true" Min="0" Class="kd-amount-input" />
+            </MudItem>
+        </MudGrid>
+
+        <div class="kd-credit mt-3 @(onCredit ? "is-on" : "")">
+            <MudSwitch T="bool" Value="onCredit" ValueChanged="OnCreditChanged" Color="Color.Error" Label="Müşteri hesabına yaz (veresiye)" />
+            @if (onCredit)
+            {
+                <MudGrid Spacing="2" Class="mt-1">
+                    <MudItem xs="12">
+                        <MudAutocomplete T="Customer" @bind-Value="customer" Label="Müşteri" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                         SearchFunc="SearchCustomers" ToStringFunc="@(c => c?.Name)" MinCharacters="1" MaxItems="10"
+                                         ShowProgressIndicator="false" Clearable="true" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudSelect T="CurrencyType" Value="creditCurrency" ValueChanged="OnCreditCurrency" Label="Borç cinsi" Variant="Variant.Outlined" Margin="Margin.Dense">
+                            <MudSelectItem Value="CurrencyType.TurkishLira">TL</MudSelectItem>
+                            <MudSelectItem Value="CurrencyType.Gold22K">22 Ayar (gr)</MudSelectItem>
+                        </MudSelect>
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudNumericField T="decimal?" @bind-Value="creditAmount" Label="@($"Borç ({creditCurrency.GetSymbol()})")" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                         Format="N2" HideSpinButtons="true" Min="0"
+                                         HelperText="@(creditCurrency == CurrencyType.Gold22K ? "net gram × (milyem + işçilik) / 22 ayar milyemi" : "satış fiyatı")" />
+                    </MudItem>
+                </MudGrid>
+                <MudText Typo="Typo.caption" Class="kd-muted">Müşterinin hesabına <b class="kd-giden">Giden</b> (müşteri borçlu) işlem olarak yazılır.</MudText>
+            }
+        </div>
+
+        <MudTextField @bind-Value="description" Label="Açıklama (isteğe bağlı)" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mt-3" MaxLength="120" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" OnClick="@(() => MudDialog.Cancel())">Vazgeç</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Sell" OnClick="Save" Disabled="saving">
+            Satışı kaydet
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public StockItem Item { get; set; } = default!;
+    [Parameter] public StockLookup Lookup { get; set; } = default!;
+
+    private decimal? hasPrice, price, creditAmount;
+    private string? labor, description;
+    private string hasPriceSource = "Alınıyor…";
+    private decimal suggested;
+    private bool onCredit, saving;
+    private Customer? customer;
+    private CurrencyType creditCurrency = CurrencyType.TurkishLira;
+
+    private int Milyem => Lookup.Milyem(Item.Karat);
+    private int LaborMilyem => WeightFormat.TryParseMilyem(labor, out var m) ? m ?? 0 : 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var laborDefault = Lookup.LaborMilyem(Item.CategoryId);
+        labor = laborDefault > 0 ? WeightFormat.Milyem(laborDefault) : null;
+        await LoadHasPrice(false);
+    }
+
+    private async Task LoadHasPrice(bool force)
+    {
+        hasPriceSource = "Alınıyor…";
+        var has = await GoldPrices.GetHasGoldPriceAsync(force);
+        if (has != null)
+        {
+            hasPrice = has.SellPrice;
+            hasPriceSource = $"{GoldPrices.SourceName} · {has.UpdateTime:HH:mm} (24 ayar satış)";
+        }
+        else
+        {
+            hasPriceSource = "Canlı fiyat alınamadı, elle girin";
+        }
+        Recalculate();
+    }
+
+    private void OnHasPrice(decimal? value)
+    {
+        hasPrice = value;
+        hasPriceSource = "Elle girildi";
+        Recalculate();
+    }
+
+    private void OnLabor(string? value)
+    {
+        labor = value;
+        Recalculate();
+    }
+
+    private void Recalculate()
+    {
+        suggested = StockCalculator.SuggestSalePrice(Item.NetWeightMg, Milyem, LaborMilyem, hasPrice ?? 0);
+        UpdateCreditSuggestion();
+    }
+
+    private void UseSuggestion()
+    {
+        price = suggested;
+        UpdateCreditSuggestion();
+    }
+
+    private void OnCreditChanged(bool value)
+    {
+        onCredit = value;
+        UpdateCreditSuggestion();
+    }
+
+    private void OnCreditCurrency(CurrencyType value)
+    {
+        creditCurrency = value;
+        creditAmount = null;
+        UpdateCreditSuggestion();
+    }
+
+    private void UpdateCreditSuggestion()
+    {
+        if (!onCredit)
+            return;
+        if (creditCurrency == CurrencyType.Gold22K)
+            creditAmount = StockCalculator.Suggest22KGram(Item.NetWeightMg, Milyem, LaborMilyem, Lookup.Milyem(22));
+        else if (price is > 0)
+            creditAmount = price;
+    }
+
+    private async Task<IEnumerable<Customer>> SearchCustomers(string value, CancellationToken token) =>
+        await Database.GetCustomersPaginationAsync(0, 10, null, null, string.IsNullOrWhiteSpace(value) ? null : value);
+
+    private string SaleText()
+    {
+        var text = $"Satış: {Lookup.Title(Item)} {Item.Karat} ayar {WeightFormat.Gram(Item.WeightMg)} gr ({Item.Code})";
+        if (!string.IsNullOrWhiteSpace(description))
+            text += " - " + description.Trim();
+        return text.Length > 255 ? text[..255] : text;
+    }
+
+    private async Task Save()
+    {
+        if (price is < 0) { Snackbar.Add("Satış fiyatı negatif olamaz.", Severity.Warning); return; }
+
+        Transaction? transaction = null;
+        if (onCredit)
+        {
+            if (customer == null) { Snackbar.Add("Müşteri seçin.", Severity.Warning); return; }
+            if (creditAmount is not > 0) { Snackbar.Add("Borç tutarı 0'dan büyük olmalı.", Severity.Warning); return; }
+
+            transaction = new Transaction
+            {
+                CustomerId = customer.Id,
+                Amount = Math.Round(creditAmount.Value, 2),
+                Type = TransactionType.CustomerDebt,
+                CurrencyType = creditCurrency,
+                Date = DateTime.Now,
+                Description = SaleText()
+            };
+
+            // Defterin kuralı: aynı gün mükerrer kontrolü
+            var existing = await Database.GetCustomerTransactionsAsync(customer.Id);
+            var duplicate = existing.FirstOrDefault(t => t.Date.Date == transaction.Date.Date && t.Type == transaction.Type
+                && t.CurrencyType == transaction.CurrencyType && t.Amount == transaction.Amount && !t.IsDeposit);
+            if (duplicate != null)
+            {
+                var dup = await Dialogs.ShowMessageBox("Mükerrer işlem uyarısı",
+                    $"Bunu bugün saat {duplicate.Date:HH:mm}'de zaten eklemiştiniz, yine de eklenmesini ister misiniz?",
+                    yesText: "Evet, yine de ekle", noText: "Hayır, iptal et");
+                if (dup != true) return;
+            }
+
+            // Defterin kuralı: kaydetmeden önce onay
+            var confirm = await Dialogs.ShowMessageBox("Aşağıdaki işlemi kaydetmek istediğinize emin misiniz?",
+                $"{customer.Name}\n{transaction.Date:dd.MM.yyyy HH:mm}\nGiden: {FormatHelper.FormatPrice(transaction.Amount)} {creditCurrency.GetSymbol()} {creditCurrency.GetDisplayName()}\n{transaction.Description}",
+                yesText: "Evet, kaydet", noText: "Hayır");
+            if (confirm != true) return;
+        }
+
+        saving = true;
+        try
+        {
+            if (transaction != null)
+                await Database.SaveTransactionAsync(transaction);
+
+            try
+            {
+                var sold = await Stock.MarkSoldAsync(Item.Id, price is > 0 ? price : null, customer?.Id, transaction?.Id,
+                    string.IsNullOrWhiteSpace(description) ? "Satış" : description.Trim());
+                MudDialog.Close(DialogResult.Ok(sold));
+            }
+            catch
+            {
+                // Satış işaretlenemediyse müşteri hesabına yazılan işlem geri alınır
+                if (transaction != null)
+                    await Database.DeleteTransactionAsync(transaction);
+                throw;
+            }
+        }
+        catch (StockException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Warning);
+        }
+        finally
+        {
+            saving = false;
+        }
+    }
+
+    public static async Task<StockItem?> ShowAsync(IDialogService dialogs, StockItem item, StockLookup lookup)
+    {
+        var parameters = new DialogParameters<StockSaleDialog> { { x => x.Item, item }, { x => x.Lookup, lookup } };
+        var dialog = await dialogs.ShowAsync<StockSaleDialog>("Satış", parameters,
+            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true });
+        var result = await dialog.Result;
+        return result is { Canceled: false } ? result.Data as StockItem : null;
+    }
+}

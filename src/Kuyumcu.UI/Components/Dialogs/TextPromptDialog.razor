@@ -1,0 +1,79 @@
+@* Açıklama / neden soran onay penceresi (silme nedeni, iade açıklaması vb.) *@
+
+<MudDialog>
+    <DialogContent>
+        @if (!string.IsNullOrEmpty(Message))
+        {
+            <MudText Typo="Typo.body2" Class="mb-3" Style="white-space: pre-line">@Message</MudText>
+        }
+        <MudTextField @bind-Value="text" Label="@Label" Variant="Variant.Outlined" AutoFocus="true" MaxLength="255"
+                      Required="Required" RequiredError="Bu alan zorunlu" Immediate="true" OnKeyDown="OnKeyDown" />
+        @if (!string.IsNullOrEmpty(CheckboxText))
+        {
+            <MudCheckBox T="bool" @bind-Value="check" Label="@CheckboxText" Color="Color.Primary" Class="mt-2" />
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" OnClick="@(() => MudDialog.Cancel())">Vazgeç</MudButton>
+        <MudButton Variant="Variant.Filled" Color="ConfirmColor" Disabled="@(Required && string.IsNullOrWhiteSpace(text))" OnClick="Confirm">
+            @ConfirmText
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public string? Message { get; set; }
+    [Parameter] public string Label { get; set; } = "Açıklama";
+    [Parameter] public bool Required { get; set; }
+    [Parameter] public string ConfirmText { get; set; } = "Tamam";
+    [Parameter] public Color ConfirmColor { get; set; } = Color.Primary;
+    [Parameter] public string? InitialText { get; set; }
+    [Parameter] public string? CheckboxText { get; set; }
+    [Parameter] public bool CheckboxValue { get; set; }
+
+    private string? text;
+    private bool check;
+
+    protected override void OnInitialized()
+    {
+        text = InitialText;
+        check = CheckboxValue;
+    }
+
+    private void Confirm()
+    {
+        if (Required && string.IsNullOrWhiteSpace(text))
+            return;
+        MudDialog.Close(DialogResult.Ok(new TextPromptResult(text?.Trim(), check)));
+    }
+
+    private void OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+            Confirm();
+    }
+
+    public sealed record TextPromptResult(string? Text, bool Checked);
+
+    /// <summary>Pencereyi açar; vazgeçilirse null döner.</summary>
+    public static async Task<TextPromptResult?> ShowAsync(IDialogService dialogs, string title, string? message = null,
+        string label = "Açıklama", bool required = false, string confirmText = "Tamam", Color confirmColor = Color.Primary,
+        string? checkboxText = null, bool checkboxValue = false)
+    {
+        var parameters = new DialogParameters<TextPromptDialog>
+        {
+            { x => x.Message, message },
+            { x => x.Label, label },
+            { x => x.Required, required },
+            { x => x.ConfirmText, confirmText },
+            { x => x.ConfirmColor, confirmColor },
+            { x => x.CheckboxText, checkboxText },
+            { x => x.CheckboxValue, checkboxValue }
+        };
+        var dialog = await dialogs.ShowAsync<TextPromptDialog>(title, parameters,
+            new DialogOptions { MaxWidth = MaxWidth.ExtraSmall, FullWidth = true, CloseButton = true });
+        var result = await dialog.Result;
+        return result is { Canceled: false } ? result.Data as TextPromptResult : null;
+    }
+}

@@ -11,6 +11,7 @@
 @inject ILegacyDataLocator LegacyDataLocator
 @inject AppState AppState
 @inject CloudBackupService CloudBackup
+@inject GoldPriceExportService GoldPriceExportService
 @implements IDisposable
 
 <div class="kd-page">
@@ -62,14 +63,9 @@
                     </div>
                     <div class="kd-card-pad">
                         <MudText Typo="Typo.body2" Class="kd-muted mb-3">
-                            Mobil uygulamadaki "Altın fiyatlarını paylaş" özelliği için fiyat.ekeo.org.tr üyelik bilgileri.
-                            Bu bilgiler yedekle birlikte telefonunuza aktarılır.
+                            Mobil uygulamadaki "Altın fiyatlarını paylaş" özelliği için. Fiyatlar @GoldPriceExportService.SourceName
+                            adresinden alınır; üyelik veya şifre gerekmez. Şablon görseli yedekle birlikte telefonunuza aktarılır.
                         </MudText>
-                        <div class="kd-form-row">
-                            <MudTextField @bind-Value="settings.GoldPriceSiteCode" Label="Üye kodu" Variant="Variant.Outlined" />
-                            <MudTextField @bind-Value="settings.GoldPriceSitePassword" Label="Şifre" Variant="Variant.Outlined"
-                                          InputType="InputType.Password" />
-                        </div>
 
                         <div class="d-flex align-center gap-2 flex-wrap mt-3">
                             <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Image"
@@ -225,8 +221,9 @@
                     </div>
                     <div class="kd-card-pad">
                         <MudText Typo="Typo.body2" Class="kd-muted">
-                            Daha önce alınmış bir .db3 yedeğiyle müşteri ve işlem verilerini <b>tamamen değiştirir</b>.
-                            Bu bilgisayarın ayarları ve lisansı korunur; işlemden önce otomatik bir yerel yedek alınır.
+                            Daha önce alınmış bir .db3 yedeğiyle müşteri, işlem ve stok verilerini <b>tamamen değiştirir</b>.
+                            Bu bilgisayarın ayarları, etiket yazıcısı ayarı ve lisansı korunur; ürün kodu sayacı geri sarılmaz.
+                            İşlemden önce otomatik bir yerel yedek alınır.
                         </MudText>
                         <MudButton Variant="Variant.Outlined" Color="Color.Error" Class="mt-3"
                                    StartIcon="@Icons.Material.Outlined.FileUpload" OnClick="RestoreDatabase" Disabled="@isRestoreInProgress">
@@ -235,6 +232,12 @@
                     </div>
                 </section>
             </div>
+        </div>
+
+        @* ---- Barkodlu vitrin stoğu: bu bölümlerin kendi kaydet düğmeleri var ---- *@
+        <div class="kd-settings-wide">
+            <LabelPrinterSettingsSection />
+            <StockDefinitionsSection />
         </div>
     }
 </div>
@@ -472,7 +475,7 @@
     {
         var firstConfirm = await DialogService.ShowMessageBox(
             "Yedeği İçe Aktar",
-            "Bu işlem mevcut TÜM müşteri ve işlem verilerinizi seçeceğiniz yedek dosyasındaki verilerle değiştirecektir.\n\nDevam etmek istiyor musunuz?",
+            "Bu işlem mevcut TÜM müşteri, işlem ve stok verilerinizi seçeceğiniz yedek dosyasındaki verilerle değiştirecektir.\n\nDevam etmek istiyor musunuz?",
             yesText: "Evet, Devam Et",
             noText: "İptal");
 
@@ -485,7 +488,7 @@
 
             var finalConfirm = await DialogService.ShowMessageBox(
                 "Son Onay",
-                $"Seçilen dosya: {file.FileName}\n\nMevcut müşteri ve işlem verileri bu dosyadakilerle değiştirilecek. Emin misiniz?",
+                $"Seçilen dosya: {file.FileName}\n\nMevcut müşteri, işlem ve stok verileri bu dosyadakilerle değiştirilecek. Emin misiniz?",
                 yesText: "Evet, İçe Aktar",
                 noText: "Vazgeç");
 

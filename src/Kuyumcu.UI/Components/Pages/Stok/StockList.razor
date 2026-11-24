@@ -1,0 +1,190 @@
+@page "/stock"
+@using Kuyumcu.Stock
+@inject StockService Stock
+@inject ReportExportService Reports
+@inject NavigationManager Nav
+@inject ISnackbar Snackbar
+@inject IAppEnvironment AppEnvironment
+
+<div class="kd-page">
+    <PageHeader Title="Vitrin Stoku" Subtitle="@subtitle">
+        <Actions>
+            <MudButton Variant="Variant.Text" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Savings" Href="/stock/bulk">Kasa</MudButton>
+            <MudButton Variant="Variant.Text" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Assessment" Href="/stock/reports">Raporlar</MudButton>
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.QrCodeScanner" Href="/stock/scan">
+                Okut / Satış
+            </MudButton>
+            @if (!AppEnvironment.IsReadOnlyClient)
+            {
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.AddBox" Href="/stock/entry">
+                    Ürün Girişi
+                </MudButton>
+            }
+        </Actions>
+    </PageHeader>
+
+    @if (lookup == null)
+    {
+        <MudProgressLinear Color="Color.Primary" Indeterminate="true" Class="my-6" />
+    }
+    else
+    {
+        <StockTotalsCards Totals="totals" TotalLabel="@(IsUnfiltered ? "Vitrin toplamı" : "Listelenen toplam")"
+                          SelectedKarat="karat" OnKaratClick="ToggleKarat" />
+
+        <div class="kd-card mt-5">
+            <div class="kd-card-header kd-filter-bar">
+                <div style="flex: 1 1 260px; max-width: 360px">
+                    <MudTextField T="string" Placeholder="Kod, kategori, model, tedarikçi…" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                  Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                                  Value="search" ValueChanged="OnSearch" Immediate="true" DebounceInterval="250" Clearable="true" />
+                </div>
+                <MudSelect T="string" Value="status" ValueChanged="OnStatus" Label="Durum" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" Class="kd-filter">
+                    <MudSelectItem Value="@("instock")">Vitrinde</MudSelectItem>
+                    <MudSelectItem Value="@("sold")">Satıldı</MudSelectItem>
+                    <MudSelectItem Value="@("lost")">Kayıp</MudSelectItem>
+                    <MudSelectItem Value="@("all")">Tümü</MudSelectItem>
+                </MudSelect>
+                <MudSelect T="int?" Value="karat" ValueChanged="OnKarat" Label="Ayar" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" Class="kd-filter">
+                    <MudSelectItem T="int?" Value="null">Tüm ayarlar</MudSelectItem>
+                    @foreach (var k in lookup.Karats)
+                    {
+                        <MudSelectItem T="int?" Value="k.Karat">@k.DisplayName</MudSelectItem>
+                    }
+                </MudSelect>
+                <MudSelect T="int?" Value="categoryId" ValueChanged="OnCategory" Label="Kategori" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" Class="kd-filter">
+                    <MudSelectItem T="int?" Value="null">Tüm kategoriler</MudSelectItem>
+                    @foreach (var c in lookup.Categories)
+                    {
+                        <MudSelectItem T="int?" Value="c.Id">@c.Name</MudSelectItem>
+                    }
+                </MudSelect>
+                <MudSelect T="int?" Value="locationId" ValueChanged="OnLocation" Label="Konum" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" Class="kd-filter">
+                    <MudSelectItem T="int?" Value="null">Tüm konumlar</MudSelectItem>
+                    @foreach (var l in lookup.Locations)
+                    {
+                        <MudSelectItem T="int?" Value="l.Id">@l.Name</MudSelectItem>
+                    }
+                </MudSelect>
+                <MudSpacer />
+                <MudTooltip Text="Listeyi CSV olarak dışa aktar (Excel'de açılır)">
+                    <MudIconButton Icon="@Icons.Material.Outlined.FileDownload" OnClick="ExportCsv" Disabled="@(!items.Any())" aria-label="CSV" />
+                </MudTooltip>
+            </div>
+
+            <MudTable T="StockItem" Items="items" Class="kd-table" Elevation="0" Hover="true" Breakpoint="Breakpoint.Sm"
+                      Dense="true" RowsPerPage="50" OnRowClick="@(e => Nav.NavigateTo($"/stock/item/{e.Item!.Id}"))" RowClass="kd-row-link">
+                <HeaderContent>
+                    <MudTh><MudTableSortLabel T="StockItem" SortBy="i => i.Code">Kod</MudTableSortLabel></MudTh>
+                    <MudTh><MudTableSortLabel T="StockItem" SortBy="i => lookup.Title(i)">Ürün</MudTableSortLabel></MudTh>
+                    <MudTh><MudTableSortLabel T="StockItem" SortBy="i => i.Karat">Ayar</MudTableSortLabel></MudTh>
+                    <MudTh Class="kd-right"><MudTableSortLabel T="StockItem" SortBy="i => i.WeightMg">Gram</MudTableSortLabel></MudTh>
+                    <MudTh>Konum</MudTh>
+                    <MudTh>Durum</MudTh>
+                    <MudTh><MudTableSortLabel T="StockItem" SortBy="i => i.CreatedAt" InitialDirection="MudBlazor.SortDirection.Descending">Giriş</MudTableSortLabel></MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="Kod"><span class="kd-code">@context.Code</span></MudTd>
+                    <MudTd DataLabel="Ürün"><span class="kd-strong">@lookup.Title(context)</span></MudTd>
+                    <MudTd DataLabel="Ayar"><span class="kd-karat">@context.Karat</span></MudTd>
+                    <MudTd DataLabel="Gram" Class="kd-right">
+                        <span class="kd-num kd-strong">@WeightFormat.Gram(context.WeightMg)</span>
+                        @if (context.StoneWeightMg > 0)
+                        {
+                            <div class="kd-muted kd-num" style="font-size:.75rem">net @WeightFormat.Gram(context.NetWeightMg)</div>
+                        }
+                    </MudTd>
+                    <MudTd DataLabel="Konum"><span class="kd-muted">@lookup.LocationName(context.LocationId)</span></MudTd>
+                    <MudTd DataLabel="Durum"><StockStatusBadge Item="context" /></MudTd>
+                    <MudTd DataLabel="Giriş"><span class="kd-num kd-muted">@context.CreatedAt.ToString("dd.MM.yyyy")</span></MudTd>
+                </RowTemplate>
+                <NoRecordsContent>
+                    @if (IsUnfiltered)
+                    {
+                        <EmptyState Icon="@Icons.Material.Outlined.Inventory2" Title="Vitrinde ürün yok" Text="Ürün girişi ekranından etiketleyerek ekleyin.">
+                            @if (!AppEnvironment.IsReadOnlyClient)
+                            {
+                                <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="/stock/entry">Ürün Girişi</MudButton>
+                            }
+                        </EmptyState>
+                    }
+                    else
+                    {
+                        <EmptyState Icon="@Icons.Material.Outlined.SearchOff" Title="Sonuç yok" Text="Filtrelere uyan ürün bulunamadı." />
+                    }
+                </NoRecordsContent>
+                <PagerContent>
+                    @if (items.Count > 50)
+                    {
+                        <MudTablePager RowsPerPageString="Sayfa başına:" InfoFormat="{first_item}-{last_item} / {all_items}" />
+                    }
+                </PagerContent>
+            </MudTable>
+        </div>
+    }
+</div>
+
+@code {
+    private StockLookup? lookup;
+    private List<StockItem> items = new();
+    private StockTotals totals = StockTotals.Empty;
+    private string? search;
+    private string status = "instock";
+    private int? karat, categoryId, locationId;
+    private string subtitle = string.Empty;
+
+    private bool IsUnfiltered => string.IsNullOrWhiteSpace(search) && status == "instock" && karat == null && categoryId == null && locationId == null;
+
+    protected override async Task OnInitializedAsync()
+    {
+        lookup = await StockLookup.LoadAsync(Stock);
+        await Reload();
+    }
+
+    private async Task Reload()
+    {
+        items = await Stock.GetItemsAsync(new StockItemQuery
+        {
+            Search = search,
+            Karat = karat,
+            CategoryId = categoryId,
+            LocationId = locationId,
+            Status = status switch
+            {
+                "sold" => StockItemStatus.Sold,
+                "lost" => StockItemStatus.Lost,
+                "all" => null,
+                _ => StockItemStatus.InStock
+            }
+        });
+        totals = StockCalculator.Calculate(items, lookup!.AllKarats);
+        subtitle = IsUnfiltered
+            ? $"Vitrinde {totals.Count:N0} ürün · {WeightFormat.Gram2(totals.WeightMg)} gr"
+            : $"{items.Count:N0} ürün listeleniyor";
+    }
+
+    private async Task OnSearch(string value) { search = value; await Reload(); }
+    private async Task OnStatus(string value) { status = value; await Reload(); }
+    private async Task OnKarat(int? value) { karat = value; await Reload(); }
+    private async Task OnCategory(int? value) { categoryId = value; await Reload(); }
+    private async Task OnLocation(int? value) { locationId = value; await Reload(); }
+    private Task ToggleKarat(int k) => OnKarat(karat == k ? null : k);
+
+    private async Task ExportCsv()
+    {
+        var csv = Csv.Build(
+            new[] { "Kod", "Kategori", "Model", "Ayar", "Brüt gr", "Taş gr", "Net gr", "Has gr", "Konum", "Durum", "Giriş", "Satış", "Tedarikçi", "Alış milyemi" },
+            items.Select(i => new[]
+            {
+                i.Code, lookup!.CategoryName(i.CategoryId), i.ModelName, i.Karat.ToString(),
+                WeightFormat.Gram(i.WeightMg), WeightFormat.Gram(i.StoneWeightMg), WeightFormat.Gram(i.NetWeightMg),
+                WeightFormat.Gram(StockCalculator.HasMg(i.NetWeightMg, lookup.Milyem(i.Karat))),
+                lookup.LocationName(i.LocationId),
+                i.Status switch { StockItemStatus.Sold => "Satıldı", StockItemStatus.Lost => "Kayıp", _ => "Vitrinde" },
+                i.CreatedAt.ToString("dd.MM.yyyy HH:mm"), i.SoldAt?.ToString("dd.MM.yyyy HH:mm"),
+                i.SupplierName, i.PurchaseMilyem.HasValue ? WeightFormat.Milyem(i.PurchaseMilyem.Value) : null
+            }));
+        var path = await Reports.SaveCsvAsync("Vitrin_Stok", csv);
+        Snackbar.Add($"Kaydedildi: {path}", Severity.Success);
+    }
+}

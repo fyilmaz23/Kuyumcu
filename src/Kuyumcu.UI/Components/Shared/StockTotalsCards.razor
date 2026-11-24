@@ -1,0 +1,39 @@
+@using Kuyumcu.Stock
+@* Vitrin özeti: toplam has + ayar bazında adet, gram ve has karşılığı *@
+
+<MudGrid Spacing="3">
+    <MudItem xs="12" sm="6" md="4" lg="3">
+        <div class="kd-card kd-karat-tile is-total">
+            <div class="kd-tile-label">@TotalLabel</div>
+            <div class="kd-tile-value kd-num">@WeightFormat.Gram2(Totals.HasMg) <small>gr has</small></div>
+            <div class="kd-tile-hint kd-num">@Totals.Count.ToString("N0") adet · @WeightFormat.Gram2(Totals.WeightMg) gr brüt</div>
+        </div>
+    </MudItem>
+    @foreach (var k in Totals.ByKarat)
+    {
+        <MudItem xs="12" sm="6" md="4" lg="3">
+            <div class="kd-card kd-karat-tile @(OnKaratClick.HasDelegate ? "kd-clickable" : "") @(SelectedKarat == k.Karat ? "is-selected" : "")"
+                 @onclick="@(() => OnKaratClick.InvokeAsync(k.Karat))">
+                <div class="d-flex justify-space-between align-center">
+                    <span class="kd-tile-label">@k.Karat Ayar</span>
+                    <span class="kd-badge notr kd-num">@k.Count.ToString("N0") adet</span>
+                </div>
+                <div class="kd-tile-value kd-num">@WeightFormat.Gram2(k.WeightMg) <small>gr</small></div>
+                <div class="kd-tile-hint kd-num">
+                    Has @WeightFormat.Gram2(k.HasMg) gr · milyem @WeightFormat.Milyem(k.Milyem)
+                    @if (k.NetWeightMg != k.WeightMg)
+                    {
+                        <span> · net @WeightFormat.Gram2(k.NetWeightMg) gr</span>
+                    }
+                </div>
+            </div>
+        </MudItem>
+    }
+</MudGrid>
+
+@code {
+    [Parameter, EditorRequired] public StockTotals Totals { get; set; } = StockTotals.Empty;
+    [Parameter] public string TotalLabel { get; set; } = "Vitrin toplamı";
+    [Parameter] public EventCallback<int> OnKaratClick { get; set; }
+    [Parameter] public int? SelectedKarat { get; set; }
+}

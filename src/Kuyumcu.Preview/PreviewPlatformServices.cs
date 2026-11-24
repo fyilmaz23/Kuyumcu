@@ -57,3 +57,28 @@ public sealed class NoLegacyData : ILegacyDataLocator
     public string? FindLegacyDatabase() => null;
     public void MarkImported() { }
 }
+
+/// <summary>
+/// Önizlemede gerçek yazıcı yok: etiket komutları .preview-data/labels altına dosya olarak yazılır
+/// (TSPL çıktısını incelemek için). Yazıcı listesinde tek sahte yazıcı görünür.
+/// </summary>
+public sealed class FileLabelPrinter : ILabelPrinter
+{
+    public const string FakePrinterName = "Önizleme (dosyaya yazar)";
+    private readonly string _directory;
+
+    public FileLabelPrinter(string directory)
+    {
+        _directory = directory;
+    }
+
+    public bool IsSupported => true;
+    public List<string> GetAvailablePrinters() => new() { FakePrinterName };
+
+    public async Task SendRawAsync(string printerName, byte[] data, string documentName)
+    {
+        Directory.CreateDirectory(_directory);
+        var safe = string.Concat(documentName.Select(c => char.IsLetterOrDigit(c) ? c : '_'));
+        await File.WriteAllBytesAsync(Path.Combine(_directory, $"{DateTime.Now:yyyyMMdd_HHmmss_fff}_{safe}.tspl"), data);
+    }
+}

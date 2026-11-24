@@ -17,3 +17,5 @@ jobs:
           dotnet-version: '10.0.x'
       - name: Core + UI + Windows masaüstü derle
         run: dotnet build src/Kuyumcu.Desktop/Kuyumcu.Desktop.csproj -c Release
+      - name: Birim testleri
+        run: dotnet test tests/Kuyumcu.Core.Tests/Kuyumcu.Core.Tests.csproj -c Release

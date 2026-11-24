@@ -1,0 +1,217 @@
+@page "/stock/scan"
+@using Kuyumcu.Stock
+@inject StockService Stock
+@inject DatabaseService Database
+@inject IDialogService Dialogs
+@inject ISnackbar Snackbar
+@inject IJSRuntime JS
+@inject IAppEnvironment AppEnvironment
+
+<div class="kd-page" style="max-width: 980px">
+    <PageHeader Title="Okut / Satış" Subtitle="Etiketi okutun: ürün bilgisi gelir. Satış, iade ve kayıp işlemleri buradan yapılır.">
+        <Actions>
+            @if (!AppEnvironment.IsReadOnlyClient)
+            {
+                <MudSwitch T="bool" @bind-Value="autoSell" Color="Color.Primary" Label="Okutunca satış penceresini aç" />
+            }
+        </Actions>
+    </PageHeader>
+
+    <ScanInput @ref="scanInput" Label="Ürün kodu" Placeholder="Okutun ya da 12 haneli kodu yazıp Enter'a basın"
+               OnSubmit="OnScan" CaptureStrayKeys="true" />
+
+    @if (result != null)
+    {
+        <div class="kd-card kd-scan-result mt-4 @result.Tone">
+            @if (result.Item != null && lookup != null)
+            {
+                var i = result.Item;
+                <div class="d-flex justify-space-between flex-wrap gap-3">
+                    <div style="min-width:0">
+                        <div class="d-flex align-center gap-2 flex-wrap">
+                            <span class="kd-code" style="font-size:1rem">@i.Code</span>
+                            <StockStatusBadge Item="i" />
+                        </div>
+                        <div class="kd-scan-title">@lookup.Title(i)</div>
+                        <div class="kd-muted">@i.Karat ayar · @lookup.LocationName(i.LocationId) · giriş @i.CreatedAt.ToString("dd.MM.yyyy")</div>
+                    </div>
+                    <div class="text-right">
+                        <div class="kd-scan-gram kd-num">@WeightFormat.Gram(i.WeightMg) <small>gr</small></div>
+                        @if (i.StoneWeightMg > 0)
+                        {
+                            <div class="kd-muted kd-num">net @WeightFormat.Gram(i.NetWeightMg) gr</div>
+                        }
+                    </div>
+                </div>
+            }
+            @if (!string.IsNullOrEmpty(result.Message))
+            {
+                <MudAlert Severity="result.Severity" Dense="true" Class="mt-3">@result.Message</MudAlert>
+            }
+            @if (result.Item is { IsDeleted: false } item && !AppEnvironment.IsReadOnlyClient)
+            {
+                <div class="d-flex gap-2 mt-3 flex-wrap">
+                    @if (item.Status == StockItemStatus.InStock)
+                    {
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Sell" OnClick="Sell">Satıldı olarak işaretle</MudButton>
+                    }
+                    else if (item.Status == StockItemStatus.Sold)
+                    {
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.AssignmentReturn" OnClick="Return">İade al</MudButton>
+                    }
+                    else if (item.Status == StockItemStatus.Lost)
+                    {
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Restore" OnClick="Found">Bulundu, vitrine al</MudButton>
+                    }
+                    <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Outlined.OpenInNew" Href="@($"/stock/item/{item.Id}")">Ürün detayı</MudButton>
+                </div>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="kd-card mt-4">
+            <EmptyState Icon="@Icons.Material.Outlined.QrCodeScanner" Title="Okutmaya hazır"
+                        Text="Okuyucuyu etikete tutun. Alan seçili değilse bile rakamlar buraya yönlendirilir." />
+        </div>
+    }
+
+    @if (history.Any())
+    {
+        <div class="kd-section-title"><MudText Typo="Typo.h6">Son okutulanlar</MudText></div>
+        <div class="kd-card">
+            @foreach (var h in history)
+            {
+                <div class="kd-list-row kd-spread">
+                    <div class="d-flex align-center gap-3" style="min-width:0">
+                        <span class="kd-muted kd-num" style="font-size:.8rem">@h.Time.ToString("HH:mm:ss")</span>
+                        <span class="kd-code">@h.Code</span>
+                        <span class="kd-muted" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis">@h.Text</span>
+                    </div>
+                    @if (h.ItemId > 0)
+                    {
+                        <MudIconButton Icon="@Icons.Material.Outlined.OpenInNew" Size="Size.Small" Href="@($"/stock/item/{h.ItemId}")" />
+                    }
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private sealed record ScanResult(StockItem? Item, string? Message, Severity Severity, string Tone);
+    private sealed record HistoryRow(DateTime Time, string Code, string Text, int ItemId);
+
+    private ScanInput? scanInput;
+    private StockLookup? lookup;
+    private ScanResult? result;
+    private readonly List<HistoryRow> history = new();
+    private bool autoSell;
+    private StockActions? actions;
+    private StockActions Actions => actions ??= new StockActions(Stock, Database, Dialogs, Snackbar);
+
+    protected override async Task OnInitializedAsync()
+    {
+        lookup = await StockLookup.LoadAsync(Stock);
+    }
+
+    private async Task OnScan(ScanSubmitEventArgs e)
+    {
+        var input = e.Value;
+        var parsed = ProductCode.ParseInput(input);
+        if (!parsed.IsValid)
+        {
+            result = new ScanResult(null, parsed.Error, Severity.Error, "is-error");
+            await Beep(false);
+            AddHistory(input.Trim(), parsed.Error!, 0);
+            return; // okutma alanı temizlenir; yeniden okutulur
+        }
+
+        if (ProductCode.IsTestCode(parsed.Code))
+        {
+            result = new ScanResult(null, "Test etiketi okundu: okuyucu çalışıyor. Bu kod hiçbir ürüne verilmez.", Severity.Info, "is-ok");
+            await Beep(true);
+            AddHistory(parsed.Code!, "Test etiketi", 0);
+            return;
+        }
+
+        var item = await Stock.GetItemByCodeAsync(parsed.Code!);
+        if (item == null)
+        {
+            result = new ScanResult(null, $"{parsed.Code} kayıtlı değil. Bu kodla girilmiş bir ürün yok.", Severity.Error, "is-error");
+            await Beep(false);
+            AddHistory(parsed.Code!, "Kayıtlı değil", 0);
+            return;
+        }
+
+        await ShowItem(item);
+        AddHistory(item.Code, $"{lookup!.Title(item)} · {WeightFormat.Gram(item.WeightMg)} gr · {StatusText(item)}", item.Id);
+
+        if (autoSell && item is { IsDeleted: false, Status: StockItemStatus.InStock })
+        {
+            StateHasChanged();
+            await Sell();
+        }
+    }
+
+    private async Task ShowItem(StockItem item)
+    {
+        if (item.IsDeleted)
+        {
+            result = new ScanResult(item, $"Bu ürün silinmiş ({item.DeletedAt:dd.MM.yyyy}). Satılamaz.", Severity.Warning, "is-warning");
+            await Beep(false);
+        }
+        else if (item.Status == StockItemStatus.Sold)
+        {
+            result = new ScanResult(item, $"DİKKAT: Bu ürün {item.SoldAt:dd.MM.yyyy HH:mm} tarihinde zaten satılmış.", Severity.Warning, "is-warning");
+            await Beep(false);
+        }
+        else if (item.Status == StockItemStatus.Lost)
+        {
+            result = new ScanResult(item, "Bu ürün kayıp olarak işaretli. Bulunduysa vitrine geri alın.", Severity.Warning, "is-warning");
+            await Beep(false);
+        }
+        else
+        {
+            result = new ScanResult(item, null, Severity.Success, "is-ok");
+            await Beep(true);
+        }
+    }
+
+    private async Task Sell() => await After(await Actions.SellAsync(result!.Item!, lookup!));
+    private async Task Return() => await After(await Actions.ReturnAsync(result!.Item!));
+    private async Task Found() => await After(await Actions.MarkFoundAsync(result!.Item!));
+
+    private async Task After(StockItem? changed)
+    {
+        if (changed != null)
+        {
+            var fresh = await Stock.GetItemAsync(changed.Id);
+            if (fresh != null)
+            {
+                result = new ScanResult(fresh, fresh.Status == StockItemStatus.Sold ? "Satıldı olarak işaretlendi." : "Güncellendi.", Severity.Success, "is-ok");
+                AddHistory(fresh.Code, $"{lookup!.Title(fresh)} · {StatusText(fresh)}", fresh.Id);
+            }
+        }
+        StateHasChanged();
+        // Pencere kapandıktan sonra okutma alanına dön
+        if (scanInput != null)
+            await scanInput.FocusAsync();
+    }
+
+    private static string StatusText(StockItem i) =>
+        i.IsDeleted ? "silinmiş" : i.Status switch { StockItemStatus.Sold => "satılmış", StockItemStatus.Lost => "kayıp", _ => "vitrinde" };
+
+    private void AddHistory(string code, string text, int itemId)
+    {
+        history.Insert(0, new HistoryRow(DateTime.Now, code, text, itemId));
+        if (history.Count > 30)
+            history.RemoveAt(history.Count - 1);
+    }
+
+    private async Task Beep(bool ok)
+    {
+        try { await JS.InvokeVoidAsync("kuyumcu.beep", ok); }
+        catch (JSDisconnectedException) { }
+    }
+}

@@ -123,10 +123,15 @@
         new("Ana Sayfa", "/", Icons.Material.Outlined.SpaceDashboard, NavLinkMatch.All, "Alt+1"),
         new("Müşteriler", "/customers", Icons.Material.Outlined.People, NavLinkMatch.Prefix, "Alt+2"),
         new("İşlemler", "/transactions", Icons.Material.Outlined.ReceiptLong, NavLinkMatch.Prefix, "Alt+3"),
+        // Barkodlu vitrin stoğu (Kasa ve Stok Raporları, Vitrin Stoku sayfasının üst düğmelerinde)
+        new("Vitrin Stoku", "/stock", Icons.Material.Outlined.Inventory2, NavLinkMatch.All, "Alt+4"),
+        new("Okut / Satış", "/stock/scan", Icons.Material.Outlined.QrCodeScanner, NavLinkMatch.Prefix, "Alt+5"),
+        new("Ürün Girişi", "/stock/entry", Icons.Material.Outlined.AddBox, NavLinkMatch.Prefix, "Alt+6"),
+        new("Sayım", "/stock/count", Icons.Material.Outlined.FactCheck, NavLinkMatch.Prefix, "Alt+7"),
     ];
 
     private static readonly NavEntry SettingsNavItem =
-        new("Ayarlar", "/settings", Icons.Material.Outlined.Settings, NavLinkMatch.Prefix, "Alt+4");
+        new("Ayarlar", "/settings", Icons.Material.Outlined.Settings, NavLinkMatch.Prefix, "Alt+8");
 
     private RenderFragment NavItem(NavEntry item) =>
         @<MudTooltip Placement="Placement.Bottom" Delay="150">

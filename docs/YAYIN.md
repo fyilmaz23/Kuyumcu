@@ -118,6 +118,7 @@ Eski uygulama (`com.companyname.kuyumcu`) ile yeni Store uygulaması farklı pak
    Ayarlar → Yedeği İçe Aktar.)
 3. Eski lisans anahtarı (`KUYM-...`) yeni sürümde geçmez; aktarımdan sonra **"Lisans yenilenmeli"** ekranı çıkar.
    Müşteri ekrandaki cihaz kimliğini iletir, `tools/Kuyumcu.LicenseTool` ile yeni anahtar üretilip verilir.
-4. Altın fiyatı özelliği için: Ayarlar → **Altın Fiyatı Görseli** bölümüne ekeo üye kodu/şifresi girilir ve
-   `musteri-varliklari/carsi_kuyumculuk_template.jpg` şablon olarak yüklenir.
+4. Altın fiyatı özelliği için: Ayarlar → **Altın Fiyatı Görseli** bölümünde
+   `musteri-varliklari/carsi_kuyumculuk_template.jpg` şablon olarak yüklenir (fiyatlar elazigaltinfiyatlari.com'dan
+   şifresiz alınır).
 5. Her şey doğrulandıktan sonra eski uygulama kaldırılabilir.

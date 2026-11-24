@@ -1,0 +1,121 @@
+@using Kuyumcu.Stock
+@inject StockService Stock
+@inject ISnackbar Snackbar
+@* Ürün düzeltme penceresi. Değişen alanlar "Düzeltme" hareketine yazılır. *@
+
+<MudDialog>
+    <DialogContent>
+        <MudGrid Spacing="2">
+            <MudItem xs="12" sm="6">
+                <MudSelect T="int" @bind-Value="categoryId" Label="Kategori" Variant="Variant.Outlined" Margin="Margin.Dense">
+                    @foreach (var c in Lookup.AllCategories.Where(c => !c.IsDeleted || c.Id == Item.CategoryId))
+                    {
+                        <MudSelectItem Value="c.Id">@c.Name</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudSelect T="int" @bind-Value="karat" Label="Ayar" Variant="Variant.Outlined" Margin="Margin.Dense">
+                    @foreach (var k in Lookup.AllKarats.Where(k => !k.IsDeleted || k.Karat == Item.Karat))
+                    {
+                        <MudSelectItem Value="k.Karat">@k.DisplayName</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudTextField @bind-Value="gram" Label="Gram (brüt)" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudTextField @bind-Value="stone" Label="Taş gramı" Variant="Variant.Outlined" Margin="Margin.Dense" Placeholder="0" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudTextField @bind-Value="model" Label="Model" Variant="Variant.Outlined" Margin="Margin.Dense" MaxLength="100" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudSelect T="int" @bind-Value="locationId" Label="Konum" Variant="Variant.Outlined" Margin="Margin.Dense">
+                    <MudSelectItem Value="0">Belirtilmemiş</MudSelectItem>
+                    @foreach (var l in Lookup.AllLocations.Where(l => !l.IsDeleted || l.Id == Item.LocationId))
+                    {
+                        <MudSelectItem Value="l.Id">@l.Name</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudTextField @bind-Value="supplier" Label="Tedarikçi" Variant="Variant.Outlined" Margin="Margin.Dense" MaxLength="100" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudTextField @bind-Value="purchaseMilyem" Label="Alış milyemi" Placeholder="örn. 0,930" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            </MudItem>
+            <MudItem xs="12">
+                <MudTextField @bind-Value="note" Label="Not" Variant="Variant.Outlined" Margin="Margin.Dense" MaxLength="255" />
+            </MudItem>
+            <MudItem xs="12">
+                <MudTextField @bind-Value="reason" Label="Düzeltme açıklaması (hareket kaydına yazılır)" Variant="Variant.Outlined" Margin="Margin.Dense" MaxLength="255" />
+            </MudItem>
+        </MudGrid>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" OnClick="@(() => MudDialog.Cancel())">İptal</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Save" Disabled="saving">Kaydet</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public StockItem Item { get; set; } = default!;
+    [Parameter] public StockLookup Lookup { get; set; } = default!;
+
+    private int categoryId, karat, locationId;
+    private string? gram, stone, model, supplier, purchaseMilyem, note, reason;
+    private bool saving;
+
+    protected override void OnInitialized()
+    {
+        categoryId = Item.CategoryId;
+        karat = Item.Karat;
+        locationId = Item.LocationId;
+        gram = WeightFormat.ToInput(Item.WeightMg);
+        stone = WeightFormat.ToInput(Item.StoneWeightMg);
+        model = Item.ModelName;
+        supplier = Item.SupplierName;
+        purchaseMilyem = Item.PurchaseMilyem.HasValue ? WeightFormat.Milyem(Item.PurchaseMilyem.Value) : null;
+        note = Item.Note;
+    }
+
+    private async Task Save()
+    {
+        if (!WeightFormat.TryParseGram(gram, out var mg, out var error)) { Snackbar.Add(error, Severity.Warning); return; }
+        if (!WeightFormat.TryParseOptionalGram(stone, out var stoneMg, out var stoneError)) { Snackbar.Add("Taş gramı: " + stoneError, Severity.Warning); return; }
+        if (!WeightFormat.TryParseMilyem(purchaseMilyem, out var milyem)) { Snackbar.Add("Alış milyemi geçersiz (örn. 0,930).", Severity.Warning); return; }
+
+        var changed = new StockItem
+        {
+            Id = Item.Id, Code = Item.Code, CategoryId = categoryId, Karat = karat, WeightMg = mg, StoneWeightMg = stoneMg,
+            LocationId = locationId, ModelName = model, SupplierName = supplier, PurchaseMilyem = milyem, Note = note
+        };
+
+        saving = true;
+        try
+        {
+            var saved = await Stock.UpdateItemAsync(changed, string.IsNullOrWhiteSpace(reason) ? null : reason);
+            MudDialog.Close(DialogResult.Ok(saved));
+        }
+        catch (StockException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Warning);
+        }
+        finally
+        {
+            saving = false;
+        }
+    }
+
+    public static async Task<StockItem?> ShowAsync(IDialogService dialogs, StockItem item, StockLookup lookup)
+    {
+        var parameters = new DialogParameters<StockItemEditDialog> { { x => x.Item, item }, { x => x.Lookup, lookup } };
+        var dialog = await dialogs.ShowAsync<StockItemEditDialog>($"Ürünü Düzelt · {item.Code}", parameters,
+            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true });
+        var result = await dialog.Result;
+        return result is { Canceled: false } ? result.Data as StockItem : null;
+    }
+}

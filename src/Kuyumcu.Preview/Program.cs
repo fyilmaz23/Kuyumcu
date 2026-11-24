@@ -24,6 +24,7 @@ builder.Services.AddSingleton<IFilePickerService, NoFilePicker>();
 builder.Services.AddSingleton<IClipboardService, NoClipboard>();
 builder.Services.AddSingleton<IShareService, NoShare>();
 builder.Services.AddSingleton<IReceiptPrinter, NoPrinter>();
+builder.Services.AddSingleton<ILabelPrinter>(new FileLabelPrinter(Path.Combine(dataDir, "labels")));
 builder.Services.AddSingleton<ILegacyDataLocator, NoLegacyData>();
 builder.Services.AddKuyumcuCore();
 builder.Services.AddScoped<AppState>();
@@ -31,7 +32,8 @@ builder.Services.AddScoped<ShortcutService>();
 
 var app = builder.Build();
 
-await SampleData.SeedAsync(app.Services.GetRequiredService<DatabaseService>(), app.Services.GetRequiredService<LicenseService>());
+await SampleData.SeedAsync(app.Services.GetRequiredService<DatabaseService>(), app.Services.GetRequiredService<LicenseService>(),
+    app.Services.GetRequiredService<StockService>(), FileLabelPrinter.FakePrinterName);
 
 app.UseStaticFiles();
 app.UseAntiforgery();
