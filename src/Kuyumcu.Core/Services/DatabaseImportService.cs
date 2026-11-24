@@ -156,6 +156,38 @@ namespace Kuyumcu.Services
         }
 
         /// <summary>
+        /// İçe aktarılan yedekteki vitrin stoğu (salt okunur). Eski yedeklerde stok tabloları yoksa boş döner.
+        /// </summary>
+        public Task<ImportedStockData> GetImportedStockAsync()
+        {
+            if (!_isImportedDatabaseOpen || string.IsNullOrEmpty(_importedDatabasePath))
+                return Task.FromResult(ImportedStockData.Empty);
+
+            try
+            {
+                using var db = new SQLiteConnection(_importedDatabasePath, SQLiteOpenFlags.ReadOnly);
+                var tables = db.Query<TableInfo>("SELECT name FROM sqlite_master WHERE type='table'").Select(t => t.name).ToHashSet();
+                if (!tables.Contains("StockItem"))
+                    return Task.FromResult(ImportedStockData.Empty);
+
+                List<T> Read<T>(string table) where T : new() =>
+                    tables.Contains(table) ? db.Table<T>().ToList() : new List<T>();
+
+                return Task.FromResult(new ImportedStockData(
+                    db.Table<StockItem>().Where(i => !i.IsDeleted && i.Status == StockItemStatus.InStock).ToList(),
+                    Read<StockCategory>("StockCategory"),
+                    Read<KaratDefinition>("KaratDefinition"),
+                    Read<StockLocation>("StockLocation"),
+                    Read<BulkProduct>("BulkProduct").Where(b => !b.IsDeleted).ToList()));
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"İçe aktarılan stok verilerini okuma hatası: {ex.Message}");
+                return Task.FromResult(ImportedStockData.Empty);
+            }
+        }
+
+        /// <summary>
         /// İmport edilen veritabanındaki işlemleri getirir
         /// </summary>
         public async Task<List<Transaction>> GetImportedTransactionsAsync()
@@ -252,5 +284,17 @@ namespace Kuyumcu.Services
     public class TableInfo
     {
         public string name { get; set; }
+    }
+
+    /// <summary>Yedekten okunan vitrin stoğu (Android salt okunur görünüm).</summary>
+    public sealed record ImportedStockData(
+        List<StockItem> InStockItems,
+        List<StockCategory> Categories,
+        List<KaratDefinition> Karats,
+        List<StockLocation> Locations,
+        List<BulkProduct> BulkProducts)
+    {
+        public static ImportedStockData Empty => new(new(), new(), new(), new(), new());
+        public bool HasStock => InStockItems.Count > 0 || BulkProducts.Any(b => b.Amount != 0);
     }
 }
