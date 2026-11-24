@@ -94,3 +94,12 @@ public sealed class NoLegacyDataLocator : ILegacyDataLocator
     public string? FindLegacyDatabase() => null;
     public void MarkImported() { }
 }
+
+/// <summary>Android salt okunurdur: etiket basılmaz.</summary>
+public sealed class UnsupportedLabelPrinter : ILabelPrinter
+{
+    public bool IsSupported => false;
+    public List<string> GetAvailablePrinters() => new();
+    public Task SendRawAsync(string printerName, byte[] data, string documentName) =>
+        throw new NotSupportedException("Bu cihazda etiket basılamaz.");
+}

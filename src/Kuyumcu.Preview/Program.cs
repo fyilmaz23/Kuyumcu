@@ -24,6 +24,7 @@ builder.Services.AddSingleton<IFilePickerService, NoFilePicker>();
 builder.Services.AddSingleton<IClipboardService, NoClipboard>();
 builder.Services.AddSingleton<IShareService, NoShare>();
 builder.Services.AddSingleton<IReceiptPrinter, NoPrinter>();
+builder.Services.AddSingleton<ILabelPrinter>(new FileLabelPrinter(Path.Combine(dataDir, "labels")));
 builder.Services.AddSingleton<ILegacyDataLocator, NoLegacyData>();
 builder.Services.AddKuyumcuCore();
 builder.Services.AddScoped<AppState>();

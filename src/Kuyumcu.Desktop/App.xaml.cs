@@ -84,6 +84,7 @@ public partial class App : Application
         services.AddSingleton<IClipboardService, WindowsClipboardService>();
         services.AddSingleton<IShareService, WindowsShareService>();
         services.AddSingleton<IReceiptPrinter, WindowsReceiptPrinter>();
+        services.AddSingleton<ILabelPrinter, WindowsLabelPrinter>();
         services.AddSingleton<ILegacyDataLocator, WindowsLegacyDataLocator>();
 
         // Ortak servisler ve arayüz durumu
