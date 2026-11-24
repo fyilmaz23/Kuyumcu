@@ -145,7 +145,8 @@ koda gömülü değil, Ayarlar'dan değişir.
 - **İlk baskılar yapıldı (25.11.2026, TE210, USB, winspool RAW):** yazıcı etiketi **kuyruk solda** besliyor
   (X = 0 kuyruğun ucu). Cetvelle ölçülen: kuyruk 0–30 mm, kanatlar 30–70 mm (her biri 20 mm, katlama 50 mm).
   Varsayılan yerleşim buna göre: kod X 31,5 / rakamlar X 38 / gram-ayar X 51,5 mm. Türkçe harfler (CODEPAGE 1254)
-  doğru çıkıyor. Yeni yerleşimle basılan test etiketinin sonucu ve TCP 9100 gönderimi henüz doğrulanmadı.
+  doğru çıkıyor. Bu yerleşimle basılan test etiketi kanatlara doğru oturdu (kullanıcı onayı). TCP 9100 gönderimi
+  henüz denenmedi.
 - DataMatrix 3 nokta/kare (≈ 5,3 mm) RH10 ile okunabilirliği denenmedi; okunmazsa kare boyu 4 yapılır.
 - Sunlux RH10 gerçek cihazla denenmedi. Önizlemede tuş basışlarıyla (rakam + Enter) okutma, odak kaçırma yönlendirmesi,
   çift okutma ve hatalı kod uyarıları denendi.
