@@ -1,0 +1,458 @@
+@page "/stock/count"
+@page "/stock/count/{Id:int}"
+@using Kuyumcu.Stock
+@inject StockService Stock
+@inject StockCountService Counts
+@inject IDialogService Dialogs
+@inject ISnackbar Snackbar
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+@inject IAppEnvironment AppEnvironment
+
+<div class="kd-page">
+    @if (lookup == null)
+    {
+        <MudProgressLinear Color="Color.Primary" Indeterminate="true" Class="my-6" />
+    }
+    else if (session == null)
+    {
+        @* ───── Sayım başlat + geçmiş ───── *@
+        <PageHeader Title="Sayım" Subtitle="Vitrini okutun; sayım bitince eksik ve fazla ürünler listelenir. Eksik ürünü kayıp yapmak ayrı bir adımdır." />
+        @if (!AppEnvironment.IsReadOnlyClient)
+        {
+            <div class="kd-card kd-card-pad" style="max-width:640px">
+                <MudText Typo="Typo.subtitle1" Class="kd-strong mb-3">Yeni sayım</MudText>
+                <MudGrid Spacing="2">
+                    <MudItem xs="12" sm="6">
+                        <MudSelect T="int" @bind-Value="newLocationId" Label="Ne sayılacak?" Variant="Variant.Outlined" Margin="Margin.Dense">
+                            <MudSelectItem Value="0">Tüm vitrin stoğu</MudSelectItem>
+                            @foreach (var l in lookup.Locations)
+                            {
+                                <MudSelectItem Value="l.Id">@l.Name</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudTextField @bind-Value="newNote" Label="Not (isteğe bağlı)" Variant="Variant.Outlined" Margin="Margin.Dense" MaxLength="200" />
+                    </MudItem>
+                </MudGrid>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.PlayArrow" Class="mt-3" OnClick="Start">Sayımı başlat</MudButton>
+            </div>
+        }
+
+        <div class="kd-section-title"><MudText Typo="Typo.h6">Geçmiş sayımlar</MudText></div>
+        <div class="kd-card">
+            @if (!history.Any())
+            {
+                <EmptyState Icon="@Icons.Material.Outlined.FactCheck" Title="Henüz sayım yapılmadı" />
+            }
+            @foreach (var h in history)
+            {
+                <div class="kd-list-row kd-spread kd-clickable" @onclick="@(() => Nav.NavigateTo($"/stock/count/{h.Id}"))">
+                    <div>
+                        <div class="kd-strong">#@h.Id · @LocationText(h.LocationId)</div>
+                        <div class="kd-muted kd-num" style="font-size:.8rem">@h.StartedAt.ToString("dd.MM.yyyy HH:mm")@(string.IsNullOrEmpty(h.Note) ? "" : " · " + h.Note)</div>
+                    </div>
+                    <div class="d-flex gap-2 align-center flex-wrap">
+                        @if (h.Status == StockCountStatus.Open)
+                        {
+                            <span class="kd-badge emanet">Devam ediyor</span>
+                        }
+                        else if (h.Status == StockCountStatus.Cancelled)
+                        {
+                            <span class="kd-badge notr">İptal</span>
+                        }
+                        else
+                        {
+                            <span class="kd-badge gelen">@h.FoundCount / @h.ExpectedCount sayıldı</span>
+                            @if (h.MissingCount > 0) { <span class="kd-badge giden">@h.MissingCount eksik</span> }
+                            @if (h.ExtraCount > 0) { <span class="kd-badge notr">@h.ExtraCount fazla</span> }
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+    }
+    else if (session.Status == StockCountStatus.Open)
+    {
+        @* ───── Sayım sürüyor ───── *@
+        <PageHeader Title="@($"Sayım #{session.Id} · {LocationText(session.LocationId)}")"
+                    Subtitle="@($"Başlangıç {session.StartedAt:dd.MM.yyyy HH:mm}. Her okutma hemen kaydedilir; uygulama kapansa da sayım kaybolmaz.")">
+            <Actions>
+                <MudButton Variant="Variant.Text" Color="Color.Error" OnClick="Cancel">İptal et</MudButton>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Flag" OnClick="Complete">Sayımı bitir</MudButton>
+            </Actions>
+        </PageHeader>
+
+        <MudGrid Spacing="3" Class="mb-3">
+            <MudItem xs="6" md="3"><StatCard Label="Beklenen" Value="@expected.Count.ToString("N0")" Icon="@Icons.Material.Outlined.Inventory2" /></MudItem>
+            <MudItem xs="6" md="3"><StatCard Label="Sayılan" Value="@FoundCount.ToString("N0")" Icon="@Icons.Material.Outlined.CheckCircle" Tone="gelen" /></MudItem>
+            <MudItem xs="6" md="3"><StatCard Label="Kalan" Value="@Remaining.Count.ToString("N0")" Icon="@Icons.Material.Outlined.HourglassTop" Tone="giden" /></MudItem>
+            <MudItem xs="6" md="3"><StatCard Label="Fazla / uyarı" Value="@ExtraCount.ToString("N0")" Icon="@Icons.Material.Outlined.ReportProblem" Tone="info" /></MudItem>
+        </MudGrid>
+
+        <ScanInput @ref="scanInput" Label="Okutun" Placeholder="Vitrindeki ürünleri sırayla okutun" OnSubmit="OnScan" CaptureStrayKeys="true" />
+
+        @if (lastScan != null)
+        {
+            <MudAlert Severity="@ScanSeverity(lastScan.Kind)" Class="mt-3" Dense="true">
+                <b>@lastScanCode</b> — @lastScan.Message
+                @if (lastScan.Item != null) { <span class="kd-muted"> (@lookup.Title(lastScan.Item), @WeightFormat.Gram(lastScan.Item.WeightMg) gr)</span> }
+            </MudAlert>
+        }
+
+        <MudGrid Spacing="3" Class="mt-1">
+            <MudItem xs="12" md="7">
+                <div class="kd-section-title"><MudText Typo="Typo.h6">Okutulanlar (@lines.Count)</MudText></div>
+                <div class="kd-card">
+                    @if (!lines.Any()) { <EmptyState Icon="@Icons.Material.Outlined.QrCodeScanner" Title="Henüz okutma yok" /> }
+                    @foreach (var l in lines.Take(200))
+                    {
+                        var item = ItemOf(l);
+                        <div class="kd-list-row kd-spread">
+                            <div class="d-flex align-center gap-3" style="min-width:0">
+                                <span class="kd-muted kd-num" style="font-size:.8rem">@l.ScannedAt?.ToString("HH:mm:ss")</span>
+                                <span class="kd-code">@l.Code</span>
+                                <span class="kd-muted" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis">@(item != null ? lookup.Title(item) + " · " + WeightFormat.Gram(item.WeightMg) + " gr" : "")</span>
+                            </div>
+                            <div class="d-flex align-center gap-1">
+                                @ResultBadge(l.Result)
+                                <MudTooltip Text="Okutmayı geri al">
+                                    <MudIconButton Icon="@Icons.Material.Outlined.Undo" Size="Size.Small" OnClick="@(() => RemoveLine(l))" />
+                                </MudTooltip>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </MudItem>
+            <MudItem xs="12" md="5">
+                <div class="kd-section-title">
+                    <MudText Typo="Typo.h6">Henüz okutulmayanlar (@Remaining.Count)</MudText>
+                </div>
+                <div class="kd-card" style="max-height: 520px; overflow:auto">
+                    @if (!Remaining.Any()) { <EmptyState Icon="@Icons.Material.Outlined.Celebration" Title="Hepsi sayıldı" /> }
+                    @foreach (var i in Remaining.Take(300))
+                    {
+                        <div class="kd-list-row kd-spread">
+                            <div style="min-width:0">
+                                <div><span class="kd-code">@i.Code</span></div>
+                                <div class="kd-muted" style="font-size:.8rem">@lookup.Title(i) · @i.Karat ayar · @lookup.LocationName(i.LocationId)</div>
+                            </div>
+                            <span class="kd-num kd-strong">@WeightFormat.Gram(i.WeightMg)</span>
+                        </div>
+                    }
+                </div>
+            </MudItem>
+        </MudGrid>
+    }
+    else
+    {
+        @* ───── Sonuç ───── *@
+        <PageHeader Title="@($"Sayım #{session.Id} · {LocationText(session.LocationId)}")"
+                    Subtitle="@($"{session.StartedAt:dd.MM.yyyy HH:mm} – {session.CompletedAt:HH:mm} · {(session.Status == StockCountStatus.Cancelled ? "iptal edildi" : "tamamlandı")}")">
+            <Actions>
+                <MudButton Variant="Variant.Outlined" Color="Color.Primary" Href="/stock/count">Sayımlar</MudButton>
+            </Actions>
+        </PageHeader>
+
+        @if (session.Status == StockCountStatus.Completed)
+        {
+            <MudGrid Spacing="3" Class="mb-3">
+                <MudItem xs="6" md="3"><StatCard Label="Beklenen" Value="@session.ExpectedCount.ToString("N0")" Icon="@Icons.Material.Outlined.Inventory2" /></MudItem>
+                <MudItem xs="6" md="3"><StatCard Label="Sayılan" Value="@session.FoundCount.ToString("N0")" Icon="@Icons.Material.Outlined.CheckCircle" Tone="gelen" /></MudItem>
+                <MudItem xs="6" md="3"><StatCard Label="Eksik" Value="@session.MissingCount.ToString("N0")" Icon="@Icons.Material.Outlined.RemoveCircleOutline" Tone="giden" /></MudItem>
+                <MudItem xs="6" md="3"><StatCard Label="Fazla" Value="@session.ExtraCount.ToString("N0")" Icon="@Icons.Material.Outlined.AddCircleOutline" Tone="info" /></MudItem>
+            </MudGrid>
+
+            <div class="kd-section-title">
+                <div>
+                    <MudText Typo="Typo.h6">Eksik çıkanlar</MudText>
+                    <MudText Typo="Typo.caption" Class="kd-muted">Sayımda okutulmadı. Bulunamazsa seçip kayıp olarak işaretleyin; bu işlem otomatik yapılmaz.</MudText>
+                </div>
+                @if (!AppEnvironment.IsReadOnlyClient && OpenMissing.Any())
+                {
+                    <MudButton Variant="Variant.Filled" Color="Color.Error" StartIcon="@Icons.Material.Filled.ReportProblem"
+                               Disabled="@(!selectedMissing.Any())" OnClick="MarkLost">
+                        Seçilenleri kayıp yap (@selectedMissing.Count)
+                    </MudButton>
+                }
+            </div>
+            <div class="kd-card">
+                @if (!Missing.Any()) { <EmptyState Icon="@Icons.Material.Outlined.Verified" Title="Eksik yok" Text="Beklenen her ürün okutuldu." /> }
+                @foreach (var l in Missing)
+                {
+                    var item = ItemOf(l);
+                    var open = IsOpenMissing(l);
+                    <div class="kd-list-row kd-spread">
+                        <div class="d-flex align-center gap-2" style="min-width:0">
+                            @if (open && !AppEnvironment.IsReadOnlyClient)
+                            {
+                                <MudCheckBox T="bool" Value="selectedMissing.Contains(l.Id)" ValueChanged="@(v => ToggleMissing(l.Id, v))" Color="Color.Error" Dense="true" />
+                            }
+                            <span class="kd-code">@l.Code</span>
+                            <span class="kd-muted">@(item != null ? $"{lookup.Title(item)} · {item.Karat} ayar · {WeightFormat.Gram(item.WeightMg)} gr" : "")</span>
+                        </div>
+                        <div class="d-flex align-center gap-2">
+                            @if (item != null && !open)
+                            {
+                                <StockStatusBadge Item="item" />
+                            }
+                            @if (item != null)
+                            {
+                                <MudIconButton Icon="@Icons.Material.Outlined.OpenInNew" Size="Size.Small" Href="@($"/stock/item/{item.Id}")" />
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+            @if (OpenMissing.Any())
+            {
+                <div class="d-flex gap-2 mt-2">
+                    <MudButton Size="Size.Small" Variant="Variant.Text" OnClick="@(() => { selectedMissing = OpenMissing.Select(l => l.Id).ToHashSet(); })">Tümünü seç</MudButton>
+                    <MudButton Size="Size.Small" Variant="Variant.Text" OnClick="@(() => selectedMissing.Clear())">Seçimi kaldır</MudButton>
+                </div>
+            }
+
+            <div class="kd-section-title">
+                <div>
+                    <MudText Typo="Typo.h6">Fazla / uyarı</MudText>
+                    <MudText Typo="Typo.caption" Class="kd-muted">Kayıtlı olmayan, satılmış/kayıp görünen ya da başka konumda kayıtlı ürünler.</MudText>
+                </div>
+            </div>
+            <div class="kd-card">
+                @if (!Extra.Any()) { <EmptyState Icon="@Icons.Material.Outlined.Verified" Title="Fazla yok" /> }
+                @foreach (var l in Extra)
+                {
+                    var item = ItemOf(l);
+                    <div class="kd-list-row kd-spread">
+                        <div class="d-flex align-center gap-3" style="min-width:0">
+                            <span class="kd-code">@l.Code</span>
+                            @ResultBadge(l.Result)
+                            <span class="kd-muted">@(item != null ? $"{lookup.Title(item)} · {WeightFormat.Gram(item.WeightMg)} gr" : "Kayıtlı değil")</span>
+                        </div>
+                        <div class="d-flex align-center gap-2">
+                            @if (!AppEnvironment.IsReadOnlyClient && !l.IsResolved && CanResolve(l, item))
+                            {
+                                <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary" OnClick="@(() => Resolve(l))">
+                                    @(l.Result == StockCountResult.OtherLocation ? "Konumu buraya taşı" : "Vitrine geri al")
+                                </MudButton>
+                            }
+                            else if (l.IsResolved)
+                            {
+                                <span class="kd-badge gelen">Düzeltildi</span>
+                            }
+                            @if (item != null)
+                            {
+                                <MudIconButton Icon="@Icons.Material.Outlined.OpenInNew" Size="Size.Small" Href="@($"/stock/item/{item.Id}")" />
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+        else
+        {
+            <MudAlert Severity="Severity.Info">Bu sayım iptal edildi. Okutulan @lines.Count kod kayıtlı ama sonuç çıkarılmadı.</MudAlert>
+        }
+    }
+</div>
+
+@code {
+    [Parameter] public int? Id { get; set; }
+
+    private StockLookup? lookup;
+    private StockCountSession? session;
+    private List<StockCountSession> history = new();
+    private List<StockCountLine> lines = new();
+    private List<StockItem> expected = new();
+    private readonly Dictionary<int, StockItem> items = new();
+    private HashSet<int> selectedMissing = new();
+    private int newLocationId;
+    private string? newNote;
+    private CountScanResult? lastScan;
+    private string? lastScanCode;
+    private ScanInput? scanInput;
+
+    private int FoundCount => lines.Count(l => l.Result == StockCountResult.Found);
+    private int ExtraCount => lines.Count(l => l.Result is StockCountResult.Unknown or StockCountResult.NotInStock or StockCountResult.OtherLocation);
+    private List<StockItem> Remaining
+    {
+        get
+        {
+            var counted = lines.Where(l => l.Result == StockCountResult.Found).Select(l => l.Code).ToHashSet();
+            return expected.Where(i => !counted.Contains(i.Code)).ToList();
+        }
+    }
+    private IEnumerable<StockCountLine> Missing => lines.Where(l => l.Result == StockCountResult.Missing).OrderBy(l => l.Code);
+    private IEnumerable<StockCountLine> OpenMissing => Missing.Where(IsOpenMissing);
+    private IEnumerable<StockCountLine> Extra => lines.Where(l => l.Result is StockCountResult.Unknown or StockCountResult.NotInStock or StockCountResult.OtherLocation);
+
+    protected override async Task OnParametersSetAsync()
+    {
+        lookup ??= await StockLookup.LoadAsync(Stock);
+        await Load();
+    }
+
+    private async Task Load()
+    {
+        selectedMissing.Clear();
+        lastScan = null;
+        session = Id.HasValue ? await Counts.GetSessionAsync(Id.Value) : await Counts.GetOpenSessionAsync();
+        if (session == null)
+        {
+            history = await Counts.GetSessionsAsync(30);
+            return;
+        }
+
+        lines = await Counts.GetLinesAsync(session.Id);
+        expected = session.Status == StockCountStatus.Open ? await Counts.GetExpectedItemsAsync(session) : new();
+        items.Clear();
+        foreach (var i in expected)
+            items[i.Id] = i;
+        foreach (var l in lines.Where(l => l.ItemId > 0 && !items.ContainsKey(l.ItemId)))
+        {
+            var i = await Stock.GetItemAsync(l.ItemId);
+            if (i != null) items[i.Id] = i;
+        }
+    }
+
+    private StockItem? ItemOf(StockCountLine l) => l.ItemId > 0 && items.TryGetValue(l.ItemId, out var i) ? i : null;
+
+    // Kayıp yapılabilir: çözülmemiş ve ürün hâlâ vitrinde görünüyor
+    private bool IsOpenMissing(StockCountLine l) => !l.IsResolved && ItemOf(l) is { IsDeleted: false, Status: StockItemStatus.InStock };
+
+    private bool CanResolve(StockCountLine l, StockItem? item) =>
+        item != null && !item.IsDeleted &&
+        ((l.Result == StockCountResult.NotInStock && item.Status == StockItemStatus.Lost) ||
+         (l.Result == StockCountResult.OtherLocation && session!.LocationId != 0 && item.Status == StockItemStatus.InStock));
+
+    private string LocationText(int locationId) => locationId == 0 ? "Tüm vitrin" : lookup!.LocationName(locationId);
+
+    private async Task Start()
+    {
+        try
+        {
+            var s = await Counts.StartAsync(newLocationId, newNote);
+            newNote = null;
+            Snackbar.Add($"Sayım #{s.Id} başladı. {s.ExpectedCount} ürün bekleniyor.", Severity.Info);
+            if (Id.HasValue) Nav.NavigateTo("/stock/count");
+            else await Load();
+        }
+        catch (StockException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Warning);
+        }
+    }
+
+    private async Task OnScan(ScanSubmitEventArgs e)
+    {
+        if (session == null) return;
+        try
+        {
+            lastScan = await Counts.ScanAsync(session.Id, e.Value);
+            lastScanCode = lastScan.Line?.Code ?? e.Value.Trim();
+            if (lastScan.Line != null && lastScan.Kind != CountScanKind.Duplicate)
+            {
+                lines.Insert(0, lastScan.Line);
+                if (lastScan.Item != null) items[lastScan.Item.Id] = lastScan.Item;
+            }
+            await Beep(lastScan.Kind == CountScanKind.Found);
+        }
+        catch (StockException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Warning);
+        }
+    }
+
+    private async Task RemoveLine(StockCountLine l)
+    {
+        try
+        {
+            await Counts.RemoveLineAsync(l.Id);
+            lines.Remove(l);
+        }
+        catch (StockException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Warning);
+        }
+        if (scanInput != null) await scanInput.FocusAsync();
+    }
+
+    private async Task Complete()
+    {
+        var remaining = Remaining.Count;
+        var ok = await Dialogs.ShowMessageBox("Sayımı bitir",
+            remaining == 0 ? "Beklenen her ürün okutuldu. Sayım bitirilsin mi?"
+                : $"{remaining} ürün okutulmadı; eksik olarak listelenecek (kayıp yapılmaz). Sayım bitirilsin mi?",
+            yesText: "Bitir", cancelText: "Okutmaya devam");
+        if (ok != true)
+        {
+            if (scanInput != null) await scanInput.FocusAsync();
+            return;
+        }
+        var done = await Counts.CompleteAsync(session!.Id);
+        Nav.NavigateTo($"/stock/count/{done.Id}");
+    }
+
+    private async Task Cancel()
+    {
+        var ok = await Dialogs.ShowMessageBox("Sayımı iptal et", "Sayım sonuç çıkarılmadan kapatılacak. Emin misiniz?", yesText: "İptal et", cancelText: "Vazgeç");
+        if (ok != true) return;
+        await Counts.CancelAsync(session!.Id);
+        await Load();
+    }
+
+    private void ToggleMissing(int lineId, bool selected)
+    {
+        if (selected) selectedMissing.Add(lineId);
+        else selectedMissing.Remove(lineId);
+    }
+
+    private async Task MarkLost()
+    {
+        var ok = await Dialogs.ShowMessageBox("Kayıp olarak işaretle",
+            $"Seçilen {selectedMissing.Count} ürün kayıp olarak işaretlenecek ve vitrin toplamından düşecek. Bulunursa ürün detayından geri alınabilir.",
+            yesText: "Kayıp yap", cancelText: "Vazgeç");
+        if (ok != true) return;
+        var count = await Counts.MarkMissingAsLostAsync(session!.Id, selectedMissing);
+        Snackbar.Add($"{count} ürün kayıp olarak işaretlendi.", Severity.Warning);
+        await Load();
+    }
+
+    private async Task Resolve(StockCountLine l)
+    {
+        try
+        {
+            await Counts.ResolveExtraAsync(l.Id);
+            Snackbar.Add("Düzeltildi.", Severity.Success);
+            await Load();
+        }
+        catch (StockException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Warning);
+        }
+    }
+
+    private static Severity ScanSeverity(CountScanKind kind) => kind switch
+    {
+        CountScanKind.Found => Severity.Success,
+        CountScanKind.Duplicate or CountScanKind.OtherLocation => Severity.Warning,
+        _ => Severity.Error
+    };
+
+    private RenderFragment ResultBadge(StockCountResult result) => result switch
+    {
+        StockCountResult.Found => @<span class="kd-badge gelen">Sayıldı</span>,
+        StockCountResult.Missing => @<span class="kd-badge giden">Eksik</span>,
+        StockCountResult.Unknown => @<span class="kd-badge giden">Kayıtsız</span>,
+        StockCountResult.NotInStock => @<span class="kd-badge emanet">Satılmış/kayıp</span>,
+        StockCountResult.OtherLocation => @<span class="kd-badge notr">Başka konum</span>,
+        _ => @<span></span>
+    };
+
+    private async Task Beep(bool ok)
+    {
+        try { await JS.InvokeVoidAsync("kuyumcu.beep", ok); }
+        catch (JSDisconnectedException) { }
+    }
+}
