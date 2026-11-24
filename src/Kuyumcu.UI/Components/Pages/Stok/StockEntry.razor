@@ -153,7 +153,7 @@
     private ScanInput? gramInput;
     private int categoryId, karat = 22, locationId;
     private string? modelName, supplier, purchaseMilyem, stoneGram;
-    private bool printLabel = true, printing, canPrint;
+    private bool printLabel = true, printing, canPrint, presetLoaded;
     private string nextCode = string.Empty;
     private readonly List<Entry> entries = new();
     private Entry? lastEntry => entries.FirstOrDefault();
@@ -178,8 +178,10 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!firstRender || lookup == null)
+        // lookup ilk çizimden sonra yüklenebilir; tercih bir kez, sözlük hazır olunca okunur
+        if (presetLoaded || lookup == null)
             return;
+        presetLoaded = true;
         // Son kullanılan kategori/ayar/konum hatırlanır
         try
         {
