@@ -113,10 +113,25 @@ docs/YAYIN.md         Partner Center, Play Console, GitHub Secrets kurulumu
 - Test için deneme süresini sıfırlamak: uygulamayı kapat, `%LOCALAPPDATA%\KuyumcuDefteri` klasörünü VE
   `HKCU\Software\KuyumcuDefteri` anahtarını kaldır.
 
+### 6. Otomatik Google Drive yedeği (24.11.2026)
+- `CloudBackupService` (Core): 15 dk'da bir bakar; son yedekten/kontrolden 2 saat geçtiyse VACUUM INTO ile anlık kopya
+  alır, MD5'i son yüklenenle aynıysa yüklemez (VACUUM INTO çıktısı aynı veride birebir aynı — denendi). Hata olursa
+  15 dk sonra tekrar dener; oturum geçersizse (invalid_grant/401) durur ve "Yeniden bağlanın" der. Masaüstü kapanırken
+  `FlushOnExitAsync` (en fazla 20 sn). Durum: `%LOCALAPPDATA%\KuyumcuDefteri\cloud-backup.json`.
+- `GoogleDriveService`: giriş SADECE "Google Hesabını Bağla" ile (tarayıcı); otomatik yedek kayıtlı oturumu sessizce
+  kullanır, asla tarayıcı açmaz. Drive'da "Kuyumcu Defteri Yedekleri" klasörü: `KuyumcuDefteri_yyyy-MM-dd_HHmm.db3`
+  (Drive MD5'i ile doğrulanır) + her seferinde güncellenen `KuyumcuDefteri_son_yedek.db3` (telefon için, sabit dosya
+  kimliği). Dosyalar `appProperties.kuyumcuKind` (snapshot/latest) ile ayırt edilir.
+- Saklama: en yeni 10 + son 14 günün her günü + son 12 ayın her ayı; diğerleri Drive çöpüne (30 gün geri alınabilir).
+  Eski sürümün Drive kökündeki `*_Kuyumcu_Yedek.db3` dosyalarına dokunulmaz.
+- Arayüz: üst menüde `CloudBackupIndicator` (yeşil güncel / altın uyarı / kırmızı hata / soluk kapalı; tıklayınca hemen
+  yedekler ya da Ayarlar'a götürür). Ayarlar > Google Drive kartı: hesap, son yedek, Şimdi Yedekle, Drive'da Aç,
+  Bağlantıyı Kes. Eski onaylı elle yedek düğmesi kaldırıldı.
+
 ## Kullanıcıya sunulan öneriler (karar bekleyen sıra)
 1. ~~Lisans~~ (yapıldı, bölüm 5). Kalan: Obfuscar ile kod karıştırma (yamalamayı zorlaştırır), istenirse çevrimiçi aktivasyon.
-2. Yedek: müşterinin kendi Google Drive'ına tam otomatik yedek (değişiklik varsa 2 saatte bir + kapanışta + günlük,
-   14 gün + 12 ay saklama, üst barda durum ikonu). OAuth izin ekranı "Üretim"e alınmalı.
+2. ~~Otomatik Drive yedeği~~ (yapıldı, bölüm 6). Kalan: ürünün OAuth istemcisi oluşturulup izin ekranı "Üretim"e
+   alınmalı ("Test"te yenileme jetonları 7 günde düşer → yedek durur ve "Yeniden bağlanın" çıkar).
 3. Android: aynı Play hesabı kullanılacak (kullanıcı daha önce 12 kişi/14 gün testten geçti; yeni uygulama için
    büyük olasılıkla tekrar gerekecek — kapalı testi erken başlat). Drive'dan son yedeği otomatik okuma.
 
@@ -134,7 +149,8 @@ docs/YAYIN.md         Partner Center, Play Console, GitHub Secrets kurulumu
 
 ## Sıradaki işler
 1. ~~Windows'ta çalıştırıp test et~~ (yapıldı, bkz. bölüm 3). Kullanıcının elle testi sürüyor.
-2. ~~Ayarlar, Kurulum ve Lisans ekranları~~ (yapıldı, bölüm 5). Sıradaki: otomatik Google Drive yedeği.
+2. ~~Ayarlar, Kurulum ve Lisans ekranları~~ (bölüm 5), ~~otomatik Drive yedeği~~ (bölüm 6).
+   Sıradaki: Android'in Drive'daki `KuyumcuDefteri_son_yedek.db3`'ü okuması + Play kapalı testi.
 3. Android veri görüntüleme ekranını (`ImportData.razor`) yeni tasarıma getir.
 4. Android'in Google Drive'dan son yedeği kendisi indirmesi (Android OAuth istemcisi gerekir).
 5. Mağaza hazırlığı: ürün adı ve Android paket adı kesinleşmeli (Play'e ilk yüklemeden sonra değişmez),

@@ -269,6 +269,12 @@ h1:focus { outline: none; }
 .kd-topbar-icon { color: rgba(255, 255, 255, 0.66) !important; }
 .kd-topbar-icon:hover { color: #fff !important; }
 .kd-topbar .mud-icon-button.mud-disabled { color: rgba(255, 255, 255, 0.38) !important; }
+/* Bulut yedeği göstergesi: yeşil güncel, altın uyarı, kırmızı hata, soluk kapalı */
+.kd-topbar .kd-cloud.is-ok { color: #7FD3A2 !important; }
+.kd-topbar .kd-cloud.is-warning { color: #F1CF7B !important; }
+.kd-topbar .kd-cloud.is-error { color: #FF9C8C !important; }
+.kd-topbar .kd-cloud.is-off { color: rgba(255, 255, 255, 0.42) !important; }
+.kd-cloud-tip { display: flex; flex-direction: column; gap: 2px; max-width: 280px; }
 span.kd-topbar-icon { display: inline-flex; width: 40px; height: 40px; align-items: center; justify-content: center; }
 
 .kd-trial {

@@ -102,7 +102,8 @@ Müşterilerin Google Cloud ile uğraşmaması için ürünün kendi OAuth istem
 2. **API'ler ve Hizmetler → Kütüphane → Google Drive API → Etkinleştir.**
 3. **OAuth izin ekranı:** Kullanıcı türü *Harici*, uygulama adı "Kuyumcu Defteri", kapsam:
    `.../auth/drive.file` (sadece uygulamanın oluşturduğu dosyalar; hassas olmayan kapsamdır, Google güvenlik
-   denetimi gerektirmez). Ardından **Yayınla → Üretim** yapın (aksi halde sadece test kullanıcıları giriş yapabilir).
+   denetimi gerektirmez). Ardından **Yayınla → Üretim** yapın (aksi halde sadece test kullanıcıları giriş yapabilir
+   ve Google girişleri 7 günde bir düşer — otomatik yedek durur, müşteri "Yeniden bağlanın" uyarısı görür).
 4. **Kimlik Bilgileri → OAuth istemci kimliği → Masaüstü uygulaması** → Client ID ve Secret'ı yukarıdaki
    GitHub Secrets'a girin. (Masaüstü uygulamalarında bu "secret" gerçek bir sır sayılmaz; Google'ın belgelediği
    kurulu uygulama akışıdır.)

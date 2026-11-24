@@ -10,6 +10,8 @@
 @inject IShareService ShareService
 @inject ILegacyDataLocator LegacyDataLocator
 @inject AppState AppState
+@inject CloudBackupService CloudBackup
+@implements IDisposable
 
 <div class="kd-page">
     <PageHeader Title="Ayarlar" Subtitle="İş yeri bilgileri, lisans, yedekleme ve veri aktarma">
@@ -92,28 +94,77 @@
                 <section class="kd-card">
                     <div class="kd-card-header">
                         <div class="kd-card-title"><MudIcon Icon="@Icons.Material.Outlined.CloudUpload" /> Google Drive Yedekleme</div>
-                        @if (ProductSecrets.HasBuiltInGoogleClient || settings.HasCustomGoogleClient)
-                        {
-                            <span class="kd-badge gelen">Hazır</span>
-                        }
-                        else
-                        {
-                            <span class="kd-badge giden">Ayarlanmamış</span>
-                        }
+                        <span class="kd-badge @CloudBadgeClass">@CloudBadgeText</span>
                     </div>
                     <div class="kd-card-pad">
-                        @if (ProductSecrets.HasBuiltInGoogleClient || settings.HasCustomGoogleClient)
+                        @switch (cloud.Health)
                         {
-                            <MudText Typo="Typo.body2" Class="kd-muted">
-                                Üst menüdeki <b>bulut</b> düğmesine ilk bastığınızda tarayıcıda Google hesabınızla giriş yapmanız
-                                istenir; sonraki yedeklemeler otomatik bağlanır.
-                            </MudText>
-                        }
-                        else
-                        {
-                            <MudText Typo="Typo.body2" Class="kd-muted">
-                                Google Drive bağlantısı bu derlemede tanımlı değil. Aşağıdaki gelişmiş ayarlardan kendi OAuth bilgilerinizi girebilirsiniz.
-                            </MudText>
+                            case CloudBackupHealth.NotConfigured:
+                                <MudText Typo="Typo.body2" Class="kd-muted">
+                                    Google Drive bağlantısı bu derlemede tanımlı değil. Aşağıdaki gelişmiş ayarlardan kendi OAuth bilgilerinizi
+                                    girip Kaydet'e basın.
+                                </MudText>
+                                break;
+
+                            case CloudBackupHealth.NotConnected:
+                                <MudText Typo="Typo.body2" Class="kd-muted">
+                                    Google hesabınızı bir kere bağlayın; uygulama verilerinizi <b>kendiliğinden</b> Drive'ınızdaki
+                                    "@ProductInfo.DriveFolderName" klasörüne yedekler (değişiklik varsa 2 saatte bir ve kapanırken).
+                                    Uygulama Drive'ınızda sadece kendi oluşturduğu dosyaları görebilir.
+                                </MudText>
+                                <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="mt-3" StartIcon="@Icons.Material.Filled.Login"
+                                           OnClick="ConnectDrive" Disabled="@isConnecting">
+                                    @(isConnecting ? "Tarayıcıda Google girişi bekleniyor…" : "Google Hesabını Bağla")
+                                </MudButton>
+                                @if (isConnecting)
+                                {
+                                    <MudButton Variant="Variant.Text" Class="mt-3 ml-2" OnClick="CancelConnect">Vazgeç</MudButton>
+                                }
+                                break;
+
+                            default:
+                                @if (cloud.Health == CloudBackupHealth.NeedsReconnect || !string.IsNullOrEmpty(cloud.LastError))
+                                {
+                                    <MudAlert Severity="@(cloud.Health is CloudBackupHealth.NeedsReconnect or CloudBackupHealth.Failing ? Severity.Error : Severity.Warning)"
+                                              Variant="Variant.Outlined" Dense="true" Class="mb-3">@cloud.LastError</MudAlert>
+                                }
+                                <div class="kd-kv"><span>Hesap</span><b>@(cloud.AccountEmail ?? "—")</b></div>
+                                <div class="kd-kv mt-1"><span>Son yedek</span><b>@TimeAgo.Format(cloud.LastSuccessUtc)</b></div>
+                                @if (cloud.LastVerifiedUtc > cloud.LastSuccessUtc)
+                                {
+                                    <div class="kd-kv mt-1"><span>Son kontrol (değişiklik yok)</span><b>@TimeAgo.Format(cloud.LastVerifiedUtc)</b></div>
+                                }
+                                <MudText Typo="Typo.caption" Class="kd-muted d-block mt-2">
+                                    Otomatik: değişiklik varsa 2 saatte bir ve uygulama kapanırken. Drive'da son 14 günün ve 12 ayın yedekleri saklanır.
+                                </MudText>
+                                <div class="d-flex gap-2 flex-wrap mt-3">
+                                    @if (cloud.Health == CloudBackupHealth.NeedsReconnect)
+                                    {
+                                        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Login"
+                                                   OnClick="ConnectDrive" Disabled="@isConnecting">
+                                            @(isConnecting ? "Tarayıcıda Google girişi bekleniyor…" : "Yeniden Bağlan")
+                                        </MudButton>
+                                    }
+                                    else
+                                    {
+                                        <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.CloudUpload"
+                                                   OnClick="CloudBackupNow" Disabled="@cloud.IsRunning">
+                                            @(cloud.IsRunning ? "Yedekleniyor…" : "Şimdi Yedekle")
+                                        </MudButton>
+                                    }
+                                    @if (!string.IsNullOrEmpty(cloud.FolderId))
+                                    {
+                                        <MudButton Variant="Variant.Text" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.OpenInNew"
+                                                   Href="@GoogleDriveService.FolderWebLink(cloud.FolderId)" Target="_blank">
+                                            Drive'da Aç
+                                        </MudButton>
+                                    }
+                                    <MudButton Variant="Variant.Text" Color="Color.Error" StartIcon="@Icons.Material.Outlined.LinkOff"
+                                               OnClick="DisconnectDrive">
+                                        Bağlantıyı Kes
+                                    </MudButton>
+                                </div>
+                                break;
                         }
 
                         <MudExpansionPanels Elevation="0" Outlined="true" Class="mt-3">
@@ -196,11 +247,36 @@
     private string? lastLocalBackup;
     private string? legacyDatabasePath;
     private LicenseState? licenseState;
+    private CloudBackupStatus cloud = new();
+    private bool isConnecting;
+    private CancellationTokenSource? connectCts;
+
+    private string CloudBadgeClass => cloud.Health switch
+    {
+        CloudBackupHealth.UpToDate => "gelen",
+        CloudBackupHealth.Warning => "emanet",
+        CloudBackupHealth.NeedsReconnect or CloudBackupHealth.Failing => "giden",
+        _ => "notr",
+    };
+
+    private string CloudBadgeText => cloud.Health switch
+    {
+        CloudBackupHealth.UpToDate => "Güncel",
+        CloudBackupHealth.Warning => cloud.LastVerifiedUtc == null ? "Bekliyor" : "Uyarı",
+        CloudBackupHealth.Failing => "Yedek alınamıyor",
+        CloudBackupHealth.NeedsReconnect => "Yeniden bağlanın",
+        CloudBackupHealth.NotConnected => "Bağlı değil",
+        _ => "Ayarlanmamış",
+    };
 
     protected override async Task OnInitializedAsync()
     {
         settings = await DatabaseService.GetSettingsAsync();
         RefreshLocalBackupInfo();
+
+        CloudBackup.StatusChanged += OnCloudStatusChanged;
+        await CloudBackup.RefreshConnectionAsync();
+        cloud = CloudBackup.Status;
 
         try
         {
@@ -243,8 +319,73 @@
         await DatabaseService.SaveSettingsAsync(settings);
         AppState.IsSetupCompleted = true;
         GoogleDriveService.ResetConnection();
+        await CloudBackup.RefreshConnectionAsync();
 
         Snackbar.Add("Ayarlar kaydedildi.", Severity.Success);
+    }
+
+    private void OnCloudStatusChanged() => InvokeAsync(() =>
+    {
+        cloud = CloudBackup.Status;
+        StateHasChanged();
+    });
+
+    private async Task ConnectDrive()
+    {
+        isConnecting = true;
+        connectCts = new CancellationTokenSource(TimeSpan.FromMinutes(5));
+        try
+        {
+            var email = await CloudBackup.ConnectAsync(connectCts.Token);
+            Snackbar.Add($"Google Drive bağlandı{(email != null ? $" ({email})" : "")}. İlk yedek alınıyor…", Severity.Success);
+        }
+        catch (OperationCanceledException)
+        {
+            Snackbar.Add("Google girişi tamamlanmadı.", Severity.Warning);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Google Drive bağlanamadı: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isConnecting = false;
+            connectCts?.Dispose();
+            connectCts = null;
+            cloud = CloudBackup.Status;
+        }
+    }
+
+    private void CancelConnect() => connectCts?.Cancel();
+
+    private async Task CloudBackupNow()
+    {
+        var result = await CloudBackup.BackupNowAsync();
+        Snackbar.Add(result.Message, result.Outcome switch
+        {
+            CloudBackupOutcome.Uploaded => Severity.Success,
+            CloudBackupOutcome.Unchanged or CloudBackupOutcome.Busy => Severity.Info,
+            _ => Severity.Error,
+        });
+    }
+
+    private async Task DisconnectDrive()
+    {
+        var confirm = await DialogService.ShowMessageBox(
+            "Google Drive Bağlantısını Kes",
+            "Otomatik bulut yedeği durur. Drive'daki mevcut yedekler silinmez. Devam edilsin mi?",
+            yesText: "Bağlantıyı Kes", noText: "Vazgeç");
+        if (confirm != true)
+            return;
+
+        await CloudBackup.DisconnectAsync();
+        Snackbar.Add("Google Drive bağlantısı kesildi.", Severity.Info);
+    }
+
+    public void Dispose()
+    {
+        CloudBackup.StatusChanged -= OnCloudStatusChanged;
+        connectCts?.Cancel();
     }
 
     private async Task PickGoldPriceTemplate()

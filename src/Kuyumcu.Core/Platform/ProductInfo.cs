@@ -15,6 +15,12 @@ public static class ProductInfo
     /// <summary>Ana veritabanı dosya adı. Yedek dosyaları da bu uzantıyı kullanır.</summary>
     public const string DatabaseFileName = "Kuyumcu.db3";
 
-    /// <summary>Google Drive yedek dosyalarının adında geçen sabit kısım.</summary>
-    public const string DriveBackupSuffix = "_Kuyumcu_Yedek.db3";
+    /// <summary>Google Drive'da yedeklerin tutulduğu klasör.</summary>
+    public const string DriveFolderName = "Kuyumcu Defteri Yedekleri";
+
+    /// <summary>Drive'daki tarihli yedeklerin adı: önek + yyyy-MM-dd_HHmm.db3</summary>
+    public const string DriveSnapshotPrefix = "KuyumcuDefteri_";
+
+    /// <summary>Her yedekte güncellenen tek dosya (telefon bunu okur).</summary>
+    public const string DriveLatestFileName = "KuyumcuDefteri_son_yedek.db3";
 }

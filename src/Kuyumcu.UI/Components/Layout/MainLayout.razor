@@ -1,6 +1,5 @@
 @inherits LayoutComponentBase
 @implements IDisposable
-@inject GoogleDriveService GoogleDriveService
 @inject DatabaseService DatabaseService
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
@@ -89,19 +88,7 @@
                     </MudTooltip>
                 }
 
-                <MudTooltip Text="@(isBackupInProgress ? "Yedekleniyor…" : isGoogleDriveConfigured ? "Google Drive'a yedekle" : "Google Drive ayarlanmamış (Ayarlar)")"
-                            Placement="Placement.Bottom">
-                    @if (isBackupInProgress)
-                    {
-                        <span class="kd-topbar-icon"><MudProgressCircular Indeterminate="true" Size="Size.Small" Style="width:20px;height:20px" /></span>
-                    }
-                    else
-                    {
-                        <MudIconButton Icon="@Icons.Material.Outlined.CloudUpload" Class="kd-topbar-icon"
-                                       OnClick="BackupToGoogleDrive" Disabled="@(!isGoogleDriveConfigured)"
-                                       aria-label="Google Drive'a yedekle" />
-                    }
-                </MudTooltip>
+                <CloudBackupIndicator />
 
                 <MudTooltip Text="@(isDarkMode ? "Açık tema" : "Koyu tema")" Placement="Placement.Bottom">
                     <MudIconButton Icon="@(isDarkMode ? Icons.Material.Outlined.LightMode : Icons.Material.Outlined.DarkMode)"
@@ -154,8 +141,6 @@
         </MudTooltip>;
 
     private bool isDarkMode;
-    private bool isBackupInProgress;
-    private bool isGoogleDriveConfigured;
     private string businessName = ProductInfo.Name;
     private LicenseState? licenseState;
     private MudAutocomplete<Customer>? searchAutocomplete;
@@ -169,7 +154,6 @@
         if (!string.IsNullOrWhiteSpace(settings.BusinessName))
             businessName = settings.BusinessName;
 
-        isGoogleDriveConfigured = await GoogleDriveService.IsConfiguredAsync();
 
         try
         {
@@ -200,32 +184,6 @@
     {
         isDarkMode = !isDarkMode;
         await JS.InvokeVoidAsync("kuyumcu.setPreference", "darkMode", isDarkMode ? "1" : "0");
-    }
-
-    private async Task BackupToGoogleDrive()
-    {
-        var confirm = await DialogService.ShowMessageBox(
-            "Google Drive Yedeği",
-            "Verilerinizin bir yedeği Google Drive'a yüklenecek. Devam edilsin mi?",
-            yesText: "Yedekle", cancelText: "Vazgeç");
-        if (confirm != true)
-            return;
-
-        isBackupInProgress = true;
-        try
-        {
-            var result = await GoogleDriveService.BackupDatabaseAsync();
-            var ok = result.StartsWith("Yedekleme başarılı", StringComparison.Ordinal);
-            Snackbar.Add(result, ok ? Severity.Success : Severity.Error);
-        }
-        catch (Exception ex)
-        {
-            Snackbar.Add($"Yedekleme sırasında bir hata oluştu: {ex.Message}", Severity.Error);
-        }
-        finally
-        {
-            isBackupInProgress = false;
-        }
     }
 
     private async Task<IEnumerable<Customer>> SearchCustomers(string value, CancellationToken cancellationToken)
