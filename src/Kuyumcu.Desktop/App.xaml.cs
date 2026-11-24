@@ -49,6 +49,7 @@ public partial class App : Application
             await Services.GetRequiredService<DatabaseService>().UpdateDatabaseSchemaAsync();
             await Services.GetRequiredService<LicenseService>().InitializeTrialAsync();
             Services.GetRequiredService<BackupService>().Start();
+            Services.GetRequiredService<CloudBackupService>().Start();
         });
 
         new MainWindow().Show();
@@ -56,6 +57,17 @@ public partial class App : Application
 
     protected override void OnExit(ExitEventArgs e)
     {
+        // Pencere kapandı; son değişiklikler varsa buluta yükle (en fazla 20 sn, kullanıcı beklemez)
+        try
+        {
+            Task.Run(() => Services.GetRequiredService<CloudBackupService>().FlushOnExitAsync(TimeSpan.FromSeconds(20)))
+                .Wait(TimeSpan.FromSeconds(25));
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Kapanış yedeği: {ex.Message}");
+        }
+
         (Services as IDisposable)?.Dispose();
         _singleInstanceMutex?.Dispose();
         base.OnExit(e);

@@ -7,10 +7,11 @@
     Test ve hizalama etiketleri ekrandaki (kaydedilmemiş) değerlerle basılır; böylece kaydetmeden denenebilir.
 *@
 
-<MudPaper Class="pa-6 mb-4" Elevation="0" Outlined="true" id="etiket-yazicisi">
-    <MudText Typo="Typo.h6" Class="mb-1">
-        <MudIcon Icon="@Icons.Material.Filled.LocalPrintshop" Class="mr-1" /> Etiket Yazıcısı
-    </MudText>
+<section class="kd-card" id="etiket-yazicisi">
+    <div class="kd-card-header">
+        <div class="kd-card-title"><MudIcon Icon="@Icons.Material.Outlined.LocalPrintshop" /> Etiket Yazıcısı</div>
+    </div>
+    <div class="kd-card-pad">
     <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-4 d-block">
         Barkodlu vitrin etiketleri için (TSC TE210 vb., TSPL dili). Ölçüler milimetre. Değişiklikleri önce
         <b>Hizalama etiketi</b> ile deneyin, sonra kaydedin. Bu ayar bu bilgisayara özeldir; yedek geri yüklenince korunur.
@@ -159,7 +160,8 @@
             <MudButton Variant="Variant.Text" OnClick="ResetLayout" Disabled="busy">Varsayılan yerleşim</MudButton>
         </div>
     }
-</MudPaper>
+    </div>
+</section>
 
 @code {
     private LabelPrinterSettings? s;

@@ -32,7 +32,9 @@ else
         else if (AppState.IsLicenseExpired
                  && routeData.PageType != typeof(Pages.LicenseExpired)
                  && routeData.PageType != typeof(Pages.Settings)
-                 && routeData.PageType != typeof(Pages.Setup))
+                 && routeData.PageType != typeof(Pages.Setup)
+                 // Geliştirici aracı (gitignore'da, yayın derlemesinde yok): süre dolmuşken anahtar üretebilmek için
+                 && routeData.PageType.Name != "LicenseKeyGenerator")
         {
             NavigationManager.NavigateTo("license-expired");
             return;

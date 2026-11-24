@@ -19,7 +19,8 @@
         <a class="dismiss">🗙</a>
     </div>
 
-    <script src="_framework/blazor.webview.js" autostart="false"></script>
+    <!-- WPF'te autostart="false" OLMAMALI: WPF BlazorWebView Blazor'u kendisi başlatmaz, sayfa "Yükleniyor..."da kalır -->
+    <script src="_framework/blazor.webview.js"></script>
     <script src="_content/MudBlazor/MudBlazor.min.js"></script>
     <script src="_content/Kuyumcu.UI/js/app.js"></script>
 </body>

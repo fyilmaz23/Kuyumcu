@@ -69,9 +69,30 @@ GitHub Actions (`.github/workflows/release.yml`) iki dosya üretir ve GitHub Rel
 
 | Secret | Açıklama |
 |---|---|
-| `LICENSE_SECRET_KEY` | Lisans anahtarlarını imzalayan gizli anahtar. **Değiştirilirse eski lisans anahtarları geçersiz olur.** |
 | `GOOGLE_DESKTOP_CLIENT_ID` | Ürünün Google OAuth istemcisi (aşağıya bakın). Boşsa müşteri kendi bilgilerini girmek zorunda kalır. |
 | `GOOGLE_DESKTOP_CLIENT_SECRET` | Aynı istemcinin secret değeri. |
+
+Lisans için GitHub'a gizli bilgi **girilmez** (aşağıya bakın).
+
+### Lisans anahtarları
+
+Lisanslar geliştiricinin **özel anahtarıyla imzalanır** (ECDSA P-256). Uygulamada sadece açık anahtar vardır
+(`src/Kuyumcu.Core/Licensing/LicensePublicKey.cs`); uygulamayı açıp incelemek yeni lisans üretmeye yetmez.
+
+- Özel anahtar: `%USERPROFILE%\.kuyumcu-lisans\ozel-anahtar.pem` (depoda, CI'da ve buluttaki açık klasörlerde **olmamalı**).
+  **Mutlaka yedekleyin** (şifre yöneticisi / şifreli USB). Kaybolursa yeni lisans üretilemez; başkasının eline geçerse
+  o kişi lisans üretebilir. İkisinde de çözüm: yeni anahtar çifti + uygulama güncellemesi + tüm müşterilere yeni lisans.
+- Lisans üretmek (müşteri cihaz kimliğini Ayarlar > Lisans'tan iletir):
+
+  ```powershell
+  dotnet run --project tools/Kuyumcu.LicenseTool -- uret 079FDBAA48F568BF --not "Çarşı Kuyumculuk"            # süresiz
+  dotnet run --project tools/Kuyumcu.LicenseTool -- uret 079FDBAA48F568BF --gun 365 --not "Çarşı Kuyumculuk"  # 1 yıl
+  dotnet run --project tools/Kuyumcu.LicenseTool -- coz KD1-XXXXX-...                                          # anahtarı incele
+  ```
+
+  Üretilen her anahtar `%USERPROFILE%\.kuyumcu-lisans\lisans-kayitlari.csv` dosyasına da yazılır.
+- Lisans cihaza (Windows kurulumunun MachineGuid'ine) bağlıdır. Windows yeniden kurulursa veya bilgisayar değişirse
+  müşteri yeni cihaz kimliğini iletir, yeni anahtar üretilir.
 
 ### Google Drive OAuth istemcisi (bir kere)
 
@@ -81,7 +102,8 @@ Müşterilerin Google Cloud ile uğraşmaması için ürünün kendi OAuth istem
 2. **API'ler ve Hizmetler → Kütüphane → Google Drive API → Etkinleştir.**
 3. **OAuth izin ekranı:** Kullanıcı türü *Harici*, uygulama adı "Kuyumcu Defteri", kapsam:
    `.../auth/drive.file` (sadece uygulamanın oluşturduğu dosyalar; hassas olmayan kapsamdır, Google güvenlik
-   denetimi gerektirmez). Ardından **Yayınla → Üretim** yapın (aksi halde sadece test kullanıcıları giriş yapabilir).
+   denetimi gerektirmez). Ardından **Yayınla → Üretim** yapın (aksi halde sadece test kullanıcıları giriş yapabilir
+   ve Google girişleri 7 günde bir düşer — otomatik yedek durur, müşteri "Yeniden bağlanın" uyarısı görür).
 4. **Kimlik Bilgileri → OAuth istemci kimliği → Masaüstü uygulaması** → Client ID ve Secret'ı yukarıdaki
    GitHub Secrets'a girin. (Masaüstü uygulamalarında bu "secret" gerçek bir sır sayılmaz; Google'ın belgelediği
    kurulu uygulama akışıdır.)
@@ -92,9 +114,11 @@ Eski uygulama (`com.companyname.kuyumcu`) ile yeni Store uygulaması farklı pak
 
 1. Müşteri Store'dan yeni uygulamayı kurar.
 2. İlk açılışta **"Eski sürümün verileri bulundu → Eski Verileri Aktar"** düğmesi çıkar; tek tıkla müşteriler,
-   işlemler, ayarlar ve lisans aktarılır. (Bulunamazsa: eski uygulamada Drive yedeği alıp yeni uygulamada
+   işlemler ve ayarlar aktarılır. (Bulunamazsa: eski uygulamada Drive yedeği alıp yeni uygulamada
    Ayarlar → Yedeği İçe Aktar.)
-3. Altın fiyatı özelliği için: Ayarlar → **Altın Fiyatı Görseli** bölümünde
+3. Eski lisans anahtarı (`KUYM-...`) yeni sürümde geçmez; aktarımdan sonra **"Lisans yenilenmeli"** ekranı çıkar.
+   Müşteri ekrandaki cihaz kimliğini iletir, `tools/Kuyumcu.LicenseTool` ile yeni anahtar üretilip verilir.
+4. Altın fiyatı özelliği için: Ayarlar → **Altın Fiyatı Görseli** bölümünde
    `musteri-varliklari/carsi_kuyumculuk_template.jpg` şablon olarak yüklenir (fiyatlar elazigaltinfiyatlari.com'dan
    şifresiz alınır).
-4. Her şey doğrulandıktan sonra eski uygulama kaldırılabilir.
+5. Her şey doğrulandıktan sonra eski uygulama kaldırılabilir.

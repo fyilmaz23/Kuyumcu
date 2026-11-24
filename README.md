@@ -15,6 +15,7 @@ src/
   Kuyumcu.Mobile    Android uygulaması (.NET MAUI + BlazorWebView) → AAB
   Kuyumcu.Preview   Tarayıcı önizlemesi (Mac/Linux'ta arayüzü görmek için, örnek verilerle) — dağıtılmaz
 build/              CI yardımcı betikleri (gizli dosya üretimi, MSIX paketleme)
+tools/              Geliştirici araçları: Kuyumcu.LicenseTool (lisans anahtarı üretir; özel anahtar depoda değil)
 branding/           Uygulama simgesi kaynakları
 docs/YAYIN.md       Mağaza ve GitHub Secrets kurulumu
 musteri-varliklari/ Müşteriye özel dosyalar (ürüne gömülmez)

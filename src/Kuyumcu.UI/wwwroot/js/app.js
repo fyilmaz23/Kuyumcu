@@ -15,6 +15,15 @@ window.kuyumcu = (function () {
                     if (input) { input.focus(); input.select(); }
                     return;
                 }
+                // Alt+1..9 → üst menüdeki n. sayfa (menü sırası). Sadece üst sıradaki rakam tuşları:
+                // bazı barkod okuyucular karakterleri "Alt + numerik tuş takımı" ile gönderir; onlar sayfa değiştirmemeli.
+                if (e.altKey && !e.ctrlKey && !e.metaKey && /^[1-9]$/.test(e.key) && !(e.code || '').startsWith('Numpad')) {
+                    if (document.querySelector('.mud-dialog-container')) return;
+                    const items = document.querySelectorAll('.kd-topbar a.kd-topnav-item');
+                    const target = items[parseInt(e.key, 10) - 1];
+                    if (target) { e.preventDefault(); target.click(); }
+                    return;
+                }
                 if (e.key === 'F2' || e.key === 'F3') {
                     // Açık bir pencere varken kısayol tetiklenmesin
                     if (document.querySelector('.mud-dialog-container')) return;

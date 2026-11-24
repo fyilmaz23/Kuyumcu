@@ -15,6 +15,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<DatabaseService>();
         services.AddSingleton<BackupService>();
         services.AddSingleton<GoogleDriveService>();
+        services.AddSingleton<CloudBackupService>();
         services.AddSingleton<LicenseService>();
         services.AddSingleton<IGoldPriceSource, ElazigAltinFiyatlariSource>();
         services.AddSingleton<GoldPriceExportService>();

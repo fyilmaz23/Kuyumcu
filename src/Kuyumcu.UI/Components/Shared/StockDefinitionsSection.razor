@@ -4,10 +4,11 @@
 @inject ISnackbar Snackbar
 @* Ayarlar → Stok tanımları: kategoriler, ayarlar (milyem), konumlar ve kasa ürünleri. Silme = gizleme (IsDeleted). *@
 
-<MudPaper Class="pa-6 mb-4" Elevation="0" Outlined="true" id="stok-tanimlari">
-    <MudText Typo="Typo.h6" Class="mb-1">
-        <MudIcon Icon="@Icons.Material.Filled.Category" Class="mr-1" /> Stok Tanımları
-    </MudText>
+<section class="kd-card" id="stok-tanimlari">
+    <div class="kd-card-header">
+        <div class="kd-card-title"><MudIcon Icon="@Icons.Material.Outlined.Category" /> Stok Tanımları</div>
+    </div>
+    <div class="kd-card-pad">
     <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-3 d-block">
         Kategoriler, ayarların has milyemleri, ürün konumları ve kasa ürünleri. Silinen tanım listelerden kalkar;
         eski ürünlerde adı görünmeye devam eder.
@@ -97,7 +98,8 @@
             }
         </MudTabPanel>
     </MudTabs>
-</MudPaper>
+    </div>
+</section>
 
 @code {
     private int tab;

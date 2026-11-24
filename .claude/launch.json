@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "preview",
+      "runtimeExecutable": "dotnet",
+      "runtimeArgs": ["run", "--project", "src/Kuyumcu.Preview", "--no-build"],
+      "port": 5080
+    }
+  ]
+}

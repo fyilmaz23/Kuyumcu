@@ -1,7 +1,7 @@
 # Devir Notu — Kuyumcu Defteri
 
 Bu belge, projeyi başka bir oturumda / geliştiricide kaldığı yerden sürdürmek için gereken bağlamı içerir.
-Son güncelleme: dal `feature/barkod-stok` (`kuyumcudefteri` üzerinden; barkodlu vitrin stoğu eklendi).
+Son güncelleme: dal `feature/barkod-stok` = güncel `kuyumcudefteri` (1ff0432) + barkodlu vitrin stoğu (bölüm 7–8).
 
 ## Amaç
 
@@ -18,11 +18,12 @@ dönüştürmek ve arayüzünü yenilemek.
 ```
 src/Kuyumcu.Core      Modeller + servisler (SQLite, lisans, yedek, Drive, görsel üretimi). net10.0, platformdan bağımsız
 src/Kuyumcu.UI        Ortak Blazor arayüzü (Razor Class Library): sayfalar, tema, bileşenler, app.css, app.js
-src/Kuyumcu.Desktop   WPF kabuğu (net10.0-windows, self-contained, win-x64) + Packaging/AppxManifest.xml
+src/Kuyumcu.Desktop   WPF kabuğu (net10.0-windows10.0.19041.0, self-contained, win-x64) + Packaging/AppxManifest.xml
 src/Kuyumcu.Mobile    MAUI Android kabuğu (net10.0-android), salt okunur
 src/Kuyumcu.Preview   Blazor Server tarayıcı önizlemesi (Mac/Linux'ta arayüz geliştirmek için, örnek verili) — dağıtılmaz
 tests/Kuyumcu.Core.Tests  xUnit birim testleri (kod üretimi, TSPL, toplamlar, fiyat sitesi, stok servisi, yedek/geri yükleme)
 build/                CI betikleri: write-secrets.ps1 (gizli dosyaları üretir), pack-msix.ps1 (makeappx ile MSIX)
+tools/Kuyumcu.LicenseTool  Lisans anahtarı üretme aracı (geliştirici bilgisayarında; bkz. docs/YAYIN.md "Lisans anahtarları")
 docs/YAYIN.md         Partner Center, Play Console, GitHub Secrets kurulumu
 docs/ETIKET_VE_OKUYUCU_TESTI.md  Etiket yazıcısı (TSC TE210) ve barkod okuyucu (Sunlux RH10) deneme adımları
 ```
@@ -60,14 +61,85 @@ docs/ETIKET_VE_OKUYUCU_TESTI.md  Etiket yazıcısı (TSC TE210) ve barkod okuyuc
   kutucukları, "Kalan" sütunu düzeltildi, yazıcı menüsü), İşlem penceresi, İşlemler.
 - Düzeltme: emanetler artık para birimi kartlarında listelenmiyor (sadece Emanetler bölümünde).
 
-### 3. Altın fiyatı kaynağı
+## Korunması gereken iş kuralları
+- **Giden** = `TransactionType.CustomerDebt` (müşteriye verildi, müşteri borçlu) → kırmızı.
+  **Gelen** = `StoreDebt` (müşteriden alındı) → yeşil. Net bakiye > 0 ise Giden.
+- **Emanet** sadece Gelen işlemlerde olur, bakiyeye girmez, ayrı bölümde gösterilir.
+- **Gizli işlemler:** müşteri detayında müşterinin **adına tıklamak** gizli işlemleri gösterir/gizler (bilerek gizli kısayol).
+- İşlem kaydetmeden önce **onay penceresi**; yeni işlemde **aynı gün mükerrer** kontrolü.
+- Lisans: kurulumu tamamlanmış ama LicenseInfo'su olmayan veritabanı "güncelleme yapan eski kullanıcı" sayılır
+  → deneme süresi bitmiş başlar (kasıtlı).
+- Lisans anahtarları imzalıdır (bölüm 5). `LicensePublicKey.Base64` değişirse **tüm** verilmiş lisanslar geçersiz olur.
+  Eski biçim (`KUYM-...`, HMAC) anahtarlar ve DB'deki `IsLicensed` alanı **kabul edilmez** (kullanıcı kararı, 24.11.2026).
+- Lisansa isteğe bağlı bitiş tarihi konabilir (kullanıcı kararı); bitişe 15 gün kala uyarı gösterilir.
+
+### 3. İlk Windows çalıştırması (22.11.2026)
+- Uygulama Windows'ta açılıyor; eski sürümden aktarma çalıştı (889 müşteri / 14.864 işlem, eski DB'ye dokunulmadı).
+- Düzeltilen hatalar:
+  - **Açılışta çökme** "Could not load Microsoft.Windows.SDK.NET": WebView2 SDK'sı .NET 5+ WPF için Windows SDK
+    projeksiyonu istiyor → Desktop hedefi `net10.0-windows10.0.19041.0` (Min OS 10.0.17763, MSIX ile aynı).
+  - **"Yükleniyor..."da takılma:** Desktop `index.html`'de `autostart="false"` vardı; WPF Blazor'u kendisi başlatmaz.
+    (Android'de MAUI başlattığı için orada kalıyor.)
+  - **Deneme süresinin 2. açılışta bitmesi:** SecureStore'daki UTC tarihler `DateTime.TryParse` ile yerel saate (+3)
+    çevriliyor, "saat geri alınmış" sanılıyordu → `LicenseService.TryParseUtc`. Lisanslı kullanıcıları etkilemiyordu.
+  - **Yazı tipi:** `FontStack.Split(',')` tırnaklı/boşluklu adlar üretiyordu, Windows'ta Times'a düşüyordu → dizi.
+  - Aktarma/geri yükleme doğrulaması kaynak DB'yi artık salt okunur açıyor.
+  - Desktop'taki gereksiz `ProtectedData` / `System.Drawing.Common` paket referansları kaldırıldı (NU1510).
+- `LicenseKeyGenerator.razor` yeni yapıya uyarlandı (yerelde, gitignore'da). Bağlantısı Ayarlar > Lisans ve
+  "Deneme Süresi Doldu" ekranında, **sadece dosya derlemede varsa** görünür; süre dolmuşken de açılabilir.
+- Bu geliştirme bilgisayarındaki eski kurulum lisans sisteminden önceki sürüm (LicenseInfo tablosu yok) →
+  aktarımdan sonra kasıtlı kural gereği "Deneme Süresi Doldu" gelir.
+
+### 4. Üst menü (24.11.2026, kullanıcı isteği)
+- Sol menü kaldırıldı (`NavMenu.razor` silindi). `MainLayout`: antrasit tek satır üst bar (52 px) — marka/iş yeri adı,
+  ikonlu sayfa düğmeleri (üzerine gelince başlık + kısayol), müşteri arama, deneme süresi rozeti, Drive yedek,
+  tema, Ayarlar, "Yeni Müşteri". Kısayollar: Alt+1 Ana Sayfa, Alt+2 Müşteriler, Alt+3 İşlemler, Alt+4–7 stok sayfaları (bölüm 8),
+  Alt+8 Ayarlar. Alt+rakam sadece üst sıradaki rakam tuşlarıyla çalışır (Numpad değil: bazı okuyucular Alt+Numpad ile yazar).
+- `.kd-page` genişlik sınırı kaldırıldı (tam ekran). Dar pencerede önce iş yeri adı, sonra düğme yazısı gizlenir.
+
+### 5. İmzalı lisans + Ayarlar/Kurulum/Lisans ekranları (24.11.2026)
+- `Kuyumcu.Core/Licensing`: `LicenseCodec` (biçim: `KD1-` + Crockford Base32, 14 bayt yük + 64 bayt ECDSA P-256 imza;
+  yük = sürüm, cihaz kimliği, veriliş günü, isteğe bağlı bitiş günü), `LicensePublicKey` (depoda), `LicenseSigningKey`
+  (özel anahtar `%USERPROFILE%\.kuyumcu-lisans\ozel-anahtar.pem`, depo dışında; kullanıcının bilgisayarında üretildi).
+- `tools/Kuyumcu.LicenseTool`: `anahtar-olustur`, `uret <cihaz> [--gun N|--bitis GG.AA.YYYY] [--not]`, `coz`, `acik-anahtar`.
+  Her üretim `lisans-kayitlari.csv`'ye yazılır.
+- `LicenseService`: durum her sorguda imza + cihaz + süre doğrulanarak hesaplanır (`GetLicenseStateAsync` → `LicenseState`,
+  kilit nedeni: deneme bitti / lisans süresi doldu / anahtar geçersiz). Cihaz kimliği her seferinde MachineGuid'den
+  türetilir (güvenli depodaki değer sadece yedek). Süreli lisansta "bugün" = max(şimdi, son kontrol) → saat geri alınarak
+  uzatılamaz. Etkinleştirme bu bilgisayarın kimliğine göre doğrular (aktarılmış DB'deki eski kimlik sorunu çözüldü).
+- Yeni kurulumda, aynı Windows kullanıcısında önceki deneme başlangıcı varsa o kullanılır; `DpapiSecureStore` artık
+  `HKCU\Software\KuyumcuDefteri` altına da yazar (veri klasörü silinince deneme sıfırlanmaz; MSIX kaldırmada silinir).
+- CI'dan `LICENSE_SECRET_KEY` ve `LicenseService.DevSecrets.cs` kaldırıldı.
+- Ekranlar: ortak `Shared/LicensePanel.razor`; Ayarlar iki sütun (sol: İş Yeri, Altın Fiyatı, Drive — Kaydet başlıkta;
+  sağ: Lisans, Yerel Yedekler, Yedeği İçe Aktar); Kurulum (eski veri varsa "Önerilen" seçenek); "Lisans gerekli" ekranı.
+  Üst menüde süreli lisans bitmek üzereyken "Lisans: N gün" rozeti; etkinleştirince `AppState.LicenseChanged` ile yenilenir.
+- Geliştirici sayfası `LicenseKeyGenerator.razor` (gitignore'da) özel anahtar dosyasını okuyarak üretir.
+- Test için deneme süresini sıfırlamak: uygulamayı kapat, `%LOCALAPPDATA%\KuyumcuDefteri` klasörünü VE
+  `HKCU\Software\KuyumcuDefteri` anahtarını kaldır.
+
+### 6. Otomatik Google Drive yedeği (24.11.2026)
+- `CloudBackupService` (Core): 15 dk'da bir bakar; son yedekten/kontrolden 2 saat geçtiyse VACUUM INTO ile anlık kopya
+  alır, MD5'i son yüklenenle aynıysa yüklemez (VACUUM INTO çıktısı aynı veride birebir aynı — denendi). Hata olursa
+  15 dk sonra tekrar dener; oturum geçersizse (invalid_grant/401) durur ve "Yeniden bağlanın" der. Masaüstü kapanırken
+  `FlushOnExitAsync` (en fazla 20 sn). Durum: `%LOCALAPPDATA%\KuyumcuDefteri\cloud-backup.json`.
+- `GoogleDriveService`: giriş SADECE "Google Hesabını Bağla" ile (tarayıcı); otomatik yedek kayıtlı oturumu sessizce
+  kullanır, asla tarayıcı açmaz. Drive'da "Kuyumcu Defteri Yedekleri" klasörü: `KuyumcuDefteri_yyyy-MM-dd_HHmm.db3`
+  (Drive MD5'i ile doğrulanır) + her seferinde güncellenen `KuyumcuDefteri_son_yedek.db3` (telefon için, sabit dosya
+  kimliği). Dosyalar `appProperties.kuyumcuKind` (snapshot/latest) ile ayırt edilir.
+- Saklama: en yeni 10 + son 14 günün her günü + son 12 ayın her ayı; diğerleri Drive çöpüne (30 gün geri alınabilir).
+  Eski sürümün Drive kökündeki `*_Kuyumcu_Yedek.db3` dosyalarına dokunulmaz.
+- Arayüz: üst menüde `CloudBackupIndicator` (yeşil güncel / altın uyarı / kırmızı hata / soluk kapalı; tıklayınca hemen
+  yedekler ya da Ayarlar'a götürür). Ayarlar > Google Drive kartı: hesap, son yedek, Şimdi Yedekle, Drive'da Aç,
+  Bağlantıyı Kes. Eski onaylı elle yedek düğmesi kaldırıldı.
+
+### 7. Altın fiyatı kaynağı (25.11.2026)
 - ekeo (fiyat.ekeo.org.tr) girişi kaldırıldı. Fiyatlar **https://elazigaltinfiyatlari.com/** sayfasından şifresiz alınır
   (`Services/GoldPriceSource.cs`: `IGoldPriceSource` + `ElazigAltinFiyatlariSource`; "BUGÜN" tablosu, `span.alis/satis`).
   14 Ayar'ın sadece satış fiyatı var (alış = satış). Başka şehir için yeni bir `IGoldPriceSource` yazılır.
 - `GoldPriceExportService` fiyatları 5 dk önbellekte tutar; `GetHasGoldPriceAsync()` = "24 Ayar" satış (has fiyatı).
 - `AppSettings.GoldPriceSiteCode/Password` kolonları eski veritabanlarıyla uyum için duruyor, kullanılmıyor.
 
-### 4. Barkodlu vitrin stoğu (dal `feature/barkod-stok`)
+### 8. Barkodlu vitrin stoğu (dal `feature/barkod-stok`, 24–25.11.2026)
 İlk kullanıcı dükkânın cihazları: **TSC TE210** (203 dpi, TSPL, USB), **Sunlux RH10** (2D, USB klavye gibi, sonuna Enter),
 **72 × 10 mm kelebek PP kuyumcu etiketi** (kanatlar basılır, kuyruk yapışkansız). Yazıcı/etiket/kategori ayarları
 koda gömülü değil, Ayarlar'dan değişir.
@@ -89,7 +161,8 @@ koda gömülü değil, Ayarlar'dan değişir.
 - Platform: `ILabelPrinter`. Desktop `WindowsLabelPrinter` (winspool.drv P/Invoke, "RAW"; GDI yok), Mobile
   `UnsupportedLabelPrinter`, Preview `FileLabelPrinter` (`.preview-data/labels/*.tspl`). Ağ (TCP 9100) Core'da.
 
-**UI** (`Components/Pages/Stok`, menüde "Vitrin Stoku … Stok Raporları")
+**UI** (`Components/Pages/Stok`; üst menüde Vitrin Stoku, Okut / Satış, Ürün Girişi, Sayım; Kasa ve Stok Raporları
+Vitrin Stoku sayfasının üst düğmelerinde)
 - `/stock` liste + ayar bazında adet/gram/has, `/stock/entry` seri giriş, `/stock/item/{id}` detay,
   `/stock/scan` okut/satış/iade, `/stock/count` sayım, `/stock/bulk` kasa, `/stock/reports` raporlar.
 - Ayarlar: `LabelPrinterSettingsSection` (yazıcı, ölçüler, kaydırma, kod tipi, konumlar, önizleme, test ve hizalama
@@ -119,24 +192,26 @@ koda gömülü değil, Ayarlar'dan değişir.
   aynen uygulanır. İadede bu işlem isteğe bağlı silinir.
 - **Cihaza özel:** `LabelPrinterSettings` geri yüklemede bu bilgisayarınki korunur.
 - **Android:** stok sadece görüntülenir; etiket basma ve stok değiştirme yok (`IsReadOnlyClient`).
-- **Lisans:** modül normal lisansın parçası; ayrı özellik bayrağı yok (lisans `kuyumcudefteri` dalında imzalı lisansla
-  yeniden yazılıyor; bu dalda `LicenseService`'e dokunulmadı).
+- **Lisans:** modül normal lisansın parçası; ayrı özellik bayrağı yok (imzalı lisans, bölüm 5;
+  stok modülü `LicenseService`'e dokunmaz).
 
-## Korunması gereken iş kuralları
-- **Giden** = `TransactionType.CustomerDebt` (müşteriye verildi, müşteri borçlu) → kırmızı.
-  **Gelen** = `StoreDebt` (müşteriden alındı) → yeşil. Net bakiye > 0 ise Giden.
-- **Emanet** sadece Gelen işlemlerde olur, bakiyeye girmez, ayrı bölümde gösterilir.
-- **Gizli işlemler:** müşteri detayında müşterinin **adına tıklamak** gizli işlemleri gösterir/gizler (bilerek gizli kısayol).
-- İşlem kaydetmeden önce **onay penceresi**; yeni işlemde **aynı gün mükerrer** kontrolü.
-- Lisans: kurulumu tamamlanmış ama LicenseInfo'su olmayan veritabanı "güncelleme yapan eski kullanıcı" sayılır
-  → deneme süresi bitmiş başlar (kasıtlı).
-- `LICENSE_SECRET_KEY` değişirse eski lisans anahtarları geçersiz olur.
+
+## Kullanıcıya sunulan öneriler (karar bekleyen sıra)
+1. ~~Lisans~~ (yapıldı, bölüm 5). Kalan: Obfuscar ile kod karıştırma (yamalamayı zorlaştırır), istenirse çevrimiçi aktivasyon.
+2. ~~Otomatik Drive yedeği~~ (yapıldı, bölüm 6). Kalan: ürünün OAuth istemcisi oluşturulup izin ekranı "Üretim"e
+   alınmalı ("Test"te yenileme jetonları 7 günde düşer → yedek durur ve "Yeniden bağlanın" çıkar).
+3. Android: aynı Play hesabı kullanılacak (kullanıcı daha önce 12 kişi/14 gün testten geçti; yeni uygulama için
+   büyük olasılıkla tekrar gerekecek — kapalı testi erken başlat). Drive'dan son yedeği otomatik okuma.
 
 ## Doğrulanmadı / dikkat
-- **WPF uygulaması Windows'ta hiç çalıştırılmadı** (geliştirme Linux bulut ortamında yapıldı; derleniyor).
-  İlk iş: Windows'ta `dotnet run --project src/Kuyumcu.Desktop` ve eski veri aktarma testi.
 - `build/pack-msix.ps1` ve Android AAB üretimi CI'da henüz denenmedi (ilk etikette görülecek).
-- `LicenseKeyGenerator.razor` eski yapıya göre yazıldı; derleme hatası verebilir, uyarlanmalı.
+- Hedef çerçeve değişti (`net10.0-windows10.0.19041.0`): CI'da Linux üzerinde Desktop derlemesi ilk push'ta kontrol edilmeli.
+- Özel lisans anahtarının yedeği kullanıcıda olmalı (kaybolursa yeni lisans üretilemez).
+- Süreli lisansta bilgisayar saati bir kez ileri (ör. 2030) ayarlanırsa "son kontrol" o tarihte kalır ve lisans bitmiş
+  sayılabilir; müşteriye yeni anahtar vermek gerekir (bilinçli ödünleşim: saat geri alınarak uzatmayı engeller).
+- Yerel yedek `Environment.SpecialFolder.MyDocuments` altına gider; Belgeler OneDrive'a yönlendirilmişse
+  `OneDrive\Belgeler\Kuyumcu Defteri Yedekleri` olur. Her açılıştan 1 dk sonra yedek alınır (günde birkaç açılışta
+  birkaç dosya oluşur; 30 gün saklama). İstenirse "o gün yedek varsa atla" yapılabilir.
 - Yeni işlemde varsayılan cins artık **son kullanılan cins** (eskiden TL). Kullanıcı istemezse geri alınacak.
 - Tutar girişinde Türkçe biçim: "12.5" → 125 okunur (nokta binlik). Eski sürümde de böyleydi.
   (Gram girişinde ise nokta ondalıktır: "12.5" → 12,5 gr; gramda binlik ayıracı kullanılmaz.)
@@ -155,8 +230,9 @@ koda gömülü değil, Ayarlar'dan değişir.
 - Canlı fiyat sitesi HTML'i değişirse `ElazigAltinFiyatlariSource.Parse` boş döner (test örneği 24.11.2026 sayfasından).
 
 ## Sıradaki işler
-1. Windows'ta çalıştırıp test et; çıkan hataları düzelt. `LicenseKeyGenerator.razor`'ı yeni yapıya uyarla.
-2. Ayarlar, Kurulum ve Lisans ekranlarının düzenini yeni tasarıma getir.
+1. ~~Windows'ta çalıştırıp test et~~ (yapıldı, bkz. bölüm 3). Kullanıcının elle testi sürüyor.
+2. ~~Ayarlar, Kurulum ve Lisans ekranları~~ (bölüm 5), ~~otomatik Drive yedeği~~ (bölüm 6).
+   Sıradaki: Android'in Drive'daki `KuyumcuDefteri_son_yedek.db3`'ü okuması + Play kapalı testi.
 3. Android veri görüntüleme ekranını (`ImportData.razor`) yeni tasarıma getir.
 4. Android'in Google Drive'dan son yedeği kendisi indirmesi (Android OAuth istemcisi gerekir).
 5. Mağaza hazırlığı: ürün adı ve Android paket adı kesinleşmeli (Play'e ilk yüklemeden sonra değişmez),

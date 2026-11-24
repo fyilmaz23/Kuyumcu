@@ -13,7 +13,8 @@ namespace Kuyumcu.Models
         public string LicenseKey { get; set; } = string.Empty;
 
         /// <summary>
-        /// Lisans aktif mi?
+        /// Son etkinleştirmede anahtar geçerli miydi? SADECE bilgi amaçlı: lisans durumu her açılışta
+        /// LicenseKey'in imzası doğrulanarak hesaplanır, bu alana güvenilmez (veritabanından elle değiştirilebilir).
         /// </summary>
         public bool IsLicensed { get; set; } = false;
 
@@ -41,6 +42,46 @@ namespace Kuyumcu.Models
         /// Son lisans kontrol tarihi (anti-tampering için)
         /// </summary>
         public DateTime LastCheckDate { get; set; }
+    }
+
+    /// <summary>Ekranlarda gösterilecek lisans durumu (LicenseService.GetLicenseStateAsync).</summary>
+    public sealed class LicenseState
+    {
+        public LicenseStatus Status { get; init; }
+
+        /// <summary>Status = Expired ise nedeni.</summary>
+        public LicenseLockReason LockReason { get; init; }
+
+        /// <summary>Bu bilgisayarın cihaz kimliği (lisans istemek için müşteri bunu iletir).</summary>
+        public string DeviceId { get; init; } = string.Empty;
+
+        /// <summary>Deneme sürümünde kalan gün.</summary>
+        public int RemainingTrialDays { get; init; }
+
+        /// <summary>Lisanslıysa son geçerlilik günü; null ise süresiz.</summary>
+        public DateOnly? LicenseExpiresOn { get; init; }
+
+        /// <summary>Lisansın bitmesine kalan gün (süreli lisanslarda).</summary>
+        public int? DaysUntilLicenseExpiry { get; init; }
+
+        public DateTime? ActivatedAtUtc { get; init; }
+
+        /// <summary>Kayıtlı anahtar varsa ama geçmiyorsa nedeni (ör. eski biçim, başka cihaz).</summary>
+        public string? KeyProblem { get; init; }
+
+        /// <summary>Süreli lisans bitmek üzere mi (uyarı gösterilir)?</summary>
+        public bool IsLicenseExpiringSoon => DaysUntilLicenseExpiry is >= 0 and <= 15;
+    }
+
+    public enum LicenseLockReason
+    {
+        None,
+        /// <summary>Deneme süresi bitti, lisans girilmedi.</summary>
+        TrialEnded,
+        /// <summary>Süreli lisansın süresi doldu.</summary>
+        LicenseEnded,
+        /// <summary>Kayıtlı anahtar geçersiz (eski biçim, başka cihaz, bozuk).</summary>
+        LicenseInvalid,
     }
 
     /// <summary>

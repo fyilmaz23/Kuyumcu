@@ -1,0 +1,113 @@
+@* Üst menüdeki bulut yedeği göstergesi: durum rengi + üzerine gelince açıklama.
+   Bağlı ise tıklamak hemen yedekler; bağlı değilse Ayarlar'a götürür. *@
+@implements IDisposable
+@inject CloudBackupService CloudBackup
+@inject NavigationManager NavigationManager
+@inject ISnackbar Snackbar
+
+<MudTooltip Placement="Placement.Bottom">
+    <ChildContent>
+        @if (status.IsRunning)
+        {
+            <span class="kd-topbar-icon kd-cloud is-running" aria-label="Bulut yedeği alınıyor">
+                <MudProgressCircular Indeterminate="true" Size="Size.Small" Style="width:20px;height:20px" />
+            </span>
+        }
+        else
+        {
+            <MudIconButton Icon="@Icon" Class="@($"kd-topbar-icon kd-cloud {CssClass}")" OnClick="OnClick"
+                           aria-label="Bulut yedeği" />
+        }
+    </ChildContent>
+    <TooltipContent>
+        <div class="kd-cloud-tip">
+            <b>@Title</b>
+            @foreach (var line in Lines)
+            {
+                <div>@line</div>
+            }
+        </div>
+    </TooltipContent>
+</MudTooltip>
+
+@code {
+    private CloudBackupStatus status = new();
+
+    protected override void OnInitialized()
+    {
+        status = CloudBackup.Status;
+        CloudBackup.StatusChanged += OnStatusChanged;
+    }
+
+    private void OnStatusChanged() => InvokeAsync(() =>
+    {
+        status = CloudBackup.Status;
+        StateHasChanged();
+    });
+
+    private string Icon => status.Health switch
+    {
+        CloudBackupHealth.UpToDate => Icons.Material.Outlined.CloudDone,
+        CloudBackupHealth.Warning => Icons.Material.Outlined.CloudSync,
+        CloudBackupHealth.NotConnected or CloudBackupHealth.NotConfigured => Icons.Material.Outlined.CloudOff,
+        _ => Icons.Material.Outlined.CloudOff,
+    };
+
+    private string CssClass => status.Health switch
+    {
+        CloudBackupHealth.UpToDate => "is-ok",
+        CloudBackupHealth.Warning => "is-warning",
+        CloudBackupHealth.NeedsReconnect or CloudBackupHealth.Failing => "is-error",
+        _ => "is-off",
+    };
+
+    private string Title => status.Health switch
+    {
+        CloudBackupHealth.UpToDate => "Bulut yedeği güncel",
+        CloudBackupHealth.Warning when status.LastVerifiedUtc == null => "Henüz bulut yedeği yok",
+        CloudBackupHealth.Warning => "Son bulut yedeği denemesi başarısız",
+        CloudBackupHealth.Failing => "2 gündür bulut yedeği alınamadı",
+        CloudBackupHealth.NeedsReconnect => "Google Drive'a yeniden bağlanın",
+        CloudBackupHealth.NotConfigured => "Google Drive ayarlanmamış",
+        _ => "Bulut yedeği kapalı",
+    };
+
+    private IEnumerable<string> Lines
+    {
+        get
+        {
+            if (status.Health is CloudBackupHealth.NotConnected or CloudBackupHealth.NotConfigured)
+            {
+                yield return "Bağlamak için tıklayın (Ayarlar).";
+                yield break;
+            }
+            if (status.LastVerifiedUtc != null)
+                yield return $"Son yedek: {TimeAgo.Format(status.LastSuccessUtc)}" +
+                             (status.LastVerifiedUtc > status.LastSuccessUtc ? $" · kontrol: {TimeAgo.Format(status.LastVerifiedUtc)}" : "");
+            if (!string.IsNullOrEmpty(status.LastError))
+                yield return status.LastError;
+            if (!string.IsNullOrEmpty(status.AccountEmail))
+                yield return status.AccountEmail;
+            yield return status.Health == CloudBackupHealth.NeedsReconnect ? "Ayarlar'a gitmek için tıklayın." : "Şimdi yedeklemek için tıklayın.";
+        }
+    }
+
+    private async Task OnClick()
+    {
+        if (status.Health is CloudBackupHealth.NotConnected or CloudBackupHealth.NotConfigured or CloudBackupHealth.NeedsReconnect)
+        {
+            NavigationManager.NavigateTo("/settings");
+            return;
+        }
+
+        var result = await CloudBackup.BackupNowAsync();
+        Snackbar.Add(result.Message, result.Outcome switch
+        {
+            CloudBackupOutcome.Uploaded => Severity.Success,
+            CloudBackupOutcome.Unchanged or CloudBackupOutcome.Busy => Severity.Info,
+            _ => Severity.Error,
+        });
+    }
+
+    public void Dispose() => CloudBackup.StatusChanged -= OnStatusChanged;
+}

@@ -27,11 +27,10 @@ h1:focus { outline: none; }
 .kd-muted { color: var(--mud-palette-text-secondary) !important; }
 .kd-strong { font-weight: 650; }
 
-/* ---- Sayfa iskeleti ---- */
+/* ---- Sayfa iskeleti ----
+   Genişlik sınırı yok: içerik ekranın tamamını kullanır (form sayfaları kendi max-width'ini verir). */
 .kd-page {
-    max-width: 1400px;
-    margin: 0 auto;
-    padding: 24px 28px 48px;
+    padding: 16px 20px 32px;
 }
 
 .kd-page-header {
@@ -73,6 +72,74 @@ h1:focus { outline: none; }
     padding: 14px 20px;
     border-bottom: var(--kd-card-border);
 }
+
+.kd-card-title { display: flex; align-items: center; gap: 8px; font-weight: 650; font-size: 0.95rem; }
+.kd-card-title .mud-icon-root { color: var(--mud-palette-primary); font-size: 1.25rem; }
+.kd-card-danger { border-color: rgba(var(--kd-giden-rgb), 0.35); }
+.kd-card-danger .kd-card-title .mud-icon-root { color: var(--kd-giden); }
+
+/* Anahtar/değer satırı */
+.kd-kv { display: flex; justify-content: space-between; gap: 12px; font-size: 0.85rem; }
+.kd-kv span { color: var(--mud-palette-text-secondary); }
+
+/* ---- Ayarlar: iki sütun (dar ekranda tek) ---- */
+.kd-settings-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.kd-settings-col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.kd-settings-wide { display: flex; flex-direction: column; gap: 16px; margin-top: 16px; min-width: 0; }
+.kd-form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 1100px) {
+    .kd-settings-grid { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 600px) {
+    .kd-form-row { grid-template-columns: 1fr; }
+}
+
+/* ---- Lisans kutusu ---- */
+.kd-license-status {
+    display: flex; align-items: flex-start; gap: 12px;
+    padding: 12px 14px; border-radius: 10px; border: 1px solid transparent;
+}
+.kd-license-status > .mud-icon-root { margin-top: 2px; }
+.kd-license-status-title { font-weight: 650; }
+.kd-license-status-detail { font-size: 0.82rem; opacity: 0.85; margin-top: 2px; }
+.kd-license-status.is-ok { background: rgba(var(--kd-gelen-rgb), 0.08); border-color: rgba(var(--kd-gelen-rgb), 0.3); color: var(--kd-gelen); }
+.kd-license-status.is-warning { background: rgba(var(--mud-palette-warning-rgb), 0.1); border-color: rgba(var(--mud-palette-warning-rgb), 0.35); color: var(--mud-palette-warning-darken); }
+.kd-license-status.is-error { background: rgba(var(--kd-giden-rgb), 0.08); border-color: rgba(var(--kd-giden-rgb), 0.3); color: var(--kd-giden); }
+
+.kd-license-label { font-size: 0.75rem; font-weight: 600; color: var(--mud-palette-text-secondary); text-transform: uppercase; letter-spacing: .04em; }
+.kd-license-device {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 10px 12px; border-radius: 10px; background: var(--mud-palette-background);
+    border: var(--kd-card-border);
+}
+.kd-license-device-id { font-family: Consolas, "Cascadia Mono", monospace; font-size: 1.15rem; font-weight: 700; letter-spacing: .08em; }
+.kd-license-input textarea { font-family: Consolas, "Cascadia Mono", monospace; font-size: 0.82rem; letter-spacing: .02em; }
+.kd-license-key {
+    font-family: Consolas, "Cascadia Mono", monospace; font-size: 0.9rem; font-weight: 600; line-height: 1.6;
+    word-break: break-all; padding: 12px 14px; border-radius: 10px;
+    background: var(--mud-palette-background); border: var(--kd-card-border);
+}
+
+/* ---- Kurulum / lisans gerekli ekranları (BareLayout) ---- */
+.kd-gate { padding: 28px; }
+.kd-gate-head { display: flex; align-items: flex-start; gap: 14px; margin-bottom: 20px; }
+.kd-gate-icon {
+    width: 44px; height: 44px; border-radius: 12px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(var(--kd-giden-rgb), 0.12); color: var(--kd-giden);
+}
+.kd-gate-icon.is-brand { background: rgba(var(--mud-palette-primary-rgb), 0.14); color: var(--mud-palette-primary); }
+.kd-gate-business {
+    display: inline-flex; align-items: center; gap: 6px; margin-bottom: 16px;
+    font-size: 0.85rem; font-weight: 600; color: var(--mud-palette-text-secondary);
+}
+.kd-gate-option { padding: 16px; border-radius: 10px; border: var(--kd-card-border); }
+.kd-gate-option.is-recommended { border-color: rgba(var(--mud-palette-primary-rgb), 0.5); background: rgba(var(--mud-palette-primary-rgb), 0.05); }
+.kd-gate-divider {
+    display: flex; align-items: center; gap: 12px; margin: 20px 0;
+    color: var(--mud-palette-text-secondary); font-size: 0.8rem;
+}
+.kd-gate-divider::before, .kd-gate-divider::after { content: ""; flex: 1; border-top: var(--kd-card-border); }
 
 .kd-clickable { cursor: pointer; transition: border-color .15s, box-shadow .15s, transform .15s; }
 .kd-clickable:hover {
@@ -158,33 +225,78 @@ h1:focus { outline: none; }
 /* Sekmeler: büyük harf yerine normal yazım */
 .mud-tab { text-transform: none !important; font-weight: 600; letter-spacing: 0; }
 
-/* ---- Sol menü ---- */
-.kd-brand { display: flex; align-items: center; gap: 10px; padding: 18px 16px 14px; min-height: 64px; overflow: hidden; }
 .kd-brand-logo { width: 34px; height: 34px; flex-shrink: 0; }
-.kd-brand-text { overflow: hidden; }
-.kd-brand-name { color: #fff; font-weight: 700; font-size: 0.95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.kd-brand-product { color: rgba(255,255,255,.5); font-size: 0.72rem; white-space: nowrap; }
 
-.kd-nav .mud-nav-link { border-radius: 10px; margin: 2px 10px; width: auto; padding: 10px 12px; }
-.kd-nav .mud-nav-link:hover:not(.mud-nav-link-disabled) { background: rgba(255,255,255,0.06) !important; }
-.kd-nav .mud-nav-link.active:not(.mud-nav-link-disabled) {
-    background: rgba(217, 174, 74, 0.16) !important;
-    color: #F1CF7B !important;
+/* ---- Üst menü (masaüstü) ----
+   Antrasit tek satır: marka · sayfa ikonları · müşteri arama · sağda eylemler. Altın = seçili/vurgu. */
+.kd-appbar { border-bottom: 1px solid rgba(255, 255, 255, 0.06); }
+.kd-topbar .mud-toolbar { gap: 4px; padding-left: 12px; padding-right: 12px; }
+
+.kd-topbar-brand {
+    display: flex; align-items: center; gap: 10px;
+    margin-right: 12px; min-width: 0; max-width: 240px;
+    color: inherit; text-decoration: none;
 }
-.kd-nav .mud-nav-link.active .mud-nav-link-icon { color: #F1CF7B !important; }
-.kd-nav .mud-nav-link-text { font-weight: 550; }
+.kd-topbar-brand .kd-brand-logo { width: 30px; height: 30px; }
+.kd-brand-name { color: #fff; font-weight: 700; font-size: 0.92rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-.kd-drawer-footer { margin-top: auto; padding: 12px 10px 16px; display: flex; flex-direction: column; gap: 8px; }
-.kd-drawer-footer .mud-button-root.mud-disabled { color: rgba(255,255,255,.35) !important; border-color: rgba(255,255,255,.12) !important; }
-.kd-drawer-footer .kd-trial {
-    color: #F1CF7B; background: rgba(217,174,74,.12); border-radius: 10px;
-    padding: 8px 12px; font-size: 0.78rem; line-height: 1.35; white-space: nowrap; overflow: hidden;
+.kd-topnav { display: flex; align-items: center; gap: 2px; }
+.kd-topnav-item {
+    position: relative;
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 40px; height: 40px; border-radius: 10px;
+    color: rgba(255, 255, 255, 0.66); text-decoration: none;
+    transition: background-color .12s, color .12s;
 }
+.kd-topnav-item:hover { background: rgba(255, 255, 255, 0.08); color: #fff; }
+.kd-topnav-item.active { background: rgba(217, 174, 74, 0.18); color: #F1CF7B; }
+.kd-topnav-item.active::after {
+    content: ""; position: absolute; left: 10px; right: 10px; bottom: -6px;
+    height: 2px; border-radius: 2px; background: #D9AE4A;
+}
+.kd-topnav-item:focus-visible { outline: 2px solid #D9AE4A; outline-offset: 1px; }
 
-/* ---- Üst bar ---- */
-.kd-appbar { border-bottom: 1px solid var(--mud-palette-lines-default); }
-.kd-search { width: min(460px, 45vw); }
-.kd-search .mud-input-outlined-border { border-radius: 10px; }
+/* Arama kutusu koyu zeminde */
+.kd-search { width: min(420px, 34vw); margin-left: 12px; }
+.kd-topbar .kd-search .mud-input.mud-input-outlined {
+    background: rgba(255, 255, 255, 0.08); color: #fff; border-radius: 10px;
+}
+.kd-topbar .kd-search .mud-input-outlined-border { border-radius: 10px; border-color: rgba(255, 255, 255, 0.14) !important; }
+.kd-topbar .kd-search .mud-input:focus-within .mud-input-outlined-border { border-color: #D9AE4A !important; }
+.kd-topbar .kd-search input::placeholder { color: rgba(255, 255, 255, 0.5); opacity: 1; }
+.kd-topbar .kd-search .mud-input-adornment .mud-icon-root,
+.kd-topbar .kd-search .mud-input-clear-button { color: rgba(255, 255, 255, 0.6); }
+
+.kd-topbar-actions { display: flex; align-items: center; gap: 2px; }
+.kd-topbar-icon { color: rgba(255, 255, 255, 0.66) !important; }
+.kd-topbar-icon:hover { color: #fff !important; }
+.kd-topbar .mud-icon-button.mud-disabled { color: rgba(255, 255, 255, 0.38) !important; }
+/* Bulut yedeği göstergesi: yeşil güncel, altın uyarı, kırmızı hata, soluk kapalı */
+.kd-topbar .kd-cloud.is-ok { color: #7FD3A2 !important; }
+.kd-topbar .kd-cloud.is-warning { color: #F1CF7B !important; }
+.kd-topbar .kd-cloud.is-error { color: #FF9C8C !important; }
+.kd-topbar .kd-cloud.is-off { color: rgba(255, 255, 255, 0.42) !important; }
+.kd-cloud-tip { display: flex; flex-direction: column; gap: 2px; max-width: 280px; }
+span.kd-topbar-icon { display: inline-flex; width: 40px; height: 40px; align-items: center; justify-content: center; }
+
+.kd-trial {
+    display: inline-flex; align-items: center; gap: 4px; margin-right: 6px;
+    color: #F1CF7B; background: rgba(217, 174, 74, 0.14); border-radius: 999px;
+    padding: 3px 10px; font-size: 0.78rem; font-weight: 600; white-space: nowrap; text-decoration: none;
+}
+.kd-trial.is-urgent { color: #FFB4A8; background: rgba(229, 83, 61, 0.2); }
+
+.kd-new-customer.mud-button-filled { background: #D9AE4A; color: #1F1A14; }
+.kd-new-customer.mud-button-filled:hover { background: #E6BE5E; }
+
+/* Dar pencerede yer aç: önce iş yeri adı, sonra düğme yazısı gizlenir */
+@media (max-width: 1150px) {
+    .kd-brand-name { display: none; }
+}
+@media (max-width: 900px) {
+    .kd-new-customer .mud-button-label { font-size: 0; }
+    .kd-new-customer .mud-button-icon-start { margin: 0; }
+}
 
 /* Kaydırılan kartı kısa süre vurgula */
 .kd-flash { animation: kd-flash .5s ease-in-out 3; border-radius: var(--kd-radius); }
