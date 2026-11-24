@@ -32,7 +32,8 @@ builder.Services.AddScoped<ShortcutService>();
 
 var app = builder.Build();
 
-await SampleData.SeedAsync(app.Services.GetRequiredService<DatabaseService>(), app.Services.GetRequiredService<LicenseService>());
+await SampleData.SeedAsync(app.Services.GetRequiredService<DatabaseService>(), app.Services.GetRequiredService<LicenseService>(),
+    app.Services.GetRequiredService<StockService>(), FileLabelPrinter.FakePrinterName);
 
 app.UseStaticFiles();
 app.UseAntiforgery();
