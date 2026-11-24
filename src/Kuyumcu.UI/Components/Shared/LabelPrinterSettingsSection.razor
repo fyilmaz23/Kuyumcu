@@ -1,0 +1,248 @@
+@using Kuyumcu.Labels
+@inject StockService Stock
+@inject LabelPrintService Labels
+@inject ISnackbar Snackbar
+@*
+    Ayarlar → Etiket Yazıcısı. Yazıcı, etiket ölçüleri, kaydırma, kod tipi ve öğe konumları.
+    Test ve hizalama etiketleri ekrandaki (kaydedilmemiş) değerlerle basılır; böylece kaydetmeden denenebilir.
+*@
+
+<MudPaper Class="pa-6 mb-4" Elevation="0" Outlined="true" id="etiket-yazicisi">
+    <MudText Typo="Typo.h6" Class="mb-1">
+        <MudIcon Icon="@Icons.Material.Filled.LocalPrintshop" Class="mr-1" /> Etiket Yazıcısı
+    </MudText>
+    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-4 d-block">
+        Barkodlu vitrin etiketleri için (TSC TE210 vb., TSPL dili). Ölçüler milimetre. Değişiklikleri önce
+        <b>Hizalama etiketi</b> ile deneyin, sonra kaydedin. Bu ayar bu bilgisayara özeldir; yedek geri yüklenince korunur.
+    </MudText>
+
+    @if (s == null)
+    {
+        <MudProgressLinear Indeterminate="true" />
+    }
+    else if (!Labels.IsSupported)
+    {
+        <MudAlert Severity="Severity.Info" Dense="true">Bu cihazda etiket basılamaz.</MudAlert>
+    }
+    else
+    {
+        <MudText Typo="Typo.subtitle2" Class="mb-2">Bağlantı</MudText>
+        <MudRadioGroup T="LabelPrinterConnection" @bind-Value="s.Connection">
+            <MudRadio Value="LabelPrinterConnection.WindowsPrinter" Color="Color.Primary">USB (Windows yazıcısı)</MudRadio>
+            <MudRadio Value="LabelPrinterConnection.Network" Color="Color.Primary">Ağ (Ethernet, TCP)</MudRadio>
+        </MudRadioGroup>
+        <MudGrid Spacing="2" Class="mt-1 mb-3">
+            @if (s.Connection == LabelPrinterConnection.WindowsPrinter)
+            {
+                <MudItem xs="12" sm="8">
+                    <MudSelect T="string" @bind-Value="s.PrinterName" Label="Yazıcı" Variant="Variant.Outlined" Margin="Margin.Dense"
+                               HelperText="Komutlar sürücüye ham (RAW) olarak gider" Clearable="true">
+                        @foreach (var p in printers)
+                        {
+                            <MudSelectItem Value="p">@p</MudSelectItem>
+                        }
+                        @if (!string.IsNullOrEmpty(s.PrinterName) && !printers.Contains(s.PrinterName))
+                        {
+                            <MudSelectItem Value="s.PrinterName">@s.PrinterName (bulunamadı)</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="4" Class="d-flex align-center">
+                    <MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Filled.Refresh" OnClick="LoadPrinters">Listeyi yenile</MudButton>
+                </MudItem>
+            }
+            else
+            {
+                <MudItem xs="8">
+                    <MudTextField @bind-Value="s.NetworkHost" Label="Yazıcının IP adresi" Placeholder="192.168.1.50" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                </MudItem>
+                <MudItem xs="4">
+                    <MudNumericField T="int" @bind-Value="s.NetworkPort" Label="Port" Variant="Variant.Outlined" Margin="Margin.Dense" Min="1" Max="65535" HideSpinButtons="true" />
+                </MudItem>
+            }
+            <MudItem xs="12" sm="6">
+                <MudSelect T="LabelPrinterLanguage" @bind-Value="s.Language" Label="Komut dili" Variant="Variant.Outlined" Margin="Margin.Dense"
+                           HelperText="ZPL ileride eklenebilir">
+                    <MudSelectItem Value="LabelPrinterLanguage.Tspl">TSPL (TSC)</MudSelectItem>
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudNumericField T="int" @bind-Value="s.Dpi" Label="Çözünürlük (dpi)" Variant="Variant.Outlined" Margin="Margin.Dense" Min="150" Max="600"
+                                 HelperText="TE210: 203" Immediate="true" />
+            </MudItem>
+        </MudGrid>
+
+        <MudText Typo="Typo.subtitle2" Class="mb-2">Etiket</MudText>
+        <MudGrid Spacing="2" Class="mb-3">
+            <MudItem xs="6" sm="3">@Mm("Genişlik", () => s.WidthMm, v => s.WidthMm = v, 1)</MudItem>
+            <MudItem xs="6" sm="3">@Mm("Yükseklik", () => s.HeightMm, v => s.HeightMm = v, 1)</MudItem>
+            <MudItem xs="6" sm="3">@Mm("Boşluk (gap)", () => s.GapMm, v => s.GapMm = v, 0.5)</MudItem>
+            <MudItem xs="6" sm="3">
+                <MudSelect T="int" @bind-Value="s.Direction" Label="Baskı yönü" Variant="Variant.Outlined" Margin="Margin.Dense">
+                    <MudSelectItem Value="1">1 (normal)</MudSelectItem>
+                    <MudSelectItem Value="0">0 (ters)</MudSelectItem>
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="6" sm="3">@Mm("X kaydırma", () => s.OffsetXMm, v => s.OffsetXMm = v, 0.25, "+ sağa")</MudItem>
+            <MudItem xs="6" sm="3">@Mm("Y kaydırma", () => s.OffsetYMm, v => s.OffsetYMm = v, 0.25, "+ aşağı")</MudItem>
+            <MudItem xs="6" sm="3">
+                <MudNumericField T="int" @bind-Value="s.Density" Label="Koyuluk (0–15)" Variant="Variant.Outlined" Margin="Margin.Dense" Min="0" Max="15" />
+            </MudItem>
+            <MudItem xs="6" sm="3">
+                <MudNumericField T="int" @bind-Value="s.Speed" Label="Hız (1–6)" Variant="Variant.Outlined" Margin="Margin.Dense" Min="1" Max="6" />
+            </MudItem>
+        </MudGrid>
+
+        <MudText Typo="Typo.subtitle2" Class="mb-2">1. kanat: kod</MudText>
+        <MudGrid Spacing="2" Class="mb-3">
+            <MudItem xs="6" sm="3">
+                <MudSelect T="LabelCodeType" @bind-Value="s.CodeType" Label="Kod tipi" Variant="Variant.Outlined" Margin="Margin.Dense">
+                    <MudSelectItem Value="LabelCodeType.DataMatrix">DataMatrix</MudSelectItem>
+                    <MudSelectItem Value="LabelCodeType.QrCode">QR</MudSelectItem>
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="6" sm="3">
+                <MudNumericField T="int" @bind-Value="s.CodeModuleDots" Label="Kare boyu (nokta)" Variant="Variant.Outlined" Margin="Margin.Dense" Min="1" Max="10" Immediate="true"
+                                 HelperText="@($"Kod ≈ {CodeSizeMm:0.#} mm")" />
+            </MudItem>
+            <MudItem xs="6" sm="3">@Mm("Kod X", () => s.CodeXMm, v => s.CodeXMm = v, 0.5)</MudItem>
+            <MudItem xs="6" sm="3">@Mm("Kod Y", () => s.CodeYMm, v => s.CodeYMm = v, 0.25)</MudItem>
+            <MudItem xs="6" sm="3">@Mm("Rakamlar X", () => s.CodeTextXMm, v => s.CodeTextXMm = v, 0.5)</MudItem>
+            <MudItem xs="6" sm="3">@Mm("Rakamlar Y", () => s.CodeTextYMm, v => s.CodeTextYMm = v, 0.25)</MudItem>
+            <MudItem xs="6" sm="3">@Font("Rakam fontu", () => s.CodeTextFont, v => s.CodeTextFont = v)</MudItem>
+            <MudItem xs="6" sm="3" Class="d-flex align-center">
+                <MudSwitch T="bool" @bind-Value="s.CodeTextTwoLines" Color="Color.Primary" Label="6+6 iki satır" />
+            </MudItem>
+        </MudGrid>
+
+        <MudText Typo="Typo.subtitle2" Class="mb-2">2. kanat: gram, ayar, kategori</MudText>
+        <MudGrid Spacing="2" Class="mb-3">
+            <MudItem xs="6" sm="3">@Mm("Yazı X", () => s.InfoXMm, v => s.InfoXMm = v, 0.5)</MudItem>
+            <MudItem xs="6" sm="3">@Mm("Yazı Y", () => s.InfoYMm, v => s.InfoYMm = v, 0.25)</MudItem>
+            <MudItem xs="6" sm="3">@Font("Font", () => s.InfoFont, v => s.InfoFont = v)</MudItem>
+            <MudItem xs="6" sm="3" Class="d-flex align-center">
+                <MudSwitch T="bool" @bind-Value="s.ShowCategory" Color="Color.Primary" Label="Kısa kategori" />
+            </MudItem>
+        </MudGrid>
+
+        <MudGrid Spacing="2" Class="mb-3">
+            <MudItem xs="12" sm="4" Class="d-flex align-center">
+                <MudSwitch T="bool" @bind-Value="s.ShowBusinessName" Color="Color.Primary" Label="Dükkân adı bas" />
+            </MudItem>
+            @if (s.ShowBusinessName)
+            {
+                <MudItem xs="12" sm="4">
+                    <MudTextField @bind-Value="s.BusinessText" Label="Dükkân adı (kısa)" Variant="Variant.Outlined" Margin="Margin.Dense" MaxLength="20" Immediate="true" />
+                </MudItem>
+                <MudItem xs="4" sm="2">@Mm("X", () => s.BusinessXMm, v => s.BusinessXMm = v, 0.5)</MudItem>
+                <MudItem xs="4" sm="2">@Mm("Y", () => s.BusinessYMm, v => s.BusinessYMm = v, 0.25)</MudItem>
+            }
+            <MudItem xs="12">
+                <MudSwitch T="bool" @bind-Value="s.TransliterateTurkish" Color="Color.Primary"
+                           Label="Türkçe harfleri sadeleştir (Ş→S, Ğ→G, İ→I…). Test etiketinde Türkçe harfler bozuk çıkıyorsa açık bırakın." />
+            </MudItem>
+        </MudGrid>
+
+        <div class="d-flex align-center justify-space-between flex-wrap gap-2 mb-2">
+            <MudText Typo="Typo.subtitle2">Önizleme</MudText>
+            <MudToggleGroup T="string" @bind-Value="previewKind" Size="Size.Small" Color="Color.Primary" Outlined="true">
+                <MudToggleItem Value="@("item")" Text="Ürün etiketi" />
+                <MudToggleItem Value="@("align")" Text="Hizalama" />
+            </MudToggleGroup>
+        </div>
+        <LabelPreview Document="PreviewDocument" />
+
+        <div class="d-flex gap-2 flex-wrap mt-4">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save" OnClick="Save" Disabled="busy">Kaydet</MudButton>
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Straighten" OnClick="PrintAlignment" Disabled="busy">Hizalama etiketi</MudButton>
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Print" OnClick="PrintTest" Disabled="busy">Test etiketi</MudButton>
+            <MudButton Variant="Variant.Text" OnClick="ResetLayout" Disabled="busy">Varsayılan yerleşim</MudButton>
+        </div>
+    }
+</MudPaper>
+
+@code {
+    private LabelPrinterSettings? s;
+    private List<string> printers = new();
+    private string previewKind = "item";
+    private bool busy;
+
+    private static readonly LabelContent PreviewContent = new(LabelLayout.SampleCode, 12_345, 22, "BLZ");
+
+    private LabelDocument? PreviewDocument => s == null ? null
+        : previewKind == "align" ? LabelLayout.BuildAlignmentLabel(s) : LabelLayout.BuildItemLabel(s, PreviewContent);
+
+    private double CodeSizeMm => s == null ? 0
+        : LabelUnits.ToMm(s.CodeModuleDots * LabelUnits.CodeSymbolModules(s.CodeType == LabelCodeType.QrCode), s.Dpi);
+
+    protected override async Task OnInitializedAsync()
+    {
+        s = await Stock.GetLabelSettingsAsync();
+        LoadPrinters();
+    }
+
+    private void LoadPrinters()
+    {
+        printers = Labels.GetAvailablePrinters();
+        if (s != null && string.IsNullOrEmpty(s.PrinterName))
+            s.PrinterName = printers.FirstOrDefault(p => p.Contains("TSC", StringComparison.OrdinalIgnoreCase) || p.Contains("TE2", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private async Task Save()
+    {
+        busy = true;
+        try
+        {
+            await Stock.SaveLabelSettingsAsync(s!.Clone());
+            Snackbar.Add("Etiket yazıcısı ayarları kaydedildi.", Severity.Success);
+        }
+        catch (StockException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Warning);
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private Task PrintAlignment() => Send(() => Labels.PrintAlignmentAsync(s!.Clone()), "Hizalama etiketi gönderildi.");
+    private Task PrintTest() => Send(() => Labels.PrintTestAsync(s!.Clone()), "Test etiketi gönderildi.");
+
+    private async Task Send(Func<Task<LabelPrintResult>> action, string okMessage)
+    {
+        busy = true;
+        try
+        {
+            var result = await action();
+            Snackbar.Add(result.Success ? okMessage : result.Message, result.Success ? Severity.Success : Severity.Error);
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private void ResetLayout()
+    {
+        // Bağlantı bilgileri korunur, ölçü ve yerleşim varsayılana döner
+        var d = new LabelPrinterSettings
+        {
+            Connection = s!.Connection, PrinterName = s.PrinterName, NetworkHost = s.NetworkHost, NetworkPort = s.NetworkPort,
+            Language = s.Language, Dpi = s.Dpi
+        };
+        s = d;
+        Snackbar.Add("Varsayılan yerleşim yüklendi (henüz kaydedilmedi).", Severity.Info);
+    }
+
+    private RenderFragment Mm(string label, Func<double> get, Action<double> set, double step, string? hint = null) =>
+        @<MudNumericField T="double" Value="get()" ValueChanged="@(v => set(v))" Label="@($"{label} (mm)")" Variant="Variant.Outlined"
+                          Margin="Margin.Dense" Step="step" Format="0.##" HelperText="@hint" Immediate="true" />;
+
+    private RenderFragment Font(string label, Func<string> get, Action<string> set) =>
+        @<MudSelect T="string" Value="get()" ValueChanged="@(v => set(v))" Label="@label" Variant="Variant.Outlined" Margin="Margin.Dense">
+            <MudSelectItem Value="@("1")">1 (8×12 nokta)</MudSelectItem>
+            <MudSelectItem Value="@("2")">2 (12×20 nokta)</MudSelectItem>
+            <MudSelectItem Value="@("3")">3 (16×24 nokta)</MudSelectItem>
+        </MudSelect>;
+}

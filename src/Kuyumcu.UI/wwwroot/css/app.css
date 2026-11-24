@@ -152,6 +152,7 @@ h1:focus { outline: none; }
     padding: 10px 20px; border-bottom: var(--kd-card-border);
 }
 .kd-list-row:last-child { border-bottom: none; }
+.kd-list-row.kd-spread { justify-content: space-between; }
 .kd-list-row.kd-clickable:hover { background: var(--mud-palette-table-hover); box-shadow: none; }
 
 /* Sekmeler: büyük harf yerine normal yazım */
@@ -313,3 +314,7 @@ h1:focus { outline: none; }
 @media (max-width: 700px) {
     .kd-page { padding: 16px 12px 40px; }
 }
+
+/* Ayarlar → stok tanımları */
+.kd-def-form { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding: 4px 0 12px; border-bottom: var(--kd-card-border); margin-bottom: 4px; }
+.kd-def-form > .mud-input-control { flex: 1 1 140px; }

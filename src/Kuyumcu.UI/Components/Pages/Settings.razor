@@ -126,6 +126,12 @@
 
         <MudDivider Class="my-6" />
 
+        @* Barkodlu vitrin stoğu: bu bölümlerin kendi kaydet düğmeleri var *@
+        <LabelPrinterSettingsSection />
+        <StockDefinitionsSection />
+
+        <MudDivider Class="my-6" />
+
         <MudPaper Class="pa-6 mb-4" Elevation="0" Outlined="true">
             <MudText Typo="Typo.h6" Class="mb-1">
                 <MudIcon Icon="@Icons.Material.Filled.Save" Class="mr-1" /> Bilgisayardaki Otomatik Yedekler
@@ -151,12 +157,12 @@
                 <MudIcon Icon="@Icons.Material.Filled.RestorePage" Class="mr-1" /> Yedeği İçe Aktar
             </MudText>
             <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-3 d-block">
-                Daha önce alınmış bir .db3 yedek dosyasını içe aktararak müşteri ve işlem verilerini değiştirir.
-                Bu bilgisayarın ayarları ve lisansı korunur.
+                Daha önce alınmış bir .db3 yedek dosyasını içe aktararak müşteri, işlem ve stok verilerini değiştirir.
+                Bu bilgisayarın ayarları, etiket yazıcısı ayarı ve lisansı korunur; ürün kodu sayacı geri sarılmaz.
             </MudText>
 
             <MudAlert Severity="Severity.Error" Variant="Variant.Filled" Dense="true" Class="mb-3">
-                <strong>DİKKAT:</strong> Bu işlem mevcut TÜM müşteri ve işlem verilerinizi yedek dosyasındaki verilerle değiştirir. İşlemden önce otomatik bir yerel yedek alınır.
+                <strong>DİKKAT:</strong> Bu işlem mevcut TÜM müşteri, işlem ve stok verilerinizi yedek dosyasındaki verilerle değiştirir. İşlemden önce otomatik bir yerel yedek alınır.
             </MudAlert>
 
             <MudButton Variant="Variant.Outlined"
@@ -396,7 +402,7 @@
     {
         var firstConfirm = await DialogService.ShowMessageBox(
             "Yedeği İçe Aktar",
-            "Bu işlem mevcut TÜM müşteri ve işlem verilerinizi seçeceğiniz yedek dosyasındaki verilerle değiştirecektir.\n\nDevam etmek istiyor musunuz?",
+            "Bu işlem mevcut TÜM müşteri, işlem ve stok verilerinizi seçeceğiniz yedek dosyasındaki verilerle değiştirecektir.\n\nDevam etmek istiyor musunuz?",
             yesText: "Evet, Devam Et",
             noText: "İptal");
 

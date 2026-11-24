@@ -100,7 +100,7 @@
                     <div class="kd-card">
                         @foreach (var b in bulk.Where(b => b.Product.Amount != 0))
                         {
-                            <div class="kd-list-row">
+                            <div class="kd-list-row kd-spread">
                                 <span class="kd-strong">@b.Product.Name <span class="kd-muted">(@b.Product.Karat ayar)</span></span>
                                 <span class="kd-num">@StockService.FormatBulkAmount(b.Product, b.Product.Amount) · has @WeightFormat.Gram2(b.HasMg) gr</span>
                             </div>
