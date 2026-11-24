@@ -53,7 +53,7 @@ public static class LabelLayout
     }
 
     /// <summary>
-    /// Hizalama etiketi: etiket kenarına çerçeve ve her 10 mm'de bir dikey çizgi (üstünde mm değeri).
+    /// Hizalama etiketi: etiket kenarına çerçeve ve mm cetveli (her 5 mm numaralı, her 10 mm boydan boya çizgi).
     /// Kanatların ve kuyruğun nerede başlayıp bittiği bu etiketten okunur.
     /// </summary>
     public static LabelDocument BuildAlignmentLabel(LabelPrinterSettings s)
@@ -67,15 +67,22 @@ public static class LabelLayout
 
         elements.Add(new LabelBox(Clamp(ox), Clamp(oy), Clamp(ox + w - 1), Clamp(oy + h - 1), 2));
 
-        var tickH = Math.Max(8, h / 3);
-        for (var mm = 10; mm < s.WidthMm; mm += 10)
+        // Cetvel: her 1 mm'de kısa çentik, her 5 mm'de uzun çentik ve numara, her 10 mm'de boydan boya çizgi.
+        // Kanat sınırları ve kuyruğun bittiği yer milimetre hassasiyetinde okunur.
+        var tick1 = Math.Max(4, h / 8);
+        var tick5 = Math.Max(8, h * 3 / 10);
+        for (var mm = 1; mm < s.WidthMm; mm++)
         {
             var x = Clamp(ox + LabelUnits.ToDots(mm, dpi));
-            elements.Add(new LabelBar(x, Clamp(oy), 2, h));
-            // 5 mm ara çizgileri kısa
-            var half = Clamp(ox + LabelUnits.ToDots(mm - 5, dpi));
-            elements.Add(new LabelBar(half, Clamp(oy + h - tickH), 1, tickH));
-            elements.Add(new LabelText(Clamp(x + 3), Clamp(oy + 4), "1", mm.ToString()));
+            if (mm % 10 == 0)
+                elements.Add(new LabelBar(x, Clamp(oy), 2, h));
+            else if (mm % 5 == 0)
+                elements.Add(new LabelBar(x, Clamp(oy + h - tick5), 1, tick5));
+            else
+                elements.Add(new LabelBar(x, Clamp(oy + h - tick1), 1, tick1));
+
+            if (mm % 5 == 0)
+                elements.Add(new LabelText(Clamp(x + 3), Clamp(oy + 4), "1", mm.ToString()));
         }
         return Document(s, elements, 1);
     }

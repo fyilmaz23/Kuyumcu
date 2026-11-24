@@ -107,6 +107,13 @@ public class LabelTests
         Assert.Equal(new[] { 80, 160, 240, 320, 400, 480, 559 }, longBars);
         Assert.Contains("TEXT 83,4,\"1\",0,1,1,\"10\"", tspl);
         Assert.Contains("\"70\"", tspl);
+
+        // Cetvel: 1..71 mm her milimetrede bir çentik, her 5 mm'de numara
+        Assert.Equal(71, doc.Elements.OfType<LabelBar>().Count());
+        Assert.Contains("TEXT 43,4,\"1\",0,1,1,\"5\"", tspl);
+        Assert.Contains("BAR 40,56,1,24", tspl);   // 5 mm çentiği
+        Assert.Contains("BAR 8,70,1,10", tspl);    // 1 mm çentiği
+        Assert.Equal(14, doc.Elements.OfType<LabelText>().Count()); // 5, 10, …, 70
     }
 
     [Fact]
