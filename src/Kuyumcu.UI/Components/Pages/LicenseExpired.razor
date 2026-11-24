@@ -1,191 +1,80 @@
 @page "/license-expired"
 @layout Kuyumcu.Components.Layout.BareLayout
-@inject IClipboardService Clipboard
 @inject AppState AppState
 @inject Services.LicenseService LicenseService
 @inject Services.DatabaseService DatabaseService
 @inject NavigationManager NavigationManager
-@inject IDialogService DialogService
 
-<div>
-    <MudPaper Class="pa-8 w-100" Elevation="0" Outlined="true" Style="border-top: 4px solid var(--mud-palette-error);">
-        <MudStack AlignItems="AlignItems.Center" Class="mb-4">
-            <MudIcon Icon="@Icons.Material.Filled.Lock" Size="Size.Large" Color="Color.Error" />
-            <MudText Typo="Typo.h4" Align="Align.Center" Color="Color.Error">
-                Deneme Süresi Doldu
-            </MudText>
-        </MudStack>
+<div class="kd-card kd-gate">
+    @if (state == null)
+    {
+        <MudProgressCircular Indeterminate="true" Class="d-block mx-auto my-8" />
+    }
+    else
+    {
+        <div class="kd-gate-head">
+            <div class="kd-gate-icon"><MudIcon Icon="@Icons.Material.Filled.Lock" /></div>
+            <div>
+                <MudText Typo="Typo.h5" Class="kd-strong">@Title</MudText>
+                <MudText Typo="Typo.body2" Class="kd-muted">@Description</MudText>
+            </div>
+        </div>
 
-        <MudText Typo="Typo.body1" Align="Align.Center" Color="Color.Secondary" Class="mb-6">
-            30 günlük deneme süreniz sona erdi. Uygulamayı kullanmaya devam etmek için 
-            lütfen bir lisans anahtarı girin.
+        @if (!string.IsNullOrWhiteSpace(businessName))
+        {
+            <div class="kd-gate-business">
+                <MudIcon Icon="@Icons.Material.Outlined.Storefront" Size="Size.Small" /> @businessName
+            </div>
+        }
+
+        <LicensePanel State="state" OnActivated="OnActivated" FullWidthButton="true" HideStatus="true" />
+
+        <MudText Typo="Typo.caption" Class="kd-muted d-block mt-4">
+            Verileriniz silinmedi; lisans girildiğinde kaldığınız yerden devam edersiniz.
+            Yedek almak veya yedeği içe aktarmak için <MudLink Href="settings" Typo="Typo.caption">Ayarlar</MudLink> açıktır.
         </MudText>
-
-        <MudDivider Class="mb-6" />
-
-        @if (isLoading)
-        {
-            <MudProgressCircular Indeterminate="true" Class="d-block mx-auto my-8" />
-        }
-        else
-        {
-            <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true" Class="mb-4">
-                <MudText Typo="Typo.body2">
-                    Lisans almak için aşağıdaki bilgileri yetkilinize iletin:
-                </MudText>
-            </MudAlert>
-
-            <MudPaper Class="pa-4 mb-4" Elevation="0" Style="background-color: var(--mud-palette-background-gray); border-radius: 8px;">
-                <MudStack Spacing="2">
-                    <div class="d-flex justify-space-between align-center">
-                        <MudText Typo="Typo.body2" Color="Color.Secondary">İş Yeri Adı:</MudText>
-                        <MudText Typo="Typo.body2"><strong>@businessName</strong></MudText>
-                    </div>
-                    <div class="d-flex justify-space-between align-center">
-                        <MudText Typo="Typo.body2" Color="Color.Secondary">Cihaz Kimliği:</MudText>
-                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
-                            <MudText Typo="Typo.body2" Style="font-family: monospace;"><strong>@deviceId</strong></MudText>
-                            <MudIconButton Icon="@Icons.Material.Filled.ContentCopy" Size="Size.Small" 
-                                          OnClick="@(() => CopyToClipboard(deviceId))" 
-                                          Title="Kopyala" />
-                        </MudStack>
-                    </div>
-                </MudStack>
-            </MudPaper>
-
-            <MudDivider Class="my-4" />
-
-            <MudText Typo="Typo.h6" Class="mb-3">
-                <MudIcon Icon="@Icons.Material.Filled.Key" Class="mr-1" /> Lisans Anahtarı
-            </MudText>
-
-            <MudTextField @bind-Value="licenseKey"
-                          Label="Lisans Anahtarı"
-                          Placeholder="KUYM-XXXXX-XXXXX-XXXXX-XXXXX"
-                          Variant="Variant.Outlined"
-                          Adornment="Adornment.Start"
-                          AdornmentIcon="@Icons.Material.Filled.VpnKey"
-                          Style="font-family: monospace; letter-spacing: 1px;"
-                          Class="mb-4" />
-
-            @if (!string.IsNullOrEmpty(errorMessage))
-            {
-                <MudAlert Severity="Severity.Error" Variant="Variant.Filled" Dense="true" Class="mb-4">
-                    @errorMessage
-                </MudAlert>
-            }
-
-            <MudButton Variant="Variant.Filled"
-                       Color="Color.Success"
-                       FullWidth="true"
-                       Size="Size.Large"
-                       StartIcon="@Icons.Material.Filled.CheckCircle"
-                       OnClick="ActivateLicense"
-                       Disabled="@(string.IsNullOrWhiteSpace(licenseKey) || isActivating)">
-                @(isActivating ? "Doğrulanıyor..." : "Lisansı Etkinleştir")
-            </MudButton>
-
-            @* Geliştirici aracı sadece LicenseKeyGenerator.razor derlemede varsa görünür (dosya .gitignore'da) *@
-            @if (HasLicenseKeyGenerator)
-            {
-                <div class="d-flex justify-center mt-3">
-                    <MudLink Href="generate-license" Typo="Typo.caption">Lisans anahtarı oluştur (geliştirici)</MudLink>
-                </div>
-            }
-        }
-    </MudPaper>
+    }
 </div>
 
 @code {
-    private string licenseKey = string.Empty;
+    private LicenseState? state;
     private string businessName = string.Empty;
-    private string deviceId = string.Empty;
-    private string errorMessage = string.Empty;
-    private bool isLoading = true;
-    private bool isActivating = false;
 
-    private static readonly bool HasLicenseKeyGenerator =
-        typeof(LicenseExpired).Assembly.GetType("Kuyumcu.Components.Pages.LicenseKeyGenerator") != null;
+    private string Title => state?.LockReason switch
+    {
+        LicenseLockReason.LicenseEnded => "Lisans süresi doldu",
+        LicenseLockReason.LicenseInvalid => "Lisans yenilenmeli",
+        _ => "Deneme süresi doldu",
+    };
+
+    private string Description => state?.LockReason switch
+    {
+        LicenseLockReason.LicenseEnded => "Süreli lisansınız sona erdi. Devam etmek için yeni lisans anahtarı girin.",
+        LicenseLockReason.LicenseInvalid => "Kayıtlı lisans anahtarı bu sürümde geçerli değil. Yetkilinizden yeni anahtar isteyin.",
+        _ => "30 günlük deneme süreniz sona erdi. Uygulamayı kullanmaya devam etmek için lisans anahtarı girin.",
+    };
 
     protected override async Task OnInitializedAsync()
     {
         try
         {
-            // İş yeri adını al
-            var settings = await DatabaseService.GetSettingsAsync();
-            businessName = settings.BusinessName;
+            businessName = (await DatabaseService.GetSettingsAsync()).BusinessName;
+            state = await LicenseService.GetLicenseStateAsync();
 
-            // Cihaz kimliğini al
-            deviceId = await LicenseService.GetDeviceIdAsync();
-
-            // Lisans durumunu kontrol et — eğer lisanslıysa ana sayfaya yönlendir
-            var status = await LicenseService.GetLicenseStatusAsync();
-            if (status == Models.LicenseStatus.Licensed)
-            {
-                AppState.IsLicenseExpired = false;
-                NavigationManager.NavigateTo("/");
-                return;
-            }
+            // Lisans geçerliyse (veya deneme sürüyorsa) bu ekranda durmaya gerek yok
+            if (state.Status != LicenseStatus.Expired)
+                OnActivated();
         }
         catch (Exception ex)
         {
             Console.WriteLine($"LicenseExpired OnInitialized hata: {ex.Message}");
-        }
-        finally
-        {
-            isLoading = false;
+            state = new LicenseState { Status = LicenseStatus.Expired };
         }
     }
 
-    private async Task ActivateLicense()
+    private void OnActivated()
     {
-        errorMessage = string.Empty;
-        isActivating = true;
-        StateHasChanged();
-
-        try
-        {
-            var result = await LicenseService.ActivateLicenseAsync(licenseKey);
-
-            if (result.Success)
-            {
-                await DialogService.ShowMessageBox(
-                    "Başarılı! 🎉",
-                    result.Message,
-                    yesText: "Tamam");
-
-                AppState.IsLicenseExpired = false;
-                NavigationManager.NavigateTo("/", forceLoad: true);
-            }
-            else
-            {
-                errorMessage = result.Message;
-            }
-        }
-        catch (Exception ex)
-        {
-            errorMessage = $"Beklenmeyen bir hata oluştu: {ex.Message}";
-        }
-        finally
-        {
-            isActivating = false;
-            StateHasChanged();
-        }
-    }
-
-    private async Task CopyToClipboard(string text)
-    {
-        try
-        {
-            await Clipboard.SetTextAsync(text);
-            await DialogService.ShowMessageBox(
-                "Kopyalandı",
-                "Cihaz kimliği panoya kopyalandı.",
-                yesText: "Tamam");
-        }
-        catch
-        {
-            // Clipboard erişimi başarısız olabilir
-        }
+        AppState.IsLicenseExpired = false;
+        NavigationManager.NavigateTo("/", forceLoad: true);
     }
 }

@@ -1,26 +1,29 @@
+using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
+using Kuyumcu.Licensing;
 using Kuyumcu.Models;
 using Kuyumcu.Platform;
 
 namespace Kuyumcu.Services
 {
+    /// <summary>
+    /// Deneme süresi ve lisans.
+    ///
+    /// Lisans anahtarları geliştiricinin özel anahtarıyla imzalanır (bkz. Licensing/LicenseCodec); uygulamada sadece
+    /// açık anahtar vardır. Lisans durumu her sorguda kayıtlı anahtarın imzası, cihaz kimliği ve süresi doğrulanarak
+    /// hesaplanır — veritabanındaki IsLicensed alanına güvenilmez.
+    /// </summary>
     public partial class LicenseService
     {
         private readonly DatabaseService _databaseService;
         private readonly ISecureStore _secureStore;
         private readonly IAppEnvironment _environment;
 
-        // SECRET_KEY, LicenseService.Secrets.cs dosyasında tanımlıdır (.gitignore'da)
-        // Bu dosya build sırasında GitHub Secrets'dan oluşturulur.
-
         // Deneme süresi (gün)
         private const int TRIAL_DAYS = 30;
 
-        // Lisans anahtarı prefix'i
-        private const string LICENSE_PREFIX = "KUYM";
-
-        // SecureStorage anahtarları
+        // Güvenli depo anahtarları (Windows: DPAPI dosyası + kayıt defteri yansısı)
         private const string SECURE_TRIAL_START = "kuyumcu_trial_start";
         private const string SECURE_LAST_CHECK = "kuyumcu_last_check";
         private const string SECURE_DEVICE_ID = "kuyumcu_device_id";
@@ -51,12 +54,12 @@ namespace Kuyumcu.Services
 
                     if (isExistingUser)
                     {
-                        // Mevcut kullanıcı — deneme süresi zaten dolmuş olarak işaretle
-                        // Güncelleme sonrası hemen lisans anahtarı gerekecek
+                        // Kasıtlı kural: kurulumu tamamlanmış ama lisans kaydı olmayan veritabanı, güncelleme yapan
+                        // eski kullanıcıdır → deneme süresi bitmiş başlar, hemen lisans anahtarı gerekir.
                         licenseInfo = new LicenseInfo
                         {
-                            TrialStartDate = now.AddDays(-TRIAL_DAYS - 1), // Geçmişte başlamış
-                            TrialEndDate = now.AddDays(-1),                // Dün bitmiş
+                            TrialStartDate = now.AddDays(-TRIAL_DAYS - 1),
+                            TrialEndDate = now.AddDays(-1),
                             DeviceId = deviceId,
                             LastCheckDate = now,
                             IsLicensed = false
@@ -64,11 +67,16 @@ namespace Kuyumcu.Services
                     }
                     else
                     {
-                        // Yeni kurulum — 30 günlük deneme süresini başlat
+                        // Yeni kurulum. Bu Windows kullanıcısında daha önce deneme başlamışsa (veri klasörü silinip
+                        // uygulama yeniden kurulmuş olabilir) o tarih kullanılır: deneme sıfırlanamasın.
+                        var start = now;
+                        if (TryParseUtc(await _secureStore.GetAsync(SECURE_TRIAL_START), out var previousStart) && previousStart <= now)
+                            start = previousStart;
+
                         licenseInfo = new LicenseInfo
                         {
-                            TrialStartDate = now,
-                            TrialEndDate = now.AddDays(TRIAL_DAYS),
+                            TrialStartDate = start,
+                            TrialEndDate = start.AddDays(TRIAL_DAYS),
                             DeviceId = deviceId,
                             LastCheckDate = now,
                             IsLicensed = false
@@ -77,10 +85,9 @@ namespace Kuyumcu.Services
 
                     await _databaseService.SaveLicenseInfoAsync(licenseInfo);
 
-                    // SecureStorage'a da kaydet (anti-tampering)
+                    // Güvenli depoya da kaydet (anti-tampering)
                     await _secureStore.SetAsync(SECURE_TRIAL_START, licenseInfo.TrialStartDate.ToString("O"));
                     await _secureStore.SetAsync(SECURE_LAST_CHECK, now.ToString("O"));
-                    await _secureStore.SetAsync(SECURE_DEVICE_ID, deviceId);
                 }
                 else
                 {
@@ -95,24 +102,65 @@ namespace Kuyumcu.Services
         }
 
         /// <summary>
+        /// Lisans/deneme durumunun tamamı (ekranlar için).
+        /// </summary>
+        public async Task<LicenseState> GetLicenseStateAsync()
+        {
+            var deviceId = await GetDeviceIdAsync();
+            var licenseInfo = await _databaseService.GetLicenseInfoAsync();
+
+            if (licenseInfo == null)
+                return new LicenseState { Status = LicenseStatus.Trial, DeviceId = deviceId, RemainingTrialDays = TRIAL_DAYS };
+
+            var nowUtc = DateTime.UtcNow;
+            var keyCheck = CheckStoredKey(licenseInfo, deviceId, out var today);
+
+            if (keyCheck is { IsValid: true })
+            {
+                var expires = keyCheck.Payload!.ExpiresOn;
+                return new LicenseState
+                {
+                    Status = LicenseStatus.Licensed,
+                    DeviceId = deviceId,
+                    LicenseExpiresOn = expires,
+                    DaysUntilLicenseExpiry = expires is { } e ? e.DayNumber - today.DayNumber : null,
+                    ActivatedAtUtc = licenseInfo.LicenseActivationDate,
+                };
+            }
+
+            var keyProblem = keyCheck?.Message;
+
+            if (nowUtc <= licenseInfo.TrialEndDate)
+            {
+                return new LicenseState
+                {
+                    Status = LicenseStatus.Trial,
+                    DeviceId = deviceId,
+                    RemainingTrialDays = Math.Max(0, (licenseInfo.TrialEndDate - nowUtc).Days),
+                    KeyProblem = keyProblem,
+                };
+            }
+
+            return new LicenseState
+            {
+                Status = LicenseStatus.Expired,
+                DeviceId = deviceId,
+                LockReason = keyCheck == null ? LicenseLockReason.TrialEnded
+                    : keyCheck.Error == LicenseKeyError.Expired ? LicenseLockReason.LicenseEnded
+                    : LicenseLockReason.LicenseInvalid,
+                LicenseExpiresOn = keyCheck?.Payload?.ExpiresOn,
+                KeyProblem = keyProblem,
+            };
+        }
+
+        /// <summary>
         /// Mevcut lisans durumunu döndürür
         /// </summary>
         public async Task<LicenseStatus> GetLicenseStatusAsync()
         {
             try
             {
-                var licenseInfo = await _databaseService.GetLicenseInfoAsync();
-
-                if (licenseInfo == null)
-                    return LicenseStatus.Trial; // Henüz initialize edilmemiş, trial varsayalım
-
-                if (licenseInfo.IsLicensed)
-                    return LicenseStatus.Licensed;
-
-                if (DateTime.UtcNow <= licenseInfo.TrialEndDate)
-                    return LicenseStatus.Trial;
-
-                return LicenseStatus.Expired;
+                return (await GetLicenseStateAsync()).Status;
             }
             catch (Exception ex)
             {
@@ -122,22 +170,14 @@ namespace Kuyumcu.Services
         }
 
         /// <summary>
-        /// Kalan deneme gün sayısını döndürür
+        /// Kalan deneme gün sayısını döndürür (lisanslıysa -1)
         /// </summary>
         public async Task<int> GetRemainingTrialDaysAsync()
         {
             try
             {
-                var licenseInfo = await _databaseService.GetLicenseInfoAsync();
-
-                if (licenseInfo == null)
-                    return TRIAL_DAYS;
-
-                if (licenseInfo.IsLicensed)
-                    return -1; // Lisanslı
-
-                var remaining = (licenseInfo.TrialEndDate - DateTime.UtcNow).Days;
-                return Math.Max(0, remaining);
+                var state = await GetLicenseStateAsync();
+                return state.Status == LicenseStatus.Licensed ? -1 : state.RemainingTrialDays;
             }
             catch
             {
@@ -155,74 +195,34 @@ namespace Kuyumcu.Services
                 if (string.IsNullOrWhiteSpace(key))
                     return (false, "Lisans anahtarı boş olamaz.");
 
-                // Anahtarı temizle
-                key = key.Trim().ToUpperInvariant();
-
                 var licenseInfo = await _databaseService.GetLicenseInfoAsync();
                 if (licenseInfo == null)
                     return (false, "Lisans bilgileri bulunamadı. Lütfen uygulamayı yeniden başlatın.");
 
-                // Doğrulama yap
-                var validationResult = ValidateLicenseKey(key, licenseInfo.DeviceId);
+                // Anahtar, veritabanındaki (aktarılmış olabilecek) kimliğe değil bu bilgisayarın kimliğine göre doğrulanır
+                var deviceId = await GetDeviceIdAsync();
+                using var publicKey = LicensePublicKey.Create();
+                var result = LicenseCodec.Verify(key, deviceId, EffectiveToday(licenseInfo), publicKey);
+                if (!result.IsValid)
+                    return (false, result.Message);
 
-                if (!validationResult.IsValid)
-                    return (false, validationResult.Message);
-
-                // Lisansı aktif et
+                var now = DateTime.UtcNow;
+                licenseInfo.LicenseKey = key.Trim();
                 licenseInfo.IsLicensed = true;
-                licenseInfo.LicenseKey = key;
-                licenseInfo.LicenseActivationDate = DateTime.UtcNow;
-                licenseInfo.LastCheckDate = DateTime.UtcNow;
+                licenseInfo.DeviceId = deviceId;
+                licenseInfo.LicenseActivationDate = now;
+                if (now > licenseInfo.LastCheckDate)
+                    licenseInfo.LastCheckDate = now;
 
                 await _databaseService.SaveLicenseInfoAsync(licenseInfo);
 
-                return (true, "Lisans başarıyla etkinleştirildi! Uygulamanın tam sürümüne erişiminiz sağlandı.");
+                return (true, result.Payload!.ExpiresOn is { } expires
+                    ? $"Lisans etkinleştirildi. {expires:dd.MM.yyyy} tarihine kadar (dahil) tam sürümü kullanabilirsiniz."
+                    : "Lisans etkinleştirildi. Uygulamanın tam sürümüne süresiz erişiminiz var.");
             }
             catch (Exception ex)
             {
                 return (false, $"Lisans aktivasyonu sırasında hata oluştu: {ex.Message}");
-            }
-        }
-
-        /// <summary>
-        /// Lisans anahtarını doğrular
-        /// </summary>
-        public (bool IsValid, string Message) ValidateLicenseKey(string key, string deviceId)
-        {
-            try
-            {
-                if (string.IsNullOrWhiteSpace(key))
-                    return (false, "Lisans anahtarı boş olamaz.");
-
-                key = key.Trim().ToUpperInvariant();
-
-                // Format kontrolü: KUYM-XXXXX-XXXXX-XXXXX-CHECKSUM
-                var parts = key.Split('-');
-                if (parts.Length != 5)
-                    return (false, "Geçersiz lisans anahtarı formatı.");
-
-                if (parts[0] != LICENSE_PREFIX)
-                    return (false, "Geçersiz lisans anahtarı.");
-
-                // Payload (ilk 4 bölüm)
-                var payload = $"{parts[0]}-{parts[1]}-{parts[2]}-{parts[3]}";
-
-                // Checksum doğrulaması
-                var expectedChecksum = ComputeChecksum(payload);
-
-                if (parts[4] != expectedChecksum)
-                    return (false, "Lisans anahtarı geçersiz veya bu cihaz için üretilmemiş.");
-
-                // Cihaz ID kontrolü — payload içinde device ID hash'i bulunmalı
-                var deviceHash = ComputeDeviceHash(deviceId);
-                if (!parts[1].Contains(deviceHash.Substring(0, 5)))
-                    return (false, "Bu lisans anahtarı bu cihaz için geçerli değil.");
-
-                return (true, "Geçerli lisans anahtarı.");
-            }
-            catch (Exception ex)
-            {
-                return (false, $"Doğrulama hatası: {ex.Message}");
             }
         }
 
@@ -235,73 +235,75 @@ namespace Kuyumcu.Services
         }
 
         /// <summary>
-        /// Cihaza özgü benzersiz kimlik oluşturur
+        /// Bu bilgisayarın cihaz kimliği (16 onaltılık karakter). Lisans anahtarı buna bağlanır.
+        /// Her seferinde donanım/kurulum parmak izinden yeniden hesaplanır; güvenli depodaki değer sadece
+        /// parmak izi okunamazsa kullanılır (depodaki değeri değiştirip başka bilgisayarın lisansını kullanmak olmasın).
         /// </summary>
         public async Task<string> GetDeviceIdAsync()
         {
+            string? derived = null;
             try
             {
-                // Önce SecureStorage'dan kontrol et
+                var fingerprint = _environment.GetDeviceFingerprint();
+                if (!string.IsNullOrWhiteSpace(fingerprint))
+                {
+                    var hash = SHA256.HashData(Encoding.UTF8.GetBytes(fingerprint));
+                    derived = Convert.ToHexString(hash)[..16];
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Cihaz parmak izi okunamadı: {ex.Message}");
+            }
+
+            try
+            {
                 var storedId = await _secureStore.GetAsync(SECURE_DEVICE_ID);
+                if (derived != null)
+                {
+                    if (storedId != derived)
+                        await _secureStore.SetAsync(SECURE_DEVICE_ID, derived);
+                    return derived;
+                }
+
                 if (!string.IsNullOrEmpty(storedId))
                     return storedId;
 
-                // Cihaz bilgilerinden benzersiz bir kimlik oluştur
-                var deviceInfo = _environment.GetDeviceFingerprint();
-                
-                using var sha256 = SHA256.Create();
-                var hashBytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(deviceInfo));
-                var deviceId = Convert.ToHexString(hashBytes).Substring(0, 16).ToUpperInvariant();
-
-                // SecureStorage'a kaydet
-                await _secureStore.SetAsync(SECURE_DEVICE_ID, deviceId);
-
-                return deviceId;
+                var fallbackId = Guid.NewGuid().ToString("N")[..16].ToUpperInvariant();
+                await _secureStore.SetAsync(SECURE_DEVICE_ID, fallbackId);
+                return fallbackId;
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"GetDeviceIdAsync hata: {ex.Message}");
-                // Fallback: rastgele ID oluştur
-                var fallbackId = Guid.NewGuid().ToString("N").Substring(0, 16).ToUpperInvariant();
-                try
-                {
-                    await _secureStore.SetAsync(SECURE_DEVICE_ID, fallbackId);
-                }
-                catch { }
-                return fallbackId;
-            }
-        }
-
-        /// <summary>
-        /// Lisans anahtarı oluşturur (Geliştirici aracı)
-        /// </summary>
-        public string GenerateLicenseKey(string deviceId)
-        {
-            try
-            {
-                // Cihaz hash'i
-                var deviceHash = ComputeDeviceHash(deviceId);
-
-                // Payload parçalarını oluştur
-                var part1 = deviceHash.Substring(0, 5).ToUpperInvariant();
-                var part2 = GenerateRandomAlphanumeric(5);
-                var part3 = GenerateRandomAlphanumeric(5);
-
-                var payload = $"{LICENSE_PREFIX}-{part1}-{part2}-{part3}";
-
-                // Checksum hesapla
-                var checksum = ComputeChecksum(payload);
-
-                return $"{payload}-{checksum}";
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"GenerateLicenseKey hata: {ex.Message}");
-                return string.Empty;
+                return derived ?? Guid.NewGuid().ToString("N")[..16].ToUpperInvariant();
             }
         }
 
         #region Private Methods
+
+        /// <summary>Kayıtlı anahtarı doğrular; anahtar yoksa null.</summary>
+        private static LicenseCheckResult? CheckStoredKey(LicenseInfo licenseInfo, string deviceId, out DateOnly today)
+        {
+            today = EffectiveToday(licenseInfo);
+            if (string.IsNullOrWhiteSpace(licenseInfo.LicenseKey))
+                return null;
+
+            using var publicKey = LicensePublicKey.Create();
+            return LicenseCodec.Verify(licenseInfo.LicenseKey, deviceId, today, publicKey);
+        }
+
+        /// <summary>
+        /// Süreli lisans kontrolünde kullanılan "bugün": bilgisayar saati geri alınarak lisans uzatılamasın diye
+        /// şimdiki zaman ile son kontrol zamanının büyüğü alınır.
+        /// </summary>
+        private static DateOnly EffectiveToday(LicenseInfo licenseInfo)
+        {
+            var now = DateTime.UtcNow;
+            var lastCheck = DateTime.SpecifyKind(licenseInfo.LastCheckDate, DateTimeKind.Utc);
+            var effective = lastCheck > now ? lastCheck : now;
+            return DateOnly.FromDateTime(effective.ToLocalTime());
+        }
 
         /// <summary>
         /// Anti-tampering kontrolü yapar
@@ -310,63 +312,54 @@ namespace Kuyumcu.Services
         {
             try
             {
-                if (licenseInfo.IsLicensed)
+                var now = DateTime.UtcNow;
+
+                if (CheckStoredKey(licenseInfo, await GetDeviceIdAsync(), out _) is { IsValid: true })
                 {
-                    // Lisanslı kullanıcı — sadece last check güncelle
-                    licenseInfo.LastCheckDate = DateTime.UtcNow;
-                    await _databaseService.SaveLicenseInfoAsync(licenseInfo);
+                    // Geçerli lisans — sadece son kontrol zamanını ileri taşı (asla geri almaz)
+                    if (now > licenseInfo.LastCheckDate)
+                    {
+                        licenseInfo.LastCheckDate = now;
+                        await _databaseService.SaveLicenseInfoAsync(licenseInfo);
+                    }
+                    await _secureStore.SetAsync(SECURE_LAST_CHECK, now.ToString("O"));
                     return;
                 }
 
-                var now = DateTime.UtcNow;
-
-                // SecureStorage'dan kayıtlı tarihi al
+                // Güvenli depodan kayıtlı tarihi al
                 var secureTrialStartStr = await _secureStore.GetAsync(SECURE_TRIAL_START);
                 var secureLastCheckStr = await _secureStore.GetAsync(SECURE_LAST_CHECK);
 
-                // 1. Kontrol: SecureStorage'da kayıt yoksa ama DB'de varsa → tampering
+                // 1. Kontrol: Güvenli depoda kayıt yoksa ama DB'de varsa → toleranslı davran ama yeniden kaydet
                 if (string.IsNullOrEmpty(secureTrialStartStr) && licenseInfo.TrialStartDate != default)
                 {
-                    // SecureStorage temizlenmiş olabilir — toleranslı davran ama yeniden kaydet
                     await _secureStore.SetAsync(SECURE_TRIAL_START, licenseInfo.TrialStartDate.ToString("O"));
                     await _secureStore.SetAsync(SECURE_LAST_CHECK, now.ToString("O"));
                 }
 
                 // 2. Kontrol: Sistem saati geri alınmış mı?
-                if (!string.IsNullOrEmpty(secureLastCheckStr))
+                if (TryParseUtc(secureLastCheckStr, out var lastCheck) && now < lastCheck.AddMinutes(-5)) // 5 dakika tolerans
                 {
-                    if (TryParseUtc(secureLastCheckStr, out var lastCheck))
-                    {
-                        if (now < lastCheck.AddMinutes(-5)) // 5 dakika tolerans
-                        {
-                            // Saat geri alınmış! Deneme süresini bitir.
-                            licenseInfo.TrialEndDate = DateTime.UtcNow;
-                            await _databaseService.SaveLicenseInfoAsync(licenseInfo);
-                            Console.WriteLine("Anti-tampering: Sistem saati geri alınmış tespit edildi.");
-                            return;
-                        }
-                    }
+                    // Saat geri alınmış! Deneme süresini bitir.
+                    licenseInfo.TrialEndDate = DateTime.UtcNow;
+                    await _databaseService.SaveLicenseInfoAsync(licenseInfo);
+                    Console.WriteLine("Anti-tampering: Sistem saati geri alınmış tespit edildi.");
+                    return;
                 }
 
-                // 3. Kontrol: DB ve SecureStorage arasındaki tutarsızlık
-                if (!string.IsNullOrEmpty(secureTrialStartStr))
+                // 3. Kontrol: DB ve güvenli depo arasındaki tutarsızlık → DB manipüle edilmiş, depodaki tarih esas
+                if (TryParseUtc(secureTrialStartStr, out var secureStart)
+                    && Math.Abs((licenseInfo.TrialStartDate - secureStart).TotalHours) > 1)
                 {
-                    if (TryParseUtc(secureTrialStartStr, out var secureStart))
-                    {
-                        // DB'deki tarih SecureStorage'dan farklıysa → DB manipüle edilmiş
-                        if (Math.Abs((licenseInfo.TrialStartDate - secureStart).TotalHours) > 1)
-                        {
-                            // DB manipüle edilmiş! SecureStorage'daki tarihi kullan ve süreyi bitir
-                            licenseInfo.TrialStartDate = secureStart;
-                            licenseInfo.TrialEndDate = secureStart.AddDays(TRIAL_DAYS);
-                            await _databaseService.SaveLicenseInfoAsync(licenseInfo);
-                            Console.WriteLine("Anti-tampering: Veritabanı manipülasyonu tespit edildi.");
-                        }
-                    }
+                    licenseInfo.TrialStartDate = secureStart;
+                    licenseInfo.TrialEndDate = secureStart.AddDays(TRIAL_DAYS);
+                    await _databaseService.SaveLicenseInfoAsync(licenseInfo);
+                    Console.WriteLine("Anti-tampering: Veritabanı manipülasyonu tespit edildi.");
                 }
 
-                // Last check tarihini güncelle
-                licenseInfo.LastCheckDate = now;
+                // Son kontrol tarihini güncelle (geri almaz)
+                if (now > licenseInfo.LastCheckDate)
+                    licenseInfo.LastCheckDate = now;
                 await _databaseService.SaveLicenseInfoAsync(licenseInfo);
                 await _secureStore.SetAsync(SECURE_LAST_CHECK, now.ToString("O"));
             }
@@ -377,50 +370,21 @@ namespace Kuyumcu.Services
         }
 
         /// <summary>
-        /// SecureStore'a "O" biçiminde (UTC, sonu "Z") yazılan tarihi UTC olarak okur.
+        /// Güvenli depoya "O" biçiminde (UTC, sonu "Z") yazılan tarihi UTC olarak okur.
         /// Düz DateTime.TryParse "Z"li tarihi yerel saate çevirir (Türkiye'de +3 saat); bu durumda
         /// UTC "şimdi" ile karşılaştırma yanlış sonuç verir ve deneme süresi haksız yere biterdi.
         /// </summary>
-        private static bool TryParseUtc(string value, out DateTime result)
+        private static bool TryParseUtc(string? value, out DateTime result)
         {
-            if (DateTime.TryParse(value, System.Globalization.CultureInfo.InvariantCulture,
-                    System.Globalization.DateTimeStyles.AdjustToUniversal | System.Globalization.DateTimeStyles.AssumeUniversal,
-                    out result))
+            if (!string.IsNullOrEmpty(value)
+                && DateTime.TryParse(value, CultureInfo.InvariantCulture,
+                    DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out result))
             {
                 result = DateTime.SpecifyKind(result, DateTimeKind.Utc);
                 return true;
             }
+            result = default;
             return false;
-        }
-
-        /// <summary>
-        /// HMAC-SHA256 ile checksum hesaplar
-        /// </summary>
-        private string ComputeChecksum(string payload)
-        {
-            using var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(SECRET_KEY));
-            var hash = hmac.ComputeHash(Encoding.UTF8.GetBytes(payload));
-            return Convert.ToHexString(hash).Substring(0, 5).ToUpperInvariant();
-        }
-
-        /// <summary>
-        /// Cihaz ID'sinden kısa hash oluşturur
-        /// </summary>
-        private string ComputeDeviceHash(string deviceId)
-        {
-            using var sha256 = SHA256.Create();
-            var hashBytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(deviceId + SECRET_KEY));
-            return Convert.ToHexString(hashBytes).Substring(0, 10).ToUpperInvariant();
-        }
-
-        /// <summary>
-        /// Rastgele alfanumerik karakter dizisi oluşturur
-        /// </summary>
-        private string GenerateRandomAlphanumeric(int length)
-        {
-            const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-            var random = new Random();
-            return new string(Enumerable.Range(0, length).Select(_ => chars[random.Next(chars.Length)]).ToArray());
         }
 
         #endregion

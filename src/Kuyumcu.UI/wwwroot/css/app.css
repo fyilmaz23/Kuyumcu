@@ -73,6 +73,73 @@ h1:focus { outline: none; }
     border-bottom: var(--kd-card-border);
 }
 
+.kd-card-title { display: flex; align-items: center; gap: 8px; font-weight: 650; font-size: 0.95rem; }
+.kd-card-title .mud-icon-root { color: var(--mud-palette-primary); font-size: 1.25rem; }
+.kd-card-danger { border-color: rgba(var(--kd-giden-rgb), 0.35); }
+.kd-card-danger .kd-card-title .mud-icon-root { color: var(--kd-giden); }
+
+/* Anahtar/değer satırı */
+.kd-kv { display: flex; justify-content: space-between; gap: 12px; font-size: 0.85rem; }
+.kd-kv span { color: var(--mud-palette-text-secondary); }
+
+/* ---- Ayarlar: iki sütun (dar ekranda tek) ---- */
+.kd-settings-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.kd-settings-col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.kd-form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 1100px) {
+    .kd-settings-grid { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 600px) {
+    .kd-form-row { grid-template-columns: 1fr; }
+}
+
+/* ---- Lisans kutusu ---- */
+.kd-license-status {
+    display: flex; align-items: flex-start; gap: 12px;
+    padding: 12px 14px; border-radius: 10px; border: 1px solid transparent;
+}
+.kd-license-status > .mud-icon-root { margin-top: 2px; }
+.kd-license-status-title { font-weight: 650; }
+.kd-license-status-detail { font-size: 0.82rem; opacity: 0.85; margin-top: 2px; }
+.kd-license-status.is-ok { background: rgba(var(--kd-gelen-rgb), 0.08); border-color: rgba(var(--kd-gelen-rgb), 0.3); color: var(--kd-gelen); }
+.kd-license-status.is-warning { background: rgba(var(--mud-palette-warning-rgb), 0.1); border-color: rgba(var(--mud-palette-warning-rgb), 0.35); color: var(--mud-palette-warning-darken); }
+.kd-license-status.is-error { background: rgba(var(--kd-giden-rgb), 0.08); border-color: rgba(var(--kd-giden-rgb), 0.3); color: var(--kd-giden); }
+
+.kd-license-label { font-size: 0.75rem; font-weight: 600; color: var(--mud-palette-text-secondary); text-transform: uppercase; letter-spacing: .04em; }
+.kd-license-device {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 10px 12px; border-radius: 10px; background: var(--mud-palette-background);
+    border: var(--kd-card-border);
+}
+.kd-license-device-id { font-family: Consolas, "Cascadia Mono", monospace; font-size: 1.15rem; font-weight: 700; letter-spacing: .08em; }
+.kd-license-input textarea { font-family: Consolas, "Cascadia Mono", monospace; font-size: 0.82rem; letter-spacing: .02em; }
+.kd-license-key {
+    font-family: Consolas, "Cascadia Mono", monospace; font-size: 0.9rem; font-weight: 600; line-height: 1.6;
+    word-break: break-all; padding: 12px 14px; border-radius: 10px;
+    background: var(--mud-palette-background); border: var(--kd-card-border);
+}
+
+/* ---- Kurulum / lisans gerekli ekranları (BareLayout) ---- */
+.kd-gate { padding: 28px; }
+.kd-gate-head { display: flex; align-items: flex-start; gap: 14px; margin-bottom: 20px; }
+.kd-gate-icon {
+    width: 44px; height: 44px; border-radius: 12px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(var(--kd-giden-rgb), 0.12); color: var(--kd-giden);
+}
+.kd-gate-icon.is-brand { background: rgba(var(--mud-palette-primary-rgb), 0.14); color: var(--mud-palette-primary); }
+.kd-gate-business {
+    display: inline-flex; align-items: center; gap: 6px; margin-bottom: 16px;
+    font-size: 0.85rem; font-weight: 600; color: var(--mud-palette-text-secondary);
+}
+.kd-gate-option { padding: 16px; border-radius: 10px; border: var(--kd-card-border); }
+.kd-gate-option.is-recommended { border-color: rgba(var(--mud-palette-primary-rgb), 0.5); background: rgba(var(--mud-palette-primary-rgb), 0.05); }
+.kd-gate-divider {
+    display: flex; align-items: center; gap: 12px; margin: 20px 0;
+    color: var(--mud-palette-text-secondary); font-size: 0.8rem;
+}
+.kd-gate-divider::before, .kd-gate-divider::after { content: ""; flex: 1; border-top: var(--kd-card-border); }
+
 .kd-clickable { cursor: pointer; transition: border-color .15s, box-shadow .15s, transform .15s; }
 .kd-clickable:hover {
     border-color: rgba(var(--mud-palette-primary-rgb), 0.45);

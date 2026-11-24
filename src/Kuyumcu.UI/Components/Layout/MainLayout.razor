@@ -8,6 +8,7 @@
 @inject NavigationManager NavigationManager
 @inject IAppEnvironment AppEnvironment
 @inject IJSRuntime JS
+@inject AppState AppState
 @inject ShortcutService Shortcuts
 
 <MudThemeProvider Theme="KuyumcuTheme.Theme" @bind-IsDarkMode="isDarkMode" />
@@ -69,12 +70,21 @@
             <MudSpacer />
 
             <div class="kd-topbar-actions">
-                @if (licenseStatus == LicenseStatus.Trial)
+                @if (licenseState?.Status == LicenseStatus.Trial)
                 {
                     <MudTooltip Text="Deneme sürümü — lisans için Ayarlar" Placement="Placement.Bottom">
-                        <a class="kd-trial @(remainingDays <= 7 ? "is-urgent" : null)" href="/settings">
+                        <a class="kd-trial @(licenseState.RemainingTrialDays <= 7 ? "is-urgent" : null)" href="/settings">
                             <MudIcon Icon="@Icons.Material.Filled.HourglassTop" Size="Size.Small" />
-                            <span>@remainingDays gün</span>
+                            <span>@licenseState.RemainingTrialDays gün</span>
+                        </a>
+                    </MudTooltip>
+                }
+                else if (licenseState is { Status: LicenseStatus.Licensed, IsLicenseExpiringSoon: true })
+                {
+                    <MudTooltip Text="@($"Lisans {licenseState.LicenseExpiresOn:dd.MM.yyyy} tarihinde bitiyor — yenilemek için Ayarlar")" Placement="Placement.Bottom">
+                        <a class="kd-trial is-urgent" href="/settings">
+                            <MudIcon Icon="@Icons.Material.Filled.EventBusy" Size="Size.Small" />
+                            <span>Lisans: @licenseState.DaysUntilLicenseExpiry gün</span>
                         </a>
                     </MudTooltip>
                 }
@@ -147,13 +157,14 @@
     private bool isBackupInProgress;
     private bool isGoogleDriveConfigured;
     private string businessName = ProductInfo.Name;
-    private LicenseStatus licenseStatus = LicenseStatus.Trial;
-    private int remainingDays = 30;
+    private LicenseState? licenseState;
     private MudAutocomplete<Customer>? searchAutocomplete;
     private DotNetObjectReference<ShortcutService>? shortcutRef;
 
     protected override async Task OnInitializedAsync()
     {
+        AppState.LicenseChanged += OnLicenseChanged;
+
         var settings = await DatabaseService.GetSettingsAsync();
         if (!string.IsNullOrWhiteSpace(settings.BusinessName))
             businessName = settings.BusinessName;
@@ -162,9 +173,7 @@
 
         try
         {
-            licenseStatus = await LicenseService.GetLicenseStatusAsync();
-            if (licenseStatus == LicenseStatus.Trial)
-                remainingDays = await LicenseService.GetRemainingTrialDaysAsync();
+            licenseState = await LicenseService.GetLicenseStateAsync();
         }
         catch (Exception ex)
         {
@@ -241,5 +250,23 @@
             NavigationManager.NavigateTo($"/customer/{saved.Id}");
     }
 
-    public void Dispose() => shortcutRef?.Dispose();
+    // Lisans etkinleştirilince üst menüdeki deneme/lisans rozetini yenile
+    private async void OnLicenseChanged()
+    {
+        try
+        {
+            licenseState = await LicenseService.GetLicenseStateAsync();
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"MainLayout lisans yenileme hata: {ex.Message}");
+        }
+    }
+
+    public void Dispose()
+    {
+        AppState.LicenseChanged -= OnLicenseChanged;
+        shortcutRef?.Dispose();
+    }
 }

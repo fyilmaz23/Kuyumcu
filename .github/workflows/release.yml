@@ -56,7 +56,6 @@ jobs:
       - name: Gizli yapılandırma dosyalarını üret
         shell: pwsh
         env:
-          LICENSE_SECRET_KEY: ${{ secrets.LICENSE_SECRET_KEY }}
           GOOGLE_DESKTOP_CLIENT_ID: ${{ secrets.GOOGLE_DESKTOP_CLIENT_ID }}
           GOOGLE_DESKTOP_CLIENT_SECRET: ${{ secrets.GOOGLE_DESKTOP_CLIENT_SECRET }}
         run: ./build/write-secrets.ps1
@@ -115,7 +114,6 @@ jobs:
       - name: Gizli yapılandırma dosyalarını üret
         shell: pwsh
         env:
-          LICENSE_SECRET_KEY: ${{ secrets.LICENSE_SECRET_KEY }}
           GOOGLE_DESKTOP_CLIENT_ID: ${{ secrets.GOOGLE_DESKTOP_CLIENT_ID }}
           GOOGLE_DESKTOP_CLIENT_SECRET: ${{ secrets.GOOGLE_DESKTOP_CLIENT_SECRET }}
         run: ./build/write-secrets.ps1

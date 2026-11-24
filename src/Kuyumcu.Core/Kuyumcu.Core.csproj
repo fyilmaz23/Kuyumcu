@@ -15,10 +15,8 @@
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
   </ItemGroup>
 
-  <!-- CI gizli dosyaları üretmediyse (yerel geliştirme) geliştirici varsayılanlarını kullan -->
-  <ItemGroup Condition="Exists('Services\LicenseService.Secrets.cs')">
-    <Compile Remove="Services\LicenseService.DevSecrets.cs" />
-  </ItemGroup>
+  <!-- CI gizli dosyaları üretmediyse (yerel geliştirme) geliştirici varsayılanlarını kullan.
+       Not: lisans artık gizli anahtar gerektirmez (imza doğrulaması açık anahtarla, bkz. Licensing/). -->
   <ItemGroup Condition="Exists('Platform\ProductSecrets.Secrets.cs')">
     <Compile Remove="Platform\ProductSecrets.DevSecrets.cs" />
   </ItemGroup>

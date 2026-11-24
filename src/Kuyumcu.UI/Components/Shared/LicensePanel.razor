@@ -1,0 +1,187 @@
+@* Lisans durumu + cihaz kimliği + anahtar girişi. Ayarlar ve "Lisans gerekli" ekranı birlikte kullanır. *@
+@inject Services.LicenseService LicenseService
+@inject IClipboardService Clipboard
+@inject ISnackbar Snackbar
+@inject AppState AppState
+
+<div class="kd-license">
+    @if (!HideStatus)
+    {
+    <div class="kd-license-status @StatusClass">
+        <MudIcon Icon="@StatusIcon" />
+        <div>
+            <div class="kd-license-status-title">@StatusTitle</div>
+            @if (!string.IsNullOrEmpty(StatusDetail))
+            {
+                <div class="kd-license-status-detail">@StatusDetail</div>
+            }
+        </div>
+    </div>
+    }
+
+    @if (!string.IsNullOrEmpty(State.KeyProblem) && State.Status != LicenseStatus.Licensed)
+    {
+        <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Dense="true" Class="@(HideStatus ? null : "mt-3")">@State.KeyProblem</MudAlert>
+    }
+
+    <div class="kd-license-device @(HideStatus && string.IsNullOrEmpty(State.KeyProblem) ? null : "mt-4")">
+        <div>
+            <div class="kd-license-label">Cihaz kimliği</div>
+            <div class="kd-license-device-id">@State.DeviceId</div>
+        </div>
+        <MudTooltip Text="Kopyala">
+            <MudIconButton Icon="@Icons.Material.Outlined.ContentCopy" Size="Size.Small"
+                           OnClick="@(() => Copy(State.DeviceId, "Cihaz kimliği kopyalandı."))" aria-label="Cihaz kimliğini kopyala" />
+        </MudTooltip>
+    </div>
+    @if (State.Status != LicenseStatus.Licensed)
+    {
+        <MudText Typo="Typo.caption" Class="kd-muted d-block mt-1">
+            Lisans almak için bu kimliği yetkilinize iletin. Lisans anahtarı sadece bu bilgisayarda çalışır.
+        </MudText>
+    }
+
+    @if (ShowKeyInput)
+    {
+        <div class="mt-4">
+            <MudTextField @bind-Value="licenseKey" Label="Lisans anahtarı" Placeholder="KD1-XXXXX-XXXXX-…"
+                          Variant="Variant.Outlined" Lines="3" Immediate="true" Class="kd-license-input"
+                          HelperText="Size gönderilen anahtarın tamamını yapıştırın (boşluk ve satır sonları sorun değil)." />
+
+            @if (!string.IsNullOrEmpty(errorMessage))
+            {
+                <MudAlert Severity="Severity.Error" Variant="Variant.Filled" Dense="true" Class="mt-3">@errorMessage</MudAlert>
+            }
+
+            <div class="d-flex gap-2 mt-3">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.VerifiedUser"
+                           OnClick="Activate" Disabled="@(string.IsNullOrWhiteSpace(licenseKey) || isActivating)"
+                           FullWidth="@FullWidthButton">
+                    @(isActivating ? "Doğrulanıyor…" : "Lisansı Etkinleştir")
+                </MudButton>
+                @if (showReplace)
+                {
+                    <MudButton Variant="Variant.Text" OnClick="@(() => { showReplace = false; errorMessage = string.Empty; })">Vazgeç</MudButton>
+                }
+            </div>
+        </div>
+    }
+    else if (State.Status == LicenseStatus.Licensed)
+    {
+        <MudButton Variant="Variant.Text" Color="Color.Primary" Size="Size.Small" Class="mt-2"
+                   StartIcon="@Icons.Material.Outlined.Key" OnClick="@(() => showReplace = true)">
+            Yeni anahtar gir
+        </MudButton>
+    }
+
+    @* Geliştirici aracı sadece LicenseKeyGenerator.razor derlemede varsa görünür (dosya .gitignore'da) *@
+    @if (HasLicenseKeyGenerator)
+    {
+        <div class="d-flex justify-end mt-2">
+            <MudLink Href="generate-license" Typo="Typo.caption">Lisans anahtarı oluştur (geliştirici)</MudLink>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public LicenseState State { get; set; } = new();
+
+    /// <summary>Lisans başarıyla etkinleştirilince çağrılır (sayfa durumu yeniden yükler).</summary>
+    [Parameter] public EventCallback OnActivated { get; set; }
+
+    [Parameter] public bool FullWidthButton { get; set; }
+
+    /// <summary>Durum kutusunu gizle (sayfa başlığı durumu zaten anlatıyorsa).</summary>
+    [Parameter] public bool HideStatus { get; set; }
+
+    private string licenseKey = string.Empty;
+    private string errorMessage = string.Empty;
+    private bool isActivating;
+    private bool showReplace;
+
+    private static readonly bool HasLicenseKeyGenerator =
+        typeof(LicensePanel).Assembly.GetType("Kuyumcu.Components.Pages.LicenseKeyGenerator") != null;
+
+    private bool ShowKeyInput => State.Status != LicenseStatus.Licensed || State.IsLicenseExpiringSoon || showReplace;
+
+    private string StatusClass => State.Status switch
+    {
+        LicenseStatus.Licensed when State.IsLicenseExpiringSoon => "is-warning",
+        LicenseStatus.Licensed => "is-ok",
+        LicenseStatus.Trial => State.RemainingTrialDays <= 7 ? "is-error" : "is-warning",
+        _ => "is-error",
+    };
+
+    private string StatusIcon => State.Status switch
+    {
+        LicenseStatus.Licensed => Icons.Material.Filled.VerifiedUser,
+        LicenseStatus.Trial => Icons.Material.Filled.HourglassTop,
+        _ => Icons.Material.Filled.Lock,
+    };
+
+    private string StatusTitle => State.Status switch
+    {
+        LicenseStatus.Licensed => "Lisanslı — tam sürüm",
+        LicenseStatus.Trial => $"Deneme sürümü — {State.RemainingTrialDays} gün kaldı",
+        _ => State.LockReason switch
+        {
+            LicenseLockReason.LicenseEnded => "Lisans süresi doldu",
+            LicenseLockReason.LicenseInvalid => "Lisans anahtarı geçersiz",
+            _ => "Deneme süresi doldu",
+        },
+    };
+
+    private string? StatusDetail => State.Status switch
+    {
+        LicenseStatus.Licensed when State.LicenseExpiresOn is { } e && State.IsLicenseExpiringSoon =>
+            $"{e:dd.MM.yyyy} tarihinde bitiyor ({State.DaysUntilLicenseExpiry} gün). Yenilemek için yeni anahtar girin.",
+        LicenseStatus.Licensed when State.LicenseExpiresOn is { } e => $"{e:dd.MM.yyyy} tarihine kadar (dahil) geçerli.",
+        LicenseStatus.Licensed => "Süresiz lisans" + (State.ActivatedAtUtc is { } a ? $" · {a.ToLocalTime():dd.MM.yyyy} tarihinde etkinleştirildi." : "."),
+        LicenseStatus.Trial => "Deneme süresince tüm özellikler açıktır.",
+        _ when State.LockReason == LicenseLockReason.LicenseEnded && State.LicenseExpiresOn is { } e => $"Lisans {e:dd.MM.yyyy} tarihine kadar geçerliydi.",
+        _ => "Uygulamayı kullanmaya devam etmek için lisans anahtarı girin.",
+    };
+
+    private async Task Activate()
+    {
+        errorMessage = string.Empty;
+        isActivating = true;
+        try
+        {
+            var result = await LicenseService.ActivateLicenseAsync(licenseKey);
+            if (!result.Success)
+            {
+                errorMessage = result.Message;
+                return;
+            }
+
+            AppState.IsLicenseExpired = false;
+            AppState.NotifyLicenseChanged();
+            licenseKey = string.Empty;
+            showReplace = false;
+            Snackbar.Add(result.Message, Severity.Success);
+            await OnActivated.InvokeAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Beklenmeyen bir hata oluştu: {ex.Message}";
+        }
+        finally
+        {
+            isActivating = false;
+        }
+    }
+
+    private async Task Copy(string text, string message)
+    {
+        try
+        {
+            await Clipboard.SetTextAsync(text);
+            Snackbar.Add(message, Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Kopyalanamadı: {ex.Message}", Severity.Error);
+        }
+    }
+}

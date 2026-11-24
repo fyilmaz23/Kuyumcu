@@ -13,4 +13,9 @@ public class AppState
 
     /// <summary>Deneme süresi dolmuş ve lisans yok mu?</summary>
     public bool IsLicenseExpired { get; set; }
+
+    /// <summary>Lisans etkinleştirildiğinde tetiklenir (üst menüdeki rozet yenilenir).</summary>
+    public event Action? LicenseChanged;
+
+    public void NotifyLicenseChanged() => LicenseChanged?.Invoke();
 }

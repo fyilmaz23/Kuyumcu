@@ -5,21 +5,8 @@ $root = Split-Path -Parent $PSScriptRoot
 
 function Escape([string]$value) { return $value.Replace('\', '\\').Replace('"', '\"') }
 
-$licenseKey = $env:LICENSE_SECRET_KEY
-if ([string]::IsNullOrWhiteSpace($licenseKey)) {
-    throw "LICENSE_SECRET_KEY secret tanımlı değil. Lisans anahtarları doğrulanamaz; yayın durduruldu."
-}
-
-$licensePath = Join-Path $root 'src/Kuyumcu.Core/Services/LicenseService.Secrets.cs'
-@"
-namespace Kuyumcu.Services
-{
-    public partial class LicenseService
-    {
-        private const string SECRET_KEY = "$(Escape $licenseKey)";
-    }
-}
-"@ | Set-Content -Path $licensePath -Encoding utf8
+# Lisans için gizli anahtar GEREKMEZ: anahtarlar geliştiricideki özel anahtarla imzalanır, uygulama sadece
+# açık anahtarı taşır (src/Kuyumcu.Core/Licensing/LicensePublicKey.cs). Özel anahtar CI'a asla verilmez.
 
 $clientId = "$env:GOOGLE_DESKTOP_CLIENT_ID"
 $clientSecret = "$env:GOOGLE_DESKTOP_CLIENT_SECRET"

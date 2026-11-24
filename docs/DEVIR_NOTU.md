@@ -22,6 +22,7 @@ src/Kuyumcu.Desktop   WPF kabuğu (net10.0-windows10.0.19041.0, self-contained, 
 src/Kuyumcu.Mobile    MAUI Android kabuğu (net10.0-android), salt okunur
 src/Kuyumcu.Preview   Blazor Server tarayıcı önizlemesi (Mac/Linux'ta arayüz geliştirmek için, örnek verili) — dağıtılmaz
 build/                CI betikleri: write-secrets.ps1 (gizli dosyaları üretir), pack-msix.ps1 (makeappx ile MSIX)
+tools/Kuyumcu.LicenseTool  Lisans anahtarı üretme aracı (geliştirici bilgisayarında; bkz. docs/YAYIN.md "Lisans anahtarları")
 docs/YAYIN.md         Partner Center, Play Console, GitHub Secrets kurulumu
 ```
 
@@ -65,7 +66,9 @@ docs/YAYIN.md         Partner Center, Play Console, GitHub Secrets kurulumu
 - İşlem kaydetmeden önce **onay penceresi**; yeni işlemde **aynı gün mükerrer** kontrolü.
 - Lisans: kurulumu tamamlanmış ama LicenseInfo'su olmayan veritabanı "güncelleme yapan eski kullanıcı" sayılır
   → deneme süresi bitmiş başlar (kasıtlı).
-- `LICENSE_SECRET_KEY` değişirse eski lisans anahtarları geçersiz olur.
+- Lisans anahtarları imzalıdır (bölüm 5). `LicensePublicKey.Base64` değişirse **tüm** verilmiş lisanslar geçersiz olur.
+  Eski biçim (`KUYM-...`, HMAC) anahtarlar ve DB'deki `IsLicensed` alanı **kabul edilmez** (kullanıcı kararı, 24.11.2026).
+- Lisansa isteğe bağlı bitiş tarihi konabilir (kullanıcı kararı); bitişe 15 gün kala uyarı gösterilir.
 
 ### 3. İlk Windows çalıştırması (22.11.2026)
 - Uygulama Windows'ta açılıyor; eski sürümden aktarma çalıştı (889 müşteri / 14.864 işlem, eski DB'ye dokunulmadı).
@@ -90,9 +93,28 @@ docs/YAYIN.md         Partner Center, Play Console, GitHub Secrets kurulumu
   tema, Ayarlar, "Yeni Müşteri". Kısayollar: Alt+1 Ana Sayfa, Alt+2 Müşteriler, Alt+3 İşlemler, Alt+4 Ayarlar.
 - `.kd-page` genişlik sınırı kaldırıldı (tam ekran). Dar pencerede önce iş yeri adı, sonra düğme yazısı gizlenir.
 
+### 5. İmzalı lisans + Ayarlar/Kurulum/Lisans ekranları (24.11.2026)
+- `Kuyumcu.Core/Licensing`: `LicenseCodec` (biçim: `KD1-` + Crockford Base32, 14 bayt yük + 64 bayt ECDSA P-256 imza;
+  yük = sürüm, cihaz kimliği, veriliş günü, isteğe bağlı bitiş günü), `LicensePublicKey` (depoda), `LicenseSigningKey`
+  (özel anahtar `%USERPROFILE%\.kuyumcu-lisans\ozel-anahtar.pem`, depo dışında; kullanıcının bilgisayarında üretildi).
+- `tools/Kuyumcu.LicenseTool`: `anahtar-olustur`, `uret <cihaz> [--gun N|--bitis GG.AA.YYYY] [--not]`, `coz`, `acik-anahtar`.
+  Her üretim `lisans-kayitlari.csv`'ye yazılır.
+- `LicenseService`: durum her sorguda imza + cihaz + süre doğrulanarak hesaplanır (`GetLicenseStateAsync` → `LicenseState`,
+  kilit nedeni: deneme bitti / lisans süresi doldu / anahtar geçersiz). Cihaz kimliği her seferinde MachineGuid'den
+  türetilir (güvenli depodaki değer sadece yedek). Süreli lisansta "bugün" = max(şimdi, son kontrol) → saat geri alınarak
+  uzatılamaz. Etkinleştirme bu bilgisayarın kimliğine göre doğrular (aktarılmış DB'deki eski kimlik sorunu çözüldü).
+- Yeni kurulumda, aynı Windows kullanıcısında önceki deneme başlangıcı varsa o kullanılır; `DpapiSecureStore` artık
+  `HKCU\Software\KuyumcuDefteri` altına da yazar (veri klasörü silinince deneme sıfırlanmaz; MSIX kaldırmada silinir).
+- CI'dan `LICENSE_SECRET_KEY` ve `LicenseService.DevSecrets.cs` kaldırıldı.
+- Ekranlar: ortak `Shared/LicensePanel.razor`; Ayarlar iki sütun (sol: İş Yeri, Altın Fiyatı, Drive — Kaydet başlıkta;
+  sağ: Lisans, Yerel Yedekler, Yedeği İçe Aktar); Kurulum (eski veri varsa "Önerilen" seçenek); "Lisans gerekli" ekranı.
+  Üst menüde süreli lisans bitmek üzereyken "Lisans: N gün" rozeti; etkinleştirince `AppState.LicenseChanged` ile yenilenir.
+- Geliştirici sayfası `LicenseKeyGenerator.razor` (gitignore'da) özel anahtar dosyasını okuyarak üretir.
+- Test için deneme süresini sıfırlamak: uygulamayı kapat, `%LOCALAPPDATA%\KuyumcuDefteri` klasörünü VE
+  `HKCU\Software\KuyumcuDefteri` anahtarını kaldır.
+
 ## Kullanıcıya sunulan öneriler (karar bekleyen sıra)
-1. Lisans: HMAC yerine asimetrik imzalı lisans (ECDSA P-256, özel anahtar sadece geliştiricide; `IsLicensed`
-   alanına güvenmeden her açılışta imza doğrulama; deneme başlangıcı kayıt defterinde de). Obfuscar ile karıştırma.
+1. ~~Lisans~~ (yapıldı, bölüm 5). Kalan: Obfuscar ile kod karıştırma (yamalamayı zorlaştırır), istenirse çevrimiçi aktivasyon.
 2. Yedek: müşterinin kendi Google Drive'ına tam otomatik yedek (değişiklik varsa 2 saatte bir + kapanışta + günlük,
    14 gün + 12 ay saklama, üst barda durum ikonu). OAuth izin ekranı "Üretim"e alınmalı.
 3. Android: aynı Play hesabı kullanılacak (kullanıcı daha önce 12 kişi/14 gün testten geçti; yeni uygulama için
@@ -101,9 +123,9 @@ docs/YAYIN.md         Partner Center, Play Console, GitHub Secrets kurulumu
 ## Doğrulanmadı / dikkat
 - `build/pack-msix.ps1` ve Android AAB üretimi CI'da henüz denenmedi (ilk etikette görülecek).
 - Hedef çerçeve değişti (`net10.0-windows10.0.19041.0`): CI'da Linux üzerinde Desktop derlemesi ilk push'ta kontrol edilmeli.
-- Aktarılan eski DB'de **lisanssız** bir LicenseInfo varsa, `ActivateLicenseAsync` anahtarı DB'deki eski cihaz
-  kimliğine göre doğrular ama ekranda yeni cihaz kimliği gösterilir → anahtar tutmaz. (Lisanslı ya da LicenseInfo'suz
-  eski DB'lerde sorun yok.) Düzeltme kararı bekliyor.
+- Özel lisans anahtarının yedeği kullanıcıda olmalı (kaybolursa yeni lisans üretilemez).
+- Süreli lisansta bilgisayar saati bir kez ileri (ör. 2030) ayarlanırsa "son kontrol" o tarihte kalır ve lisans bitmiş
+  sayılabilir; müşteriye yeni anahtar vermek gerekir (bilinçli ödünleşim: saat geri alınarak uzatmayı engeller).
 - Yerel yedek `Environment.SpecialFolder.MyDocuments` altına gider; Belgeler OneDrive'a yönlendirilmişse
   `OneDrive\Belgeler\Kuyumcu Defteri Yedekleri` olur. Her açılıştan 1 dk sonra yedek alınır (günde birkaç açılışta
   birkaç dosya oluşur; 30 gün saklama). İstenirse "o gün yedek varsa atla" yapılabilir.
@@ -112,7 +134,7 @@ docs/YAYIN.md         Partner Center, Play Console, GitHub Secrets kurulumu
 
 ## Sıradaki işler
 1. ~~Windows'ta çalıştırıp test et~~ (yapıldı, bkz. bölüm 3). Kullanıcının elle testi sürüyor.
-2. Ayarlar, Kurulum ve Lisans ekranlarının düzenini yeni tasarıma getir.
+2. ~~Ayarlar, Kurulum ve Lisans ekranları~~ (yapıldı, bölüm 5). Sıradaki: otomatik Google Drive yedeği.
 3. Android veri görüntüleme ekranını (`ImportData.razor`) yeni tasarıma getir.
 4. Android'in Google Drive'dan son yedeği kendisi indirmesi (Android OAuth istemcisi gerekir).
 5. Mağaza hazırlığı: ürün adı ve Android paket adı kesinleşmeli (Play'e ilk yüklemeden sonra değişmez),

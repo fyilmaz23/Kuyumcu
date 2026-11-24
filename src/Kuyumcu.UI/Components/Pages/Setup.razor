@@ -7,59 +7,53 @@
 @inject BackupService BackupService
 @inject IDialogService DialogService
 
-<div>
-    <MudPaper Class="pa-8 w-100" Elevation="0" Outlined="true">
-        <MudText Typo="Typo.h4" Align="Align.Center" Class="mb-2">
-            <MudIcon Icon="@Icons.Material.Filled.Diamond" Size="Size.Large" Class="mr-2" />
-            Hoş Geldiniz
-        </MudText>
-        <MudText Typo="Typo.body1" Align="Align.Center" Color="Color.Secondary" Class="mb-6">
-            Uygulamayı kullanmaya başlamak için aşağıdaki bilgileri doldurun.
-        </MudText>
+<div class="kd-card kd-gate">
+    <div class="kd-gate-head">
+        <div class="kd-gate-icon is-brand"><MudIcon Icon="@Icons.Material.Filled.Diamond" /></div>
+        <div>
+            <MudText Typo="Typo.h5" Class="kd-strong">Hoş geldiniz</MudText>
+            <MudText Typo="Typo.body2" Class="kd-muted">Birkaç saniyede başlayın. 30 gün boyunca tüm özellikler ücretsiz açıktır.</MudText>
+        </div>
+    </div>
 
-        <MudDivider Class="mb-6" />
+    @if (legacyDatabasePath != null)
+    {
+        <div class="kd-gate-option is-recommended">
+            <div class="d-flex align-center gap-2 mb-1">
+                <MudIcon Icon="@Icons.Material.Outlined.MoveDown" Size="Size.Small" />
+                <b>Eski sürümün verileri bulundu</b>
+                <span class="kd-badge emanet">Önerilen</span>
+            </div>
+            <MudText Typo="Typo.body2" Class="kd-muted mb-3">
+                Daha önce kullandığınız uygulamadaki müşteri, işlem ve ayarlarınız tek tıkla aktarılır. Eski uygulamaya dokunulmaz.
+            </MudText>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.MoveDown"
+                       OnClick="ImportLegacyData" Disabled="@isImporting">
+                @(isImporting ? "Aktarılıyor…" : "Eski Verileri Aktar")
+            </MudButton>
+        </div>
 
-        @if (legacyDatabasePath != null)
-        {
-            <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="mb-6">
-                <div class="d-flex flex-column gap-2">
-                    <span><b>Eski sürümün verileri bulundu.</b> Daha önce kullandığınız uygulamadaki müşteri, işlem ve ayarlarınızı aktarabilirsiniz.</span>
-                    <div>
-                        <MudButton Variant="Variant.Filled" Color="Color.Info" StartIcon="@Icons.Material.Filled.MoveDown"
-                                   OnClick="ImportLegacyData" Disabled="@isImporting">
-                            @(isImporting ? "Aktarılıyor..." : "Eski Verileri Aktar")
-                        </MudButton>
-                    </div>
-                </div>
-            </MudAlert>
-        }
+        <div class="kd-gate-divider"><span>veya yeni başlayın</span></div>
+    }
 
-        <MudText Typo="Typo.h6" Class="mb-3">
-            <MudIcon Icon="@Icons.Material.Filled.Store" Class="mr-1" /> İş Yeri Bilgileri
-        </MudText>
+    <MudTextField @bind-Value="settings.BusinessName"
+                  Label="İş yeri adı"
+                  Placeholder="Örn: Kuyumcu Mehmet"
+                  Variant="Variant.Outlined"
+                  Required="true"
+                  RequiredError="İş yeri adı zorunludur"
+                  HelperText="Google Drive yedeği ve altın fiyatı ayarlarını sonra Ayarlar'dan yapabilirsiniz."
+                  Class="mb-4" />
 
-        <MudTextField @bind-Value="settings.BusinessName"
-                       Label="İş Yeri Adı"
-                       Placeholder="Örn: Kuyumcu Mehmet"
-                       Variant="Variant.Outlined"
-                       Required="true"
-                       RequiredError="İş yeri adı zorunludur"
-                       Class="mb-4" />
-
-        <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true" Class="mb-4">
-            Google Drive yedeklemesini ve altın fiyatı ayarlarını daha sonra <b>Ayarlar</b> sayfasından yapabilirsiniz.
-        </MudAlert>
-
-        <MudButton Variant="Variant.Filled"
-                   Color="Color.Primary"
-                   FullWidth="true"
-                   Size="Size.Large"
-                   StartIcon="@Icons.Material.Filled.Check"
-                   OnClick="SaveAndContinue"
-                   Disabled="@(string.IsNullOrWhiteSpace(settings.BusinessName))">
-            Kaydet ve Başla
-        </MudButton>
-    </MudPaper>
+    <MudButton Variant="@(legacyDatabasePath != null ? Variant.Outlined : Variant.Filled)"
+               Color="Color.Primary"
+               FullWidth="true"
+               Size="Size.Large"
+               StartIcon="@Icons.Material.Filled.Check"
+               OnClick="SaveAndContinue"
+               Disabled="@(string.IsNullOrWhiteSpace(settings.BusinessName))">
+        Kaydet ve Başla
+    </MudButton>
 </div>
 
 @code {
