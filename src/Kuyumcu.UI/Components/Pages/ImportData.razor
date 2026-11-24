@@ -234,6 +234,9 @@
                         }
                     </MudTabPanel>
                 }
+                <MudTabPanel Text="Vitrin Stoku">
+                    <ImportedStockView Data="ImportedStock" />
+                </MudTabPanel>
             </MudTabs>
         }
     </MudPaper>
@@ -258,6 +261,7 @@
 
     private int? SelectedCustomerId = null;
     private int ActiveTabIndex = 0;
+    private ImportedStockData ImportedStock = ImportedStockData.Empty;
 
     // Arama işlevselliği için
     private string CustomerSearchText { get; set; } = string.Empty;
@@ -353,6 +357,7 @@
         {
             IsCustomersLoading = true;
             ImportedCustomers = await DbImportService.GetImportedCustomersAsync();
+            ImportedStock = await DbImportService.GetImportedStockAsync();
         }
         catch (Exception ex)
         {
@@ -419,6 +424,7 @@
         HasImportedDatabase = false;
         ImportedCustomers.Clear();
         ImportedTransactions.Clear();
+        ImportedStock = ImportedStockData.Empty;
         CustomerTransactions.Clear();
         SelectedCustomerId = null;
         _groupedCustomerTransactions = null;

@@ -1,0 +1,97 @@
+@using Kuyumcu.Stock
+@* Android (salt okunur): yedekten okunan vitrin stoğu. Etiket basma ve stok değiştirme yok. *@
+
+@if (!Data.HasStock)
+{
+    <EmptyState Icon="@Icons.Material.Outlined.Inventory2" Title="Bu yedekte vitrin stoğu yok"
+                Text="Bilgisayarda stok girildikten sonra alınan yedeği açın." />
+}
+else
+{
+    <StockTotalsCards Totals="totals" />
+
+    @if (bulk.Any(b => b.Product.Amount != 0))
+    {
+        <div class="kd-section-title"><MudText Typo="Typo.h6">Kasa</MudText></div>
+        <div class="kd-card">
+            @foreach (var b in bulk.Where(b => b.Product.Amount != 0))
+            {
+                <div class="kd-list-row kd-spread">
+                    <span class="kd-strong">@b.Product.Name</span>
+                    <span class="kd-num">@StockService.FormatBulkAmount(b.Product, b.Product.Amount) · has @WeightFormat.Gram2(b.HasMg) gr</span>
+                </div>
+            }
+        </div>
+    }
+
+    <div class="kd-section-title"><MudText Typo="Typo.h6">Vitrindeki ürünler (@filtered.Count)</MudText></div>
+    <div class="kd-card">
+        <div class="kd-card-header kd-filter-bar">
+            <div style="flex:1 1 200px">
+                <MudTextField T="string" Value="search" ValueChanged="OnSearch" Placeholder="Kod, kategori, model…" Variant="Variant.Outlined" Margin="Margin.Dense"
+                              Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" Immediate="true" DebounceInterval="250" Clearable="true" />
+            </div>
+            <MudSelect T="int?" Value="karat" ValueChanged="OnKarat" Label="Ayar" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" Class="kd-filter">
+                <MudSelectItem T="int?" Value="null">Tümü</MudSelectItem>
+                @foreach (var k in totals.ByKarat)
+                {
+                    <MudSelectItem T="int?" Value="k.Karat">@k.Karat Ayar</MudSelectItem>
+                }
+            </MudSelect>
+        </div>
+        @foreach (var i in filtered.Take(shown))
+        {
+            <div class="kd-list-row kd-spread">
+                <div style="min-width:0">
+                    <div class="kd-strong">@lookup.Title(i)</div>
+                    <div class="kd-muted" style="font-size:.8rem"><span class="kd-code">@i.Code</span> · @lookup.LocationName(i.LocationId)</div>
+                </div>
+                <div class="text-right">
+                    <div class="kd-num kd-strong">@WeightFormat.Gram(i.WeightMg) gr</div>
+                    <span class="kd-karat">@i.Karat</span>
+                </div>
+            </div>
+        }
+        @if (filtered.Count > shown)
+        {
+            <div class="pa-3 d-flex justify-center">
+                <MudButton Variant="Variant.Text" OnClick="@(() => shown += 100)">Daha fazla göster (@(filtered.Count - shown))</MudButton>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    [Parameter, EditorRequired] public ImportedStockData Data { get; set; } = ImportedStockData.Empty;
+
+    private StockLookup lookup = new(new(), new(), new());
+    private StockTotals totals = StockTotals.Empty;
+    private List<BulkTotal> bulk = new();
+    private List<StockItem> filtered = new();
+    private string? search;
+    private int? karat;
+    private int shown = 100;
+
+    protected override void OnParametersSet()
+    {
+        lookup = new StockLookup(Data.Karats, Data.Categories, Data.Locations);
+        totals = StockCalculator.Calculate(Data.InStockItems, Data.Karats);
+        bulk = Data.BulkProducts.Select(b => StockCalculator.CalculateBulk(b, Data.Karats)).ToList();
+        Filter();
+    }
+
+    private void OnSearch(string value) { search = value; Filter(); }
+    private void OnKarat(int? value) { karat = value; Filter(); }
+
+    private void Filter()
+    {
+        var tr = new System.Globalization.CultureInfo("tr-TR");
+        var term = search?.Trim().ToLower(tr);
+        filtered = Data.InStockItems
+            .Where(i => karat == null || i.Karat == karat)
+            .Where(i => string.IsNullOrEmpty(term) || i.Code.Contains(term) || lookup.Title(i).ToLower(tr).Contains(term))
+            .OrderByDescending(i => i.CreatedAt)
+            .ToList();
+        shown = 100;
+    }
+}
