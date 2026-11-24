@@ -214,6 +214,14 @@
                     <MudText Typo="Typo.body2" Style="font-family: monospace;"><strong>@deviceId</strong></MudText>
                 </div>
 
+                @* Geliştirici aracı sadece LicenseKeyGenerator.razor derlemede varsa görünür (dosya .gitignore'da) *@
+                @if (HasLicenseKeyGenerator)
+                {
+                    <div class="d-flex justify-end">
+                        <MudLink Href="generate-license" Typo="Typo.caption">Lisans anahtarı oluştur (geliştirici)</MudLink>
+                    </div>
+                }
+
                 @if (licenseStatus == Models.LicenseStatus.Licensed && licenseInfo != null)
                 {
                     <div class="d-flex justify-space-between align-center">
@@ -270,6 +278,9 @@
     private string licenseErrorMessage = string.Empty;
     private bool isActivatingLicense = false;
     private Models.LicenseInfo licenseInfo;
+
+    private static readonly bool HasLicenseKeyGenerator =
+        typeof(Settings).Assembly.GetType("Kuyumcu.Components.Pages.LicenseKeyGenerator") != null;
 
     protected override async Task OnInitializedAsync()
     {

@@ -225,7 +225,8 @@ namespace Kuyumcu.Services
         {
             try
             {
-                var testDb = new SQLiteAsyncConnection(filePath);
+                // Salt okunur aç: kaynak, eski uygulamanın canlı veritabanı olabilir; ona hiçbir şey yazılmamalı
+                var testDb = new SQLiteAsyncConnection(filePath, SQLiteOpenFlags.ReadOnly);
                 var tableInfo = await testDb.QueryAsync<TableInfoResult>(
                     "SELECT name FROM sqlite_master WHERE type='table' AND name='Customer'");
                 await testDb.CloseAsync();

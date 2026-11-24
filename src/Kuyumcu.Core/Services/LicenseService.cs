@@ -335,7 +335,7 @@ namespace Kuyumcu.Services
                 // 2. Kontrol: Sistem saati geri alınmış mı?
                 if (!string.IsNullOrEmpty(secureLastCheckStr))
                 {
-                    if (DateTime.TryParse(secureLastCheckStr, out var lastCheck))
+                    if (TryParseUtc(secureLastCheckStr, out var lastCheck))
                     {
                         if (now < lastCheck.AddMinutes(-5)) // 5 dakika tolerans
                         {
@@ -351,7 +351,7 @@ namespace Kuyumcu.Services
                 // 3. Kontrol: DB ve SecureStorage arasındaki tutarsızlık
                 if (!string.IsNullOrEmpty(secureTrialStartStr))
                 {
-                    if (DateTime.TryParse(secureTrialStartStr, out var secureStart))
+                    if (TryParseUtc(secureTrialStartStr, out var secureStart))
                     {
                         // DB'deki tarih SecureStorage'dan farklıysa → DB manipüle edilmiş
                         if (Math.Abs((licenseInfo.TrialStartDate - secureStart).TotalHours) > 1)
@@ -374,6 +374,23 @@ namespace Kuyumcu.Services
             {
                 Console.WriteLine($"PerformAntiTamperingCheckAsync hata: {ex.Message}");
             }
+        }
+
+        /// <summary>
+        /// SecureStore'a "O" biçiminde (UTC, sonu "Z") yazılan tarihi UTC olarak okur.
+        /// Düz DateTime.TryParse "Z"li tarihi yerel saate çevirir (Türkiye'de +3 saat); bu durumda
+        /// UTC "şimdi" ile karşılaştırma yanlış sonuç verir ve deneme süresi haksız yere biterdi.
+        /// </summary>
+        private static bool TryParseUtc(string value, out DateTime result)
+        {
+            if (DateTime.TryParse(value, System.Globalization.CultureInfo.InvariantCulture,
+                    System.Globalization.DateTimeStyles.AdjustToUniversal | System.Globalization.DateTimeStyles.AssumeUniversal,
+                    out result))
+            {
+                result = DateTime.SpecifyKind(result, DateTimeKind.Utc);
+                return true;
+            }
+            return false;
         }
 
         /// <summary>

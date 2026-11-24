@@ -84,6 +84,14 @@
                        Disabled="@(string.IsNullOrWhiteSpace(licenseKey) || isActivating)">
                 @(isActivating ? "Doğrulanıyor..." : "Lisansı Etkinleştir")
             </MudButton>
+
+            @* Geliştirici aracı sadece LicenseKeyGenerator.razor derlemede varsa görünür (dosya .gitignore'da) *@
+            @if (HasLicenseKeyGenerator)
+            {
+                <div class="d-flex justify-center mt-3">
+                    <MudLink Href="generate-license" Typo="Typo.caption">Lisans anahtarı oluştur (geliştirici)</MudLink>
+                </div>
+            }
         }
     </MudPaper>
 </div>
@@ -95,6 +103,9 @@
     private string errorMessage = string.Empty;
     private bool isLoading = true;
     private bool isActivating = false;
+
+    private static readonly bool HasLicenseKeyGenerator =
+        typeof(LicenseExpired).Assembly.GetType("Kuyumcu.Components.Pages.LicenseKeyGenerator") != null;
 
     protected override async Task OnInitializedAsync()
     {

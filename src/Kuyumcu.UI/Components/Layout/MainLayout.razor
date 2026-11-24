@@ -29,10 +29,22 @@
     }
     else
     {
-        <MudAppBar Elevation="0" Class="kd-appbar">
-            <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start"
-                           OnClick="ToggleDrawer" aria-label="Menüyü daralt/genişlet" />
-            <div class="kd-search ml-2" id="global-search">
+        @* Masaüstü: tek satır üst menü. Sayfalar ikonla gösterilir, başlıkları üzerine gelince çıkar;
+           sol menü yok, içerik ekranın tamamını kullanır. *@
+        <MudAppBar Elevation="0" Class="kd-appbar kd-topbar">
+            <a href="/" class="kd-topbar-brand" title="@businessName">
+                <BrandLogo Class="kd-brand-logo" />
+                <span class="kd-brand-name">@businessName</span>
+            </a>
+
+            <nav class="kd-topnav" aria-label="Ana menü">
+                @foreach (var item in MainNavItems)
+                {
+                    @NavItem(item)
+                }
+            </nav>
+
+            <div class="kd-search" id="global-search">
                 <MudAutocomplete @ref="searchAutocomplete" T="Customer" Placeholder="Müşteri ara…  (Ctrl+K)"
                                  Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true"
                                  SearchFunc="SearchCustomers" ToStringFunc="@(c => c?.Name)"
@@ -53,56 +65,47 @@
                     </NoItemsTemplate>
                 </MudAutocomplete>
             </div>
-            <MudSpacer />
-            <MudTooltip Text="@(isDarkMode ? "Açık tema" : "Koyu tema")">
-                <MudIconButton Icon="@(isDarkMode ? Icons.Material.Outlined.LightMode : Icons.Material.Outlined.DarkMode)"
-                               Color="Color.Inherit" OnClick="ToggleDarkMode" aria-label="Temayı değiştir" />
-            </MudTooltip>
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="ml-2"
-                       StartIcon="@Icons.Material.Filled.PersonAdd" OnClick="NewCustomer">
-                Yeni Müşteri
-            </MudButton>
-        </MudAppBar>
 
-        <MudDrawer @bind-Open="drawerOpen" ClipMode="DrawerClipMode.Never" Elevation="0"
-                   Variant="DrawerVariant.Mini" OpenMiniOnHover="false">
-            <div class="d-flex flex-column" style="height:100%">
-                <div class="kd-brand">
-                    <BrandLogo Class="kd-brand-logo" />
-                    @if (drawerOpen)
-                    {
-                        <div class="kd-brand-text">
-                            <div class="kd-brand-name" title="@businessName">@businessName</div>
-                            <div class="kd-brand-product">@ProductInfo.Name</div>
-                        </div>
-                    }
-                </div>
-                <NavMenu />
-                <div class="kd-drawer-footer">
-                    @if (licenseStatus == LicenseStatus.Trial && drawerOpen)
-                    {
-                        <a class="kd-trial" href="/settings" style="text-decoration:none">
-                            <MudIcon Icon="@Icons.Material.Filled.HourglassTop" Style="font-size:.95rem; vertical-align:-3px" />
-                            Deneme sürümü · @remainingDays gün kaldı
+            <MudSpacer />
+
+            <div class="kd-topbar-actions">
+                @if (licenseStatus == LicenseStatus.Trial)
+                {
+                    <MudTooltip Text="Deneme sürümü — lisans için Ayarlar" Placement="Placement.Bottom">
+                        <a class="kd-trial @(remainingDays <= 7 ? "is-urgent" : null)" href="/settings">
+                            <MudIcon Icon="@Icons.Material.Filled.HourglassTop" Size="Size.Small" />
+                            <span>@remainingDays gün</span>
                         </a>
-                    }
-                    <MudTooltip Text="@(isGoogleDriveConfigured ? "Verilerin yedeğini Google Drive'a yükle" : "Google Drive ayarlanmamış (Ayarlar)")" Placement="Placement.Right">
-                        <MudButton Variant="Variant.Outlined" FullWidth="true" Style="color:#F1CF7B; border-color: rgba(241,207,123,.35)"
-                                   StartIcon="@(drawerOpen ? Icons.Material.Filled.CloudUpload : null)"
-                                   OnClick="BackupToGoogleDrive" Disabled="@(isBackupInProgress || !isGoogleDriveConfigured)">
-                            @if (drawerOpen)
-                            {
-                                @(isBackupInProgress ? "Yedekleniyor…" : "Drive'a Yedekle")
-                            }
-                            else
-                            {
-                                <MudIcon Icon="@Icons.Material.Filled.CloudUpload" />
-                            }
-                        </MudButton>
                     </MudTooltip>
-                </div>
+                }
+
+                <MudTooltip Text="@(isBackupInProgress ? "Yedekleniyor…" : isGoogleDriveConfigured ? "Google Drive'a yedekle" : "Google Drive ayarlanmamış (Ayarlar)")"
+                            Placement="Placement.Bottom">
+                    @if (isBackupInProgress)
+                    {
+                        <span class="kd-topbar-icon"><MudProgressCircular Indeterminate="true" Size="Size.Small" Style="width:20px;height:20px" /></span>
+                    }
+                    else
+                    {
+                        <MudIconButton Icon="@Icons.Material.Outlined.CloudUpload" Class="kd-topbar-icon"
+                                       OnClick="BackupToGoogleDrive" Disabled="@(!isGoogleDriveConfigured)"
+                                       aria-label="Google Drive'a yedekle" />
+                    }
+                </MudTooltip>
+
+                <MudTooltip Text="@(isDarkMode ? "Açık tema" : "Koyu tema")" Placement="Placement.Bottom">
+                    <MudIconButton Icon="@(isDarkMode ? Icons.Material.Outlined.LightMode : Icons.Material.Outlined.DarkMode)"
+                                   Class="kd-topbar-icon" OnClick="ToggleDarkMode" aria-label="Temayı değiştir" />
+                </MudTooltip>
+
+                @NavItem(SettingsNavItem)
+
+                <MudButton Variant="Variant.Filled" Class="kd-new-customer ml-2"
+                           StartIcon="@Icons.Material.Filled.PersonAdd" OnClick="NewCustomer">
+                    Yeni Müşteri
+                </MudButton>
             </div>
-        </MudDrawer>
+        </MudAppBar>
 
         <MudMainContent>
             @Body
@@ -115,7 +118,31 @@
 </MudScrollToTop>
 
 @code {
-    private bool drawerOpen = true;
+    // Menü sırası Alt+1..4 kısayollarını da belirler (app.js, .kd-topnav-item sırasına bakar)
+    private sealed record NavEntry(string Title, string Href, string Icon, NavLinkMatch Match, string Shortcut);
+
+    private static readonly NavEntry[] MainNavItems =
+    [
+        new("Ana Sayfa", "/", Icons.Material.Outlined.SpaceDashboard, NavLinkMatch.All, "Alt+1"),
+        new("Müşteriler", "/customers", Icons.Material.Outlined.People, NavLinkMatch.Prefix, "Alt+2"),
+        new("İşlemler", "/transactions", Icons.Material.Outlined.ReceiptLong, NavLinkMatch.Prefix, "Alt+3"),
+    ];
+
+    private static readonly NavEntry SettingsNavItem =
+        new("Ayarlar", "/settings", Icons.Material.Outlined.Settings, NavLinkMatch.Prefix, "Alt+4");
+
+    private RenderFragment NavItem(NavEntry item) =>
+        @<MudTooltip Placement="Placement.Bottom" Delay="150">
+            <ChildContent>
+                <NavLink href="@item.Href" Match="@item.Match" class="kd-topnav-item" ActiveClass="active" aria-label="@item.Title">
+                    <MudIcon Icon="@item.Icon" />
+                </NavLink>
+            </ChildContent>
+            <TooltipContent>
+                @item.Title <span class="kd-kbd">@item.Shortcut</span>
+            </TooltipContent>
+        </MudTooltip>;
+
     private bool isDarkMode;
     private bool isBackupInProgress;
     private bool isGoogleDriveConfigured;
@@ -153,7 +180,6 @@
         try
         {
             isDarkMode = await JS.InvokeAsync<string?>("kuyumcu.getPreference", "darkMode") == "1";
-            drawerOpen = await JS.InvokeAsync<string?>("kuyumcu.getPreference", "drawer") != "0";
             shortcutRef = DotNetObjectReference.Create(Shortcuts);
             await JS.InvokeVoidAsync("kuyumcu.registerShortcuts", shortcutRef);
             StateHasChanged();
@@ -165,12 +191,6 @@
     {
         isDarkMode = !isDarkMode;
         await JS.InvokeVoidAsync("kuyumcu.setPreference", "darkMode", isDarkMode ? "1" : "0");
-    }
-
-    private async Task ToggleDrawer()
-    {
-        drawerOpen = !drawerOpen;
-        await JS.InvokeVoidAsync("kuyumcu.setPreference", "drawer", drawerOpen ? "1" : "0");
     }
 
     private async Task BackupToGoogleDrive()

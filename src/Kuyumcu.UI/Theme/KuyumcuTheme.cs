@@ -8,7 +8,11 @@ namespace Kuyumcu.UI.Theme;
 /// </summary>
 public static class KuyumcuTheme
 {
-    public const string FontStack = "\"Segoe UI Variable Text\", \"Segoe UI\", Inter, -apple-system, BlinkMacSystemFont, Roboto, \"Helvetica Neue\", Arial, sans-serif";
+    // MudBlazor her adı kendisi tırnağa sarar: adlar tırnaksız ve boşluksuz verilmeli.
+    // (Eskiden "...".Split(',') kullanılıyordu; tırnaklı/boşluklu adlar eşleşmediği için Windows'ta yazılar
+    // tırnaklı (Times) varsayılan yazı tipine düşüyordu.)
+    public static readonly string[] FontStack =
+        ["Segoe UI Variable Text", "Segoe UI", "Inter", "-apple-system", "BlinkMacSystemFont", "Roboto", "Helvetica Neue", "Arial", "sans-serif"];
 
     public static readonly MudTheme Theme = new()
     {
@@ -25,8 +29,8 @@ public static class KuyumcuTheme
             Background = "#F6F4EF",
             BackgroundGray = "#EFECE5",
             Surface = "#FFFFFF",
-            AppbarBackground = "#FFFFFF",
-            AppbarText = "#2B2620",
+            AppbarBackground = "#1F1A14", // üst menü her iki temada antrasit
+            AppbarText = "rgba(255,255,255,0.86)",
             DrawerBackground = "#1F1A14",
             DrawerText = "rgba(255,255,255,0.78)",
             DrawerIcon = "rgba(255,255,255,0.62)",
@@ -54,8 +58,8 @@ public static class KuyumcuTheme
             Background = "#14110D",
             BackgroundGray = "#1B1713",
             Surface = "#1E1A15",
-            AppbarBackground = "#1E1A15",
-            AppbarText = "#EDE7DC",
+            AppbarBackground = "#0F0D0A",
+            AppbarText = "rgba(255,255,255,0.86)",
             DrawerBackground = "#0F0D0A",
             DrawerText = "rgba(255,255,255,0.78)",
             DrawerIcon = "rgba(255,255,255,0.62)",
@@ -71,23 +75,21 @@ public static class KuyumcuTheme
         LayoutProperties = new LayoutProperties
         {
             DefaultBorderRadius = "10px",
-            DrawerWidthLeft = "232px",
-            DrawerMiniWidthLeft = "68px",
-            AppbarHeight = "60px",
+            AppbarHeight = "52px",
         },
         Typography = new Typography
         {
-            Default = new DefaultTypography { FontFamily = FontStack.Split(','), FontSize = "0.9rem", LineHeight = "1.5", LetterSpacing = "0" },
-            H4 = new H4Typography { FontFamily = FontStack.Split(','), FontSize = "1.75rem", FontWeight = "650", LetterSpacing = "-0.01em" },
-            H5 = new H5Typography { FontFamily = FontStack.Split(','), FontSize = "1.35rem", FontWeight = "650", LetterSpacing = "-0.005em" },
-            H6 = new H6Typography { FontFamily = FontStack.Split(','), FontSize = "1.05rem", FontWeight = "600", LetterSpacing = "0" },
-            Subtitle1 = new Subtitle1Typography { FontFamily = FontStack.Split(','), FontSize = "0.95rem", FontWeight = "600" },
-            Subtitle2 = new Subtitle2Typography { FontFamily = FontStack.Split(','), FontSize = "0.85rem", FontWeight = "600" },
-            Body1 = new Body1Typography { FontFamily = FontStack.Split(','), FontSize = "0.92rem" },
-            Body2 = new Body2Typography { FontFamily = FontStack.Split(','), FontSize = "0.85rem" },
-            Button = new ButtonTypography { FontFamily = FontStack.Split(','), FontSize = "0.875rem", FontWeight = "600", TextTransform = "none", LetterSpacing = "0" },
-            Caption = new CaptionTypography { FontFamily = FontStack.Split(','), FontSize = "0.78rem" },
-            Overline = new OverlineTypography { FontFamily = FontStack.Split(','), FontSize = "0.7rem", FontWeight = "600", LetterSpacing = "0.08em" },
+            Default = new DefaultTypography { FontFamily = FontStack, FontSize = "0.9rem", LineHeight = "1.5", LetterSpacing = "0" },
+            H4 = new H4Typography { FontFamily = FontStack, FontSize = "1.75rem", FontWeight = "650", LetterSpacing = "-0.01em" },
+            H5 = new H5Typography { FontFamily = FontStack, FontSize = "1.35rem", FontWeight = "650", LetterSpacing = "-0.005em" },
+            H6 = new H6Typography { FontFamily = FontStack, FontSize = "1.05rem", FontWeight = "600", LetterSpacing = "0" },
+            Subtitle1 = new Subtitle1Typography { FontFamily = FontStack, FontSize = "0.95rem", FontWeight = "600" },
+            Subtitle2 = new Subtitle2Typography { FontFamily = FontStack, FontSize = "0.85rem", FontWeight = "600" },
+            Body1 = new Body1Typography { FontFamily = FontStack, FontSize = "0.92rem" },
+            Body2 = new Body2Typography { FontFamily = FontStack, FontSize = "0.85rem" },
+            Button = new ButtonTypography { FontFamily = FontStack, FontSize = "0.875rem", FontWeight = "600", TextTransform = "none", LetterSpacing = "0" },
+            Caption = new CaptionTypography { FontFamily = FontStack, FontSize = "0.78rem" },
+            Overline = new OverlineTypography { FontFamily = FontStack, FontSize = "0.7rem", FontWeight = "600", LetterSpacing = "0.08em" },
         },
     };
 }

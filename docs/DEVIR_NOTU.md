@@ -18,7 +18,7 @@ dönüştürmek ve arayüzünü yenilemek.
 ```
 src/Kuyumcu.Core      Modeller + servisler (SQLite, lisans, yedek, Drive, görsel üretimi). net10.0, platformdan bağımsız
 src/Kuyumcu.UI        Ortak Blazor arayüzü (Razor Class Library): sayfalar, tema, bileşenler, app.css, app.js
-src/Kuyumcu.Desktop   WPF kabuğu (net10.0-windows, self-contained, win-x64) + Packaging/AppxManifest.xml
+src/Kuyumcu.Desktop   WPF kabuğu (net10.0-windows10.0.19041.0, self-contained, win-x64) + Packaging/AppxManifest.xml
 src/Kuyumcu.Mobile    MAUI Android kabuğu (net10.0-android), salt okunur
 src/Kuyumcu.Preview   Blazor Server tarayıcı önizlemesi (Mac/Linux'ta arayüz geliştirmek için, örnek verili) — dağıtılmaz
 build/                CI betikleri: write-secrets.ps1 (gizli dosyaları üretir), pack-msix.ps1 (makeappx ile MSIX)
@@ -67,16 +67,51 @@ docs/YAYIN.md         Partner Center, Play Console, GitHub Secrets kurulumu
   → deneme süresi bitmiş başlar (kasıtlı).
 - `LICENSE_SECRET_KEY` değişirse eski lisans anahtarları geçersiz olur.
 
+### 3. İlk Windows çalıştırması (22.11.2026)
+- Uygulama Windows'ta açılıyor; eski sürümden aktarma çalıştı (889 müşteri / 14.864 işlem, eski DB'ye dokunulmadı).
+- Düzeltilen hatalar:
+  - **Açılışta çökme** "Could not load Microsoft.Windows.SDK.NET": WebView2 SDK'sı .NET 5+ WPF için Windows SDK
+    projeksiyonu istiyor → Desktop hedefi `net10.0-windows10.0.19041.0` (Min OS 10.0.17763, MSIX ile aynı).
+  - **"Yükleniyor..."da takılma:** Desktop `index.html`'de `autostart="false"` vardı; WPF Blazor'u kendisi başlatmaz.
+    (Android'de MAUI başlattığı için orada kalıyor.)
+  - **Deneme süresinin 2. açılışta bitmesi:** SecureStore'daki UTC tarihler `DateTime.TryParse` ile yerel saate (+3)
+    çevriliyor, "saat geri alınmış" sanılıyordu → `LicenseService.TryParseUtc`. Lisanslı kullanıcıları etkilemiyordu.
+  - **Yazı tipi:** `FontStack.Split(',')` tırnaklı/boşluklu adlar üretiyordu, Windows'ta Times'a düşüyordu → dizi.
+  - Aktarma/geri yükleme doğrulaması kaynak DB'yi artık salt okunur açıyor.
+  - Desktop'taki gereksiz `ProtectedData` / `System.Drawing.Common` paket referansları kaldırıldı (NU1510).
+- `LicenseKeyGenerator.razor` yeni yapıya uyarlandı (yerelde, gitignore'da). Bağlantısı Ayarlar > Lisans ve
+  "Deneme Süresi Doldu" ekranında, **sadece dosya derlemede varsa** görünür; süre dolmuşken de açılabilir.
+- Bu geliştirme bilgisayarındaki eski kurulum lisans sisteminden önceki sürüm (LicenseInfo tablosu yok) →
+  aktarımdan sonra kasıtlı kural gereği "Deneme Süresi Doldu" gelir.
+
+### 4. Üst menü (24.11.2026, kullanıcı isteği)
+- Sol menü kaldırıldı (`NavMenu.razor` silindi). `MainLayout`: antrasit tek satır üst bar (52 px) — marka/iş yeri adı,
+  ikonlu sayfa düğmeleri (üzerine gelince başlık + kısayol), müşteri arama, deneme süresi rozeti, Drive yedek,
+  tema, Ayarlar, "Yeni Müşteri". Kısayollar: Alt+1 Ana Sayfa, Alt+2 Müşteriler, Alt+3 İşlemler, Alt+4 Ayarlar.
+- `.kd-page` genişlik sınırı kaldırıldı (tam ekran). Dar pencerede önce iş yeri adı, sonra düğme yazısı gizlenir.
+
+## Kullanıcıya sunulan öneriler (karar bekleyen sıra)
+1. Lisans: HMAC yerine asimetrik imzalı lisans (ECDSA P-256, özel anahtar sadece geliştiricide; `IsLicensed`
+   alanına güvenmeden her açılışta imza doğrulama; deneme başlangıcı kayıt defterinde de). Obfuscar ile karıştırma.
+2. Yedek: müşterinin kendi Google Drive'ına tam otomatik yedek (değişiklik varsa 2 saatte bir + kapanışta + günlük,
+   14 gün + 12 ay saklama, üst barda durum ikonu). OAuth izin ekranı "Üretim"e alınmalı.
+3. Android: aynı Play hesabı kullanılacak (kullanıcı daha önce 12 kişi/14 gün testten geçti; yeni uygulama için
+   büyük olasılıkla tekrar gerekecek — kapalı testi erken başlat). Drive'dan son yedeği otomatik okuma.
+
 ## Doğrulanmadı / dikkat
-- **WPF uygulaması Windows'ta hiç çalıştırılmadı** (geliştirme Linux bulut ortamında yapıldı; derleniyor).
-  İlk iş: Windows'ta `dotnet run --project src/Kuyumcu.Desktop` ve eski veri aktarma testi.
 - `build/pack-msix.ps1` ve Android AAB üretimi CI'da henüz denenmedi (ilk etikette görülecek).
-- `LicenseKeyGenerator.razor` eski yapıya göre yazıldı; derleme hatası verebilir, uyarlanmalı.
+- Hedef çerçeve değişti (`net10.0-windows10.0.19041.0`): CI'da Linux üzerinde Desktop derlemesi ilk push'ta kontrol edilmeli.
+- Aktarılan eski DB'de **lisanssız** bir LicenseInfo varsa, `ActivateLicenseAsync` anahtarı DB'deki eski cihaz
+  kimliğine göre doğrular ama ekranda yeni cihaz kimliği gösterilir → anahtar tutmaz. (Lisanslı ya da LicenseInfo'suz
+  eski DB'lerde sorun yok.) Düzeltme kararı bekliyor.
+- Yerel yedek `Environment.SpecialFolder.MyDocuments` altına gider; Belgeler OneDrive'a yönlendirilmişse
+  `OneDrive\Belgeler\Kuyumcu Defteri Yedekleri` olur. Her açılıştan 1 dk sonra yedek alınır (günde birkaç açılışta
+  birkaç dosya oluşur; 30 gün saklama). İstenirse "o gün yedek varsa atla" yapılabilir.
 - Yeni işlemde varsayılan cins artık **son kullanılan cins** (eskiden TL). Kullanıcı istemezse geri alınacak.
 - Tutar girişinde Türkçe biçim: "12.5" → 125 okunur (nokta binlik). Eski sürümde de böyleydi.
 
 ## Sıradaki işler
-1. Windows'ta çalıştırıp test et; çıkan hataları düzelt. `LicenseKeyGenerator.razor`'ı yeni yapıya uyarla.
+1. ~~Windows'ta çalıştırıp test et~~ (yapıldı, bkz. bölüm 3). Kullanıcının elle testi sürüyor.
 2. Ayarlar, Kurulum ve Lisans ekranlarının düzenini yeni tasarıma getir.
 3. Android veri görüntüleme ekranını (`ImportData.razor`) yeni tasarıma getir.
 4. Android'in Google Drive'dan son yedeği kendisi indirmesi (Android OAuth istemcisi gerekir).
