@@ -1,0 +1,201 @@
+@page "/stock/reports"
+@using Kuyumcu.Stock
+@inject StockService Stock
+@inject DatabaseService Database
+@inject ReportExportService Reports
+@inject ISnackbar Snackbar
+@inject NavigationManager Nav
+
+<div class="kd-page">
+    <PageHeader Title="Stok Raporları" Subtitle="Günlük satışlar, uzun süredir satılmayanlar ve ayar bazında toplamlar. Her liste CSV olarak (Excel) dışa aktarılabilir." />
+
+    @if (lookup == null)
+    {
+        <MudProgressLinear Color="Color.Primary" Indeterminate="true" Class="my-6" />
+    }
+    else
+    {
+        <MudTabs Elevation="0" Rounded="true" ApplyEffectsToContainer="true" PanelClass="pt-4" @bind-ActivePanelIndex="tab">
+            <MudTabPanel Text="Günlük satılanlar" Icon="@Icons.Material.Outlined.Sell">
+                <div class="kd-card">
+                    <div class="kd-card-header kd-filter-bar">
+                        <MudIconButton Icon="@Icons.Material.Filled.ChevronLeft" OnClick="@(() => ChangeDay(-1))" aria-label="Önceki gün" />
+                        <div style="width:170px">
+                            <MudDatePicker Date="day" DateChanged="OnDayChanged" Label="Tarih" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                           DateFormat="dd.MM.yyyy" MaxDate="DateTime.Today" />
+                        </div>
+                        <MudIconButton Icon="@Icons.Material.Filled.ChevronRight" OnClick="@(() => ChangeDay(1))" Disabled="@(day >= DateTime.Today)" aria-label="Sonraki gün" />
+                        <MudSpacer />
+                        <span class="kd-muted kd-num" style="font-size:.85rem">
+                            @sales.Count adet · @WeightFormat.Gram2(sales.Sum(s => (long)s.Item.WeightMg)) gr · has @WeightFormat.Gram2(sales.Sum(s => s.HasMg))
+                            @if (sales.Any(s => s.Movement.Price.HasValue)) { <span> · @sales.Sum(s => s.Movement.Price ?? 0).ToString("N2") ₺</span> }
+                        </span>
+                        <MudIconButton Icon="@Icons.Material.Outlined.FileDownload" OnClick="ExportSales" Disabled="@(!sales.Any())" aria-label="CSV" />
+                    </div>
+                    <MudTable T="SaleRow" Items="sales" Class="kd-table" Elevation="0" Dense="true" Hover="true" Breakpoint="Breakpoint.Sm"
+                              OnRowClick="@(e => Nav.NavigateTo($"/stock/item/{e.Item!.Item.Id}"))" RowClass="kd-row-link">
+                        <HeaderContent>
+                            <MudTh>Saat</MudTh><MudTh>Kod</MudTh><MudTh>Ürün</MudTh><MudTh>Ayar</MudTh>
+                            <MudTh Class="kd-right">Gram</MudTh><MudTh Class="kd-right">Fiyat</MudTh><MudTh>Müşteri</MudTh><MudTh>Durum</MudTh>
+                        </HeaderContent>
+                        <RowTemplate>
+                            <MudTd DataLabel="Saat"><span class="kd-num">@context.Movement.Date.ToString("HH:mm")</span></MudTd>
+                            <MudTd DataLabel="Kod"><span class="kd-code">@context.Item.Code</span></MudTd>
+                            <MudTd DataLabel="Ürün">@lookup.Title(context.Item)</MudTd>
+                            <MudTd DataLabel="Ayar">@context.Item.Karat</MudTd>
+                            <MudTd DataLabel="Gram" Class="kd-right"><span class="kd-num">@WeightFormat.Gram(context.Item.WeightMg)</span></MudTd>
+                            <MudTd DataLabel="Fiyat" Class="kd-right"><span class="kd-num">@(context.Movement.Price?.ToString("N2") ?? "—")</span></MudTd>
+                            <MudTd DataLabel="Müşteri">@(context.CustomerName ?? "—")</MudTd>
+                            <MudTd DataLabel="Durum"><StockStatusBadge Item="context.Item" /></MudTd>
+                        </RowTemplate>
+                        <NoRecordsContent><EmptyState Icon="@Icons.Material.Outlined.Sell" Title="Bu gün satış yok" /></NoRecordsContent>
+                    </MudTable>
+                </div>
+                <MudText Typo="Typo.caption" Class="kd-muted d-block mt-2">Sonradan iade alınan satışlar da listelenir; durumu "Vitrinde" görünür.</MudText>
+            </MudTabPanel>
+
+            <MudTabPanel Text="Uzun süredir satılmayanlar" Icon="@Icons.Material.Outlined.HourglassBottom">
+                <div class="kd-card">
+                    <div class="kd-card-header kd-filter-bar">
+                        <MudSelect T="int" Value="slowDays" ValueChanged="OnSlowDays" Label="En az" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" Class="kd-filter">
+                            <MudSelectItem Value="30">30 gün</MudSelectItem>
+                            <MudSelectItem Value="90">90 gün</MudSelectItem>
+                            <MudSelectItem Value="180">180 gün</MudSelectItem>
+                            <MudSelectItem Value="365">1 yıl</MudSelectItem>
+                        </MudSelect>
+                        <MudSpacer />
+                        <span class="kd-muted kd-num" style="font-size:.85rem">@slow.Count adet · @WeightFormat.Gram2(slow.Sum(i => (long)i.WeightMg)) gr</span>
+                        <MudIconButton Icon="@Icons.Material.Outlined.FileDownload" OnClick="ExportSlow" Disabled="@(!slow.Any())" aria-label="CSV" />
+                    </div>
+                    <MudTable T="StockItem" Items="slow" Class="kd-table" Elevation="0" Dense="true" Hover="true" Breakpoint="Breakpoint.Sm" RowsPerPage="100"
+                              OnRowClick="@(e => Nav.NavigateTo($"/stock/item/{e.Item!.Id}"))" RowClass="kd-row-link">
+                        <HeaderContent>
+                            <MudTh>Kod</MudTh><MudTh>Ürün</MudTh><MudTh>Ayar</MudTh><MudTh Class="kd-right">Gram</MudTh><MudTh>Konum</MudTh><MudTh>Giriş</MudTh><MudTh Class="kd-right">Gün</MudTh>
+                        </HeaderContent>
+                        <RowTemplate>
+                            <MudTd DataLabel="Kod"><span class="kd-code">@context.Code</span></MudTd>
+                            <MudTd DataLabel="Ürün">@lookup.Title(context)</MudTd>
+                            <MudTd DataLabel="Ayar">@context.Karat</MudTd>
+                            <MudTd DataLabel="Gram" Class="kd-right"><span class="kd-num">@WeightFormat.Gram(context.WeightMg)</span></MudTd>
+                            <MudTd DataLabel="Konum">@lookup.LocationName(context.LocationId)</MudTd>
+                            <MudTd DataLabel="Giriş"><span class="kd-num">@context.CreatedAt.ToString("dd.MM.yyyy")</span></MudTd>
+                            <MudTd DataLabel="Gün" Class="kd-right"><span class="kd-num kd-strong">@((DateTime.Now - context.CreatedAt).Days)</span></MudTd>
+                        </RowTemplate>
+                        <NoRecordsContent><EmptyState Icon="@Icons.Material.Outlined.ThumbUp" Title="@($"{slowDays} günden eski ürün yok")" /></NoRecordsContent>
+                        <PagerContent>
+                            @if (slow.Count > 100) { <MudTablePager RowsPerPageString="Sayfa başına:" InfoFormat="{first_item}-{last_item} / {all_items}" /> }
+                        </PagerContent>
+                    </MudTable>
+                </div>
+            </MudTabPanel>
+
+            <MudTabPanel Text="Ayar bazında toplam" Icon="@Icons.Material.Outlined.Balance">
+                <div class="d-flex justify-end mb-2">
+                    <MudButton Variant="Variant.Outlined" Size="Size.Small" StartIcon="@Icons.Material.Outlined.FileDownload" OnClick="ExportTotals">CSV</MudButton>
+                </div>
+                <StockTotalsCards Totals="totals" />
+                @if (bulk.Any(b => b.Product.Amount != 0))
+                {
+                    <div class="kd-section-title"><MudText Typo="Typo.h6">Kasa</MudText></div>
+                    <div class="kd-card">
+                        @foreach (var b in bulk.Where(b => b.Product.Amount != 0))
+                        {
+                            <div class="kd-list-row">
+                                <span class="kd-strong">@b.Product.Name <span class="kd-muted">(@b.Product.Karat ayar)</span></span>
+                                <span class="kd-num">@StockService.FormatBulkAmount(b.Product, b.Product.Amount) · has @WeightFormat.Gram2(b.HasMg) gr</span>
+                            </div>
+                        }
+                    </div>
+                    <div class="kd-card kd-card-pad mt-3 d-flex justify-space-between">
+                        <span class="kd-strong">Vitrin + kasa has toplamı</span>
+                        <span class="kd-num kd-strong">@WeightFormat.Gram2(totals.HasMg + bulk.Sum(b => b.HasMg)) gr</span>
+                    </div>
+                }
+            </MudTabPanel>
+        </MudTabs>
+    }
+</div>
+
+@code {
+    private sealed record SaleRow(StockMovement Movement, StockItem Item, string? CustomerName, long HasMg);
+
+    private StockLookup? lookup;
+    private int tab;
+    private DateTime? day = DateTime.Today;
+    private int slowDays = 90;
+    private List<SaleRow> sales = new();
+    private List<StockItem> slow = new();
+    private StockTotals totals = StockTotals.Empty;
+    private List<BulkTotal> bulk = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        lookup = await StockLookup.LoadAsync(Stock);
+        await LoadSales();
+        slow = await Stock.GetSlowItemsAsync(slowDays);
+        totals = await Stock.GetTotalsAsync();
+        bulk = (await Stock.GetBulkProductsAsync()).Select(p => StockCalculator.CalculateBulk(p, lookup.AllKarats)).ToList();
+    }
+
+    private async Task LoadSales()
+    {
+        var from = (day ?? DateTime.Today).Date;
+        var moves = await Stock.GetMovementsAsync(from, from.AddDays(1), StockMovementType.Sale);
+        var rows = new List<SaleRow>();
+        var customers = new Dictionary<int, string?>();
+        foreach (var m in moves)
+        {
+            var item = await Stock.GetItemAsync(m.ItemId);
+            if (item == null) continue;
+            string? name = null;
+            if (m.CustomerId is int cid)
+            {
+                if (!customers.TryGetValue(cid, out name))
+                    customers[cid] = name = (await Database.GetCustomerAsync(cid))?.Name;
+            }
+            rows.Add(new SaleRow(m, item, name, StockCalculator.HasMg(item.NetWeightMg, lookup!.Milyem(item.Karat))));
+        }
+        sales = rows;
+    }
+
+    private async Task OnDayChanged(DateTime? value) { day = value; await LoadSales(); }
+    private async Task ChangeDay(int delta) { day = (day ?? DateTime.Today).AddDays(delta); await LoadSales(); }
+    private async Task OnSlowDays(int value) { slowDays = value; slow = await Stock.GetSlowItemsAsync(value); }
+
+    private async Task Save(string name, string csv)
+    {
+        var path = await Reports.SaveCsvAsync(name, csv);
+        Snackbar.Add($"Kaydedildi: {path}", Severity.Success);
+    }
+
+    private Task ExportSales() => Save($"Satislar_{day:yyyyMMdd}", Csv.Build(
+        new[] { "Tarih", "Kod", "Kategori", "Model", "Ayar", "Brüt gr", "Net gr", "Has gr", "Fiyat TL", "Müşteri", "Açıklama" },
+        sales.Select(s => new[]
+        {
+            s.Movement.Date.ToString("dd.MM.yyyy HH:mm"), s.Item.Code, lookup!.CategoryName(s.Item.CategoryId), s.Item.ModelName,
+            s.Item.Karat.ToString(), WeightFormat.Gram(s.Item.WeightMg), WeightFormat.Gram(s.Item.NetWeightMg), WeightFormat.Gram(s.HasMg),
+            s.Movement.Price?.ToString("N2"), s.CustomerName, s.Movement.Description
+        })));
+
+    private Task ExportSlow() => Save($"Satilmayanlar_{slowDays}gun", Csv.Build(
+        new[] { "Kod", "Kategori", "Model", "Ayar", "Brüt gr", "Konum", "Giriş", "Gün" },
+        slow.Select(i => new[]
+        {
+            i.Code, lookup!.CategoryName(i.CategoryId), i.ModelName, i.Karat.ToString(), WeightFormat.Gram(i.WeightMg),
+            lookup.LocationName(i.LocationId), i.CreatedAt.ToString("dd.MM.yyyy"), ((DateTime.Now - i.CreatedAt).Days).ToString()
+        })));
+
+    private Task ExportTotals() => Save("Ayar_Toplamlari", Csv.Build(
+        new[] { "Grup", "Ayar", "Milyem", "Adet", "Brüt gr", "Net gr", "Has gr" },
+        totals.ByKarat.Select(k => new[]
+            {
+                "Vitrin", k.Karat.ToString(), WeightFormat.Milyem(k.Milyem), k.Count.ToString(),
+                WeightFormat.Gram(k.WeightMg), WeightFormat.Gram(k.NetWeightMg), WeightFormat.Gram(k.HasMg)
+            })
+            .Concat(bulk.Where(b => b.Product.Amount != 0).Select(b => new[]
+            {
+                "Kasa: " + b.Product.Name, b.Product.Karat.ToString(), WeightFormat.Milyem(b.Milyem),
+                b.Product.Unit == BulkUnit.Piece ? b.Product.Amount.ToString() : "",
+                WeightFormat.Gram(b.WeightMg), WeightFormat.Gram(b.WeightMg), WeightFormat.Gram(b.HasMg)
+            }))));
+}

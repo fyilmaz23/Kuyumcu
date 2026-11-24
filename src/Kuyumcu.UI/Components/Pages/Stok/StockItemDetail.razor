@@ -1,0 +1,245 @@
+@page "/stock/item/{Id:int}"
+@using Kuyumcu.Stock
+@using Kuyumcu.Labels
+@inject StockService Stock
+@inject DatabaseService Database
+@inject LabelPrintService Labels
+@inject IDialogService Dialogs
+@inject ISnackbar Snackbar
+@inject NavigationManager Nav
+@inject IAppEnvironment AppEnvironment
+
+<div class="kd-page">
+    @if (loaded && item == null)
+    {
+        <EmptyState Icon="@Icons.Material.Outlined.SearchOff" Title="Ürün bulunamadı">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="/stock">Vitrin Stoku</MudButton>
+        </EmptyState>
+    }
+    else if (item != null && lookup != null)
+    {
+        <PageHeader Title="@lookup.Title(item)">
+            <SubtitleContent>
+                <div class="d-flex align-center gap-2 mt-1 flex-wrap">
+                    <span class="kd-code" style="font-size:1rem">@item.Code</span>
+                    <StockStatusBadge Item="item" />
+                </div>
+            </SubtitleContent>
+            <Actions>
+                @if (CanEdit)
+                {
+                    <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Print" OnClick="PrintLabel"
+                               Disabled="@(printing || !canPrint)">Etiketi bas</MudButton>
+                    <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Outlined.Edit" OnClick="Edit">Düzelt</MudButton>
+                    @if (item.Status == StockItemStatus.InStock)
+                    {
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Sell" OnClick="Sell">Sat</MudButton>
+                    }
+                    else if (item.Status == StockItemStatus.Sold)
+                    {
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.AssignmentReturn" OnClick="Return">İade al</MudButton>
+                    }
+                    else if (item.Status == StockItemStatus.Lost)
+                    {
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Restore" OnClick="Found">Bulundu</MudButton>
+                    }
+                    <MudMenu Icon="@Icons.Material.Filled.MoreVert" AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight" aria-label="Diğer">
+                        @if (item.Status == StockItemStatus.InStock)
+                        {
+                            <MudMenuItem Icon="@Icons.Material.Outlined.ReportProblem" OnClick="Lost">Kayıp olarak işaretle</MudMenuItem>
+                        }
+                        <MudMenuItem Icon="@Icons.Material.Outlined.Delete" IconColor="Color.Error" OnClick="Delete">Sil</MudMenuItem>
+                    </MudMenu>
+                }
+            </Actions>
+        </PageHeader>
+
+        @if (item.IsDeleted)
+        {
+            <MudAlert Severity="Severity.Warning" Class="mb-4">Bu ürün @item.DeletedAt?.ToString("dd.MM.yyyy HH:mm") tarihinde silindi. Kodu bir daha kullanılmaz.</MudAlert>
+        }
+
+        <MudGrid Spacing="3">
+            <MudItem xs="12" md="5">
+                <div class="kd-card kd-card-pad">
+                    <div class="kd-detail-grid">
+                        <div><span>Gram (brüt)</span><b class="kd-num">@WeightFormat.Gram(item.WeightMg) gr</b></div>
+                        <div><span>Ayar</span><b>@item.Karat ayar <small class="kd-muted">(@WeightFormat.Milyem(lookup.Milyem(item.Karat)))</small></b></div>
+                        @if (item.StoneWeightMg > 0)
+                        {
+                            <div><span>Taş</span><b class="kd-num">@WeightFormat.Gram(item.StoneWeightMg) gr</b></div>
+                            <div><span>Net gram</span><b class="kd-num">@WeightFormat.Gram(item.NetWeightMg) gr</b></div>
+                        }
+                        <div><span>Has karşılığı</span><b class="kd-num">@WeightFormat.Gram(StockCalculator.HasMg(item.NetWeightMg, lookup.Milyem(item.Karat))) gr</b></div>
+                        <div><span>Kategori</span><b>@lookup.CategoryName(item.CategoryId)</b></div>
+                        <div><span>Model</span><b>@(item.ModelName ?? "—")</b></div>
+                        <div><span>Konum</span><b>@lookup.LocationName(item.LocationId)</b></div>
+                        <div><span>Giriş</span><b class="kd-num">@item.CreatedAt.ToString("dd.MM.yyyy HH:mm")</b></div>
+                        <div><span>Vitrinde</span><b>@((DateTime.Now - item.CreatedAt).Days) gün</b></div>
+                        @if (!string.IsNullOrEmpty(item.SupplierName) || item.PurchaseMilyem.HasValue)
+                        {
+                            <div><span>Tedarikçi</span><b>@(item.SupplierName ?? "—")</b></div>
+                            <div><span>Alış milyemi</span><b>@(item.PurchaseMilyem.HasValue ? WeightFormat.Milyem(item.PurchaseMilyem.Value) : "—")</b></div>
+                        }
+                        @if (item.Status == StockItemStatus.Sold)
+                        {
+                            <div><span>Satış</span><b class="kd-num">@item.SoldAt?.ToString("dd.MM.yyyy HH:mm")</b></div>
+                            <div><span>Satış fiyatı</span><b class="kd-num">@(item.SalePrice.HasValue ? item.SalePrice.Value.ToString("N2") + " ₺" : "—")</b></div>
+                            @if (saleCustomer != null)
+                            {
+                                <div style="grid-column: 1 / -1"><span>Müşteri</span><b><MudLink Href="@($"/customer/{saleCustomer.Id}")">@saleCustomer.Name</MudLink>@(item.SaleTransactionId.HasValue ? " (hesabına yazıldı)" : "")</b></div>
+                            }
+                        }
+                        <div><span>Etiket</span><b>@(item.LabelPrintCount == 0 ? "Basılmadı" : $"{item.LabelPrintCount} kez · son {item.LastLabelPrintedAt:dd.MM.yyyy HH:mm}")</b></div>
+                        @if (!string.IsNullOrEmpty(item.Note))
+                        {
+                            <div style="grid-column: 1 / -1"><span>Not</span><b>@item.Note</b></div>
+                        }
+                    </div>
+                </div>
+                @if (labelDocument != null)
+                {
+                    <div class="kd-card kd-card-pad mt-3">
+                        <MudText Typo="Typo.subtitle2" Class="mb-2">Etiket</MudText>
+                        <LabelPreview Document="labelDocument" ShowGrid="false" />
+                    </div>
+                }
+            </MudItem>
+
+            <MudItem xs="12" md="7">
+                <div class="kd-card">
+                    <div class="kd-card-header"><MudText Typo="Typo.subtitle1" Class="kd-strong">Hareket geçmişi</MudText></div>
+                    @foreach (var m in movements)
+                    {
+                        <div class="kd-list-row" style="align-items:flex-start">
+                            <div class="d-flex gap-3" style="min-width:0">
+                                <span class="kd-move-icon @MoveTone(m.Type)"><MudIcon Icon="@MoveIcon(m.Type)" Size="Size.Small" /></span>
+                                <div style="min-width:0">
+                                    <div class="kd-strong">@MoveName(m.Type)
+                                        @if (m.Price.HasValue) { <span class="kd-muted kd-num"> · @m.Price.Value.ToString("N2") ₺</span> }
+                                    </div>
+                                    <div class="kd-muted" style="font-size:.85rem">@m.Description</div>
+                                    @if (!string.IsNullOrEmpty(m.Details))
+                                    {
+                                        <div class="kd-muted" style="font-size:.8rem">@m.Details</div>
+                                    }
+                                </div>
+                            </div>
+                            <span class="kd-muted kd-num" style="font-size:.8rem; white-space:nowrap">@m.Date.ToString("dd.MM.yyyy HH:mm")</span>
+                        </div>
+                    }
+                </div>
+            </MudItem>
+        </MudGrid>
+    }
+    else
+    {
+        <MudProgressLinear Color="Color.Primary" Indeterminate="true" Class="my-6" />
+    }
+</div>
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private StockItem? item;
+    private StockLookup? lookup;
+    private List<StockMovement> movements = new();
+    private Customer? saleCustomer;
+    private LabelDocument? labelDocument;
+    private bool loaded, printing, canPrint;
+    private StockActions? actions;
+
+    private StockActions Actions => actions ??= new StockActions(Stock, Database, Dialogs, Snackbar);
+    private bool CanEdit => !AppEnvironment.IsReadOnlyClient && item is { IsDeleted: false };
+
+    protected override async Task OnParametersSetAsync()
+    {
+        lookup ??= await StockLookup.LoadAsync(Stock);
+        var settings = await Stock.GetLabelSettingsAsync();
+        canPrint = Labels.IsSupported && settings.IsConfigured;
+        await Reload();
+        loaded = true;
+    }
+
+    private async Task Reload()
+    {
+        item = await Stock.GetItemAsync(Id);
+        if (item == null)
+            return;
+        movements = await Stock.GetItemMovementsAsync(item.Id);
+        saleCustomer = item.SaleCustomerId.HasValue ? await Database.GetCustomerAsync(item.SaleCustomerId.Value) : null;
+        labelDocument = await Labels.BuildItemDocumentAsync(item);
+    }
+
+    private async Task After(StockItem? changed)
+    {
+        if (changed != null)
+            await Reload();
+    }
+
+    private async Task PrintLabel()
+    {
+        printing = true;
+        var result = await Labels.PrintItemAsync(item!);
+        printing = false;
+        Snackbar.Add(result.Success ? "Etiket basıldı." : result.Message, result.Success ? Severity.Success : Severity.Error);
+        await Reload();
+    }
+
+    private async Task Edit()
+    {
+        var before = item!.WeightMg;
+        var saved = await StockItemEditDialog.ShowAsync(Dialogs, item, lookup!);
+        if (saved == null)
+            return;
+        await Reload();
+        Snackbar.Add("Ürün güncellendi.", Severity.Success);
+        if (saved.WeightMg != before && canPrint && saved.LabelPrintCount > 0)
+        {
+            var reprint = await Dialogs.ShowMessageBox("Gram değişti", "Etiketteki gram artık farklı. Yeni etiket basılsın mı?",
+                yesText: "Etiketi bas", noText: "Şimdi değil");
+            if (reprint == true)
+                await PrintLabel();
+        }
+    }
+
+    private async Task Sell() => await After(await Actions.SellAsync(item!, lookup!));
+    private async Task Return() => await After(await Actions.ReturnAsync(item!));
+    private async Task Lost() => await After(await Actions.MarkLostAsync(item!));
+    private async Task Found() => await After(await Actions.MarkFoundAsync(item!));
+    private async Task Delete() => await After(await Actions.DeleteAsync(item!));
+
+    public static string MoveName(StockMovementType type) => type switch
+    {
+        StockMovementType.Entry => "Giriş",
+        StockMovementType.Sale => "Satış",
+        StockMovementType.Return => "İade",
+        StockMovementType.Edit => "Düzeltme",
+        StockMovementType.Delete => "Silme",
+        StockMovementType.Lost => "Kayıp (sayım farkı)",
+        StockMovementType.Found => "Bulundu",
+        StockMovementType.BulkIn => "Giriş",
+        StockMovementType.BulkOut => "Çıkış",
+        StockMovementType.BulkAdjust => "Sayım düzeltmesi",
+        _ => type.ToString()
+    };
+
+    public static string MoveIcon(StockMovementType type) => type switch
+    {
+        StockMovementType.Entry or StockMovementType.BulkIn => Icons.Material.Filled.AddBox,
+        StockMovementType.Sale or StockMovementType.BulkOut => Icons.Material.Filled.Sell,
+        StockMovementType.Return => Icons.Material.Filled.AssignmentReturn,
+        StockMovementType.Edit or StockMovementType.BulkAdjust => Icons.Material.Filled.Edit,
+        StockMovementType.Delete => Icons.Material.Filled.Delete,
+        StockMovementType.Lost => Icons.Material.Filled.ReportProblem,
+        StockMovementType.Found => Icons.Material.Filled.Restore,
+        _ => Icons.Material.Filled.Circle
+    };
+
+    public static string MoveTone(StockMovementType type) => type switch
+    {
+        StockMovementType.Entry or StockMovementType.Return or StockMovementType.Found or StockMovementType.BulkIn => "gelen",
+        StockMovementType.Sale or StockMovementType.Lost or StockMovementType.Delete or StockMovementType.BulkOut => "giden",
+        _ => "notr"
+    };
+}

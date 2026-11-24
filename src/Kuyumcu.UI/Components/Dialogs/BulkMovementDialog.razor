@@ -1,0 +1,82 @@
+@using Kuyumcu.Stock
+@inject StockService Stock
+@inject ISnackbar Snackbar
+@* Kasa ürünü hareketi: giriş, çıkış ya da sayım düzeltmesi *@
+
+<MudDialog>
+    <DialogContent>
+        <div class="kd-type-toggle mb-3" style="grid-template-columns: 1fr 1fr 1fr">
+            <div class="kd-type-option @(type == StockMovementType.BulkIn ? "selected gelen" : "")" @onclick="@(() => type = StockMovementType.BulkIn)">Giriş</div>
+            <div class="kd-type-option @(type == StockMovementType.BulkOut ? "selected giden" : "")" @onclick="@(() => type = StockMovementType.BulkOut)">Çıkış</div>
+            <div class="kd-type-option @(type == StockMovementType.BulkAdjust ? "selected gelen" : "")" @onclick="@(() => type = StockMovementType.BulkAdjust)">Sayım</div>
+        </div>
+        <MudText Typo="Typo.caption" Class="kd-muted d-block mb-2">
+            Mevcut: <b>@StockService.FormatBulkAmount(Product, Product.Amount)</b>
+            @(type == StockMovementType.BulkAdjust ? " · Sayımda bulunan miktarı yazın; fark hareket olarak kaydedilir." : "")
+        </MudText>
+        <MudTextField @bind-Value="amount" Label="@(Product.Unit == BulkUnit.Gram ? "Gram" : "Adet")" Variant="Variant.Outlined"
+                      AutoFocus="true" Immediate="true" Class="kd-amount-input" OnKeyDown="OnKeyDown" />
+        <MudTextField @bind-Value="description" Label="Açıklama (isteğe bağlı)" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mt-3" MaxLength="200" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" OnClick="@(() => MudDialog.Cancel())">Vazgeç</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Save" Disabled="saving">Kaydet</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public BulkProduct Product { get; set; } = default!;
+    [Parameter] public StockMovementType InitialType { get; set; } = StockMovementType.BulkIn;
+
+    private StockMovementType type;
+    private string? amount, description;
+    private bool saving;
+
+    protected override void OnInitialized() => type = InitialType;
+
+    private async Task OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await Save();
+    }
+
+    private async Task Save()
+    {
+        long value;
+        if (Product.Unit == BulkUnit.Gram)
+        {
+            if (type == StockMovementType.BulkAdjust && amount?.Trim() == "0") value = 0;
+            else if (WeightFormat.TryParseGram(amount, out var mg, out var error)) value = mg;
+            else { Snackbar.Add(error, Severity.Warning); return; }
+        }
+        else if (!long.TryParse(amount?.Trim(), out value) || value < 0 || (value == 0 && type != StockMovementType.BulkAdjust))
+        {
+            Snackbar.Add("Adet tam sayı olmalı.", Severity.Warning);
+            return;
+        }
+
+        saving = true;
+        try
+        {
+            var saved = await Stock.AddBulkMovementAsync(Product.Id, type, value, description);
+            MudDialog.Close(DialogResult.Ok(saved));
+        }
+        catch (StockException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Warning);
+        }
+        finally
+        {
+            saving = false;
+        }
+    }
+
+    public static async Task<BulkProduct?> ShowAsync(IDialogService dialogs, BulkProduct product, StockMovementType type)
+    {
+        var parameters = new DialogParameters<BulkMovementDialog> { { x => x.Product, product }, { x => x.InitialType, type } };
+        var dialog = await dialogs.ShowAsync<BulkMovementDialog>(product.Name, parameters,
+            new DialogOptions { MaxWidth = MaxWidth.ExtraSmall, FullWidth = true, CloseButton = true });
+        var result = await dialog.Result;
+        return result is { Canceled: false } ? result.Data as BulkProduct : null;
+    }
+}

@@ -1,0 +1,111 @@
+@using Kuyumcu.Labels
+@*
+    Etiketin ekrandaki yaklaşık görünümü (yazıcı noktası ölçeğinde SVG). 2D kod gerçek kod değil, yer tutucudur;
+    yazı fontu yazıcının yerleşik fontundan farklı görünebilir. Asıl kontrol test/hizalama etiketiyle yapılır.
+*@
+
+@if (Document != null)
+{
+    var w = Document.WidthDots;
+    var h = Document.HeightDots;
+    var mm = Document.Dpi / 25.4;
+    <div class="kd-label-preview">
+        <svg viewBox="-4 -4 @(w + 8) @(h + 8)" preserveAspectRatio="xMinYMin meet" role="img" aria-label="Etiket önizlemesi">
+            <rect x="0" y="0" width="@w" height="@h" rx="3" class="lbl-paper" />
+            @if (ShowGrid)
+            {
+                @for (var i = 10; i < Document.WidthMm; i += 10)
+                {
+                    var x = Math.Round(i * mm);
+                    <line x1="@x" y1="0" x2="@x" y2="@h" class="lbl-grid" />
+                    @SvgText(x + 2, h - 3, "lbl-grid-text", null, null, i.ToString())
+                }
+            }
+            @foreach (var e in Document.Elements)
+            {
+                switch (e)
+                {
+                    case Kuyumcu.Labels.LabelText t:
+                        var (cw, ch) = LabelUnits.FontCellSize(t.Font);
+                        @SvgText(t.X, t.Y + ch * 0.82, "lbl-text", ch, cw * t.Text.Length, t.Text)
+                        break;
+                    case LabelDataMatrix m:
+                        @RenderPseudoCode(m.X, m.Y, m.ModuleDots, LabelUnits.CodeSymbolModules(false), m.Content, false)
+                        break;
+                    case LabelQrCode q:
+                        @RenderPseudoCode(q.X, q.Y, q.ModuleDots, LabelUnits.CodeSymbolModules(true), q.Content, true)
+                        break;
+                    case LabelBox b:
+                        <rect x="@b.X" y="@b.Y" width="@(b.X2 - b.X)" height="@(b.Y2 - b.Y)" class="lbl-box" stroke-width="@b.Thickness" />
+                        break;
+                    case LabelBar bar:
+                        <rect x="@bar.X" y="@bar.Y" width="@bar.Width" height="@bar.Height" class="lbl-ink" />
+                        break;
+                }
+            }
+        </svg>
+        <div class="kd-label-preview-caption">
+            @Document.WidthMm.ToString("0.##") × @Document.HeightMm.ToString("0.##") mm · yaklaşık görünüm
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public LabelDocument? Document { get; set; }
+    [Parameter] public bool ShowGrid { get; set; } = true;
+
+    // Razor'da <text> özel etiket olduğu için SVG yazısı elle üretilir
+    private static RenderFragment SvgText(double x, double y, string cssClass, int? fontSize, int? textLength, string content) => builder =>
+    {
+        builder.OpenElement(0, "text");
+        builder.AddAttribute(1, "x", x.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        builder.AddAttribute(2, "y", y.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        builder.AddAttribute(3, "class", cssClass);
+        if (fontSize.HasValue) builder.AddAttribute(4, "font-size", fontSize.Value);
+        if (textLength is > 0)
+        {
+            builder.AddAttribute(5, "textLength", textLength.Value);
+            builder.AddAttribute(6, "lengthAdjust", "spacingAndGlyphs");
+        }
+        builder.AddContent(7, content);
+        builder.CloseElement();
+    };
+
+    // Kodun yerini ve boyunu göstermek için desen (okunabilir kod değildir)
+    private RenderFragment RenderPseudoCode(int x, int y, int module, int modules, string content, bool qr) => builder =>
+    {
+        var seq = 0;
+        var rnd = new Random(content.Aggregate(17, (a, ch) => unchecked(a * 31 + ch)));
+        for (var r = 0; r < modules; r++)
+        for (var c = 0; c < modules; c++)
+        {
+            bool on;
+            if (qr)
+            {
+                // Üç köşede 7×7 konum işareti: dış çerçeve + ortada 3×3 dolu kare
+                var lr = r < 7 ? r : modules - 1 - r;
+                var lc = c < 7 ? c : modules - 1 - c;
+                var inFinder = lr < 7 && lc < 7 && !(r >= modules - 7 && c >= modules - 7);
+                on = inFinder
+                    ? lr == 0 || lr == 6 || lc == 0 || lc == 6 || (lr is >= 2 and <= 4 && lc is >= 2 and <= 4)
+                    : rnd.Next(2) == 0;
+            }
+            else
+            {
+                // DataMatrix: sol ve alt kenar dolu, üst ve sağ kenar kesikli
+                on = c == 0 || r == modules - 1 ? true
+                    : r == 0 ? c % 2 == 0
+                    : c == modules - 1 ? r % 2 == 1
+                    : rnd.Next(2) == 0;
+            }
+            if (!on) continue;
+            builder.OpenElement(seq++, "rect");
+            builder.AddAttribute(seq++, "x", x + c * module);
+            builder.AddAttribute(seq++, "y", y + r * module);
+            builder.AddAttribute(seq++, "width", module);
+            builder.AddAttribute(seq++, "height", module);
+            builder.AddAttribute(seq++, "class", "lbl-ink");
+            builder.CloseElement();
+        }
+    };
+}
