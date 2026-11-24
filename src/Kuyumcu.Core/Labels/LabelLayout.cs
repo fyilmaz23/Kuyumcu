@@ -16,7 +16,7 @@ public static class LabelLayout
     public static readonly string SampleCode = ProductCode.Format(1);
 
     /// <summary>Türkçe harflerin yazıcı fontunda nasıl çıktığını görmek için test etiketine basılan satır.</summary>
-    public const string TurkishSample = "ÇĞİŞÖÜ çğış";
+    public const string TurkishSample = "ÇĞİŞÖÜ";
 
     public static LabelDocument BuildItemLabel(LabelPrinterSettings s, LabelContent content, int copies = 1)
     {

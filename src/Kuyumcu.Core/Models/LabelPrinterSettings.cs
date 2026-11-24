@@ -27,7 +27,8 @@ public enum LabelCodeType
 /// <summary>
 /// Etiket yazıcısı ve etiket yerleşimi ayarları (tek satır). Cihaza özeldir: yedek geri yüklenince
 /// bu bilgisayarın ayarı korunur. Ölçüler milimetre; varsayılanlar 72 × 10 mm kelebek kuyumcu etiketi içindir.
-/// Yerleşim: 1. kanatta 2D kod + kod rakamları, 2. kanatta gram, ayar ve kısa kategori.
+/// Yazıcı etiketi kuyruk solda besler (X = 0 kuyruğun ucu). TSC TE210 + 72 × 10 mm kuyruklu etikette ölçülen:
+/// kuyruk 0–30 mm, 1. kanat 30–50 mm (2D kod + kod rakamları), 2. kanat 50–70 mm (gram, ayar, kısa kategori).
 /// </summary>
 [Table("LabelPrinterSettings")]
 public class LabelPrinterSettings
@@ -67,11 +68,11 @@ public class LabelPrinterSettings
     public LabelCodeType CodeType { get; set; } = LabelCodeType.DataMatrix;
     /// <summary>Kod modül (kare) boyu, nokta. 3 nokta ≈ 0,375 mm.</summary>
     public int CodeModuleDots { get; set; } = 3;
-    public double CodeXMm { get; set; } = 2;
+    public double CodeXMm { get; set; } = 31.5;
     public double CodeYMm { get; set; } = 2.2;
 
     // Kod rakamları (1. kanat, kodun sağında)
-    public double CodeTextXMm { get; set; } = 8.5;
+    public double CodeTextXMm { get; set; } = 38;
     public double CodeTextYMm { get; set; } = 2;
     /// <summary>Yazıcının yerleşik font numarası (TSPL "1"–"5").</summary>
     public string CodeTextFont { get; set; } = "2";
@@ -79,7 +80,7 @@ public class LabelPrinterSettings
     public bool CodeTextTwoLines { get; set; } = true;
 
     // Bilgi yazısı (2. kanat): gram, ayar, kategori
-    public double InfoXMm { get; set; } = 25;
+    public double InfoXMm { get; set; } = 51.5;
     public double InfoYMm { get; set; } = 2;
     public string InfoFont { get; set; } = "2";
     public bool ShowCategory { get; set; } = true;
@@ -87,12 +88,15 @@ public class LabelPrinterSettings
     // İsteğe bağlı dükkân adı (varsayılan kapalı; 72 × 10 etikette yer dar)
     public bool ShowBusinessName { get; set; }
     public string? BusinessText { get; set; }
-    public double BusinessXMm { get; set; } = 40;
-    public double BusinessYMm { get; set; } = 3.5;
+    public double BusinessXMm { get; set; } = 51.5;
+    public double BusinessYMm { get; set; } = 7.5;
     public string BusinessFont { get; set; } = "1";
 
-    /// <summary>Türkçe harfleri sadeleştir (Ş→S, Ğ→G, İ→I…). Yerleşik fontlarda Türkçe harf çıkmıyorsa açık kalmalı.</summary>
-    public bool TransliterateTurkish { get; set; } = true;
+    /// <summary>
+    /// Türkçe harfleri sadeleştir (Ş→S, Ğ→G, İ→I…). TE210 yerleşik fontu CODEPAGE 1254 ile Türkçe harfleri düzgün
+    /// basıyor (denendi); başka bir yazıcıda bozuk çıkarsa açılır.
+    /// </summary>
+    public bool TransliterateTurkish { get; set; }
 
     /// <summary>Gönderim için gereken bilgiler girilmiş mi?</summary>
     [Ignore]

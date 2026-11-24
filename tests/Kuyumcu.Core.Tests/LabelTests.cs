@@ -33,11 +33,11 @@ public class LabelTests
             "DENSITY 10",
             "CODEPAGE 1254",
             "CLS",
-            "DMATRIX 16,18,54,54,x3,\"200000000011\"",
-            "TEXT 68,16,\"2\",0,1,1,\"200000\"",
-            "TEXT 68,38,\"2\",0,1,1,\"000011\"",
-            "TEXT 200,16,\"2\",0,1,1,\"10,26 gr\"",
-            "TEXT 200,38,\"2\",0,1,1,\"22K BLZ\"",
+            "DMATRIX 252,18,54,54,x3,\"200000000011\"",
+            "TEXT 304,16,\"2\",0,1,1,\"200000\"",
+            "TEXT 304,38,\"2\",0,1,1,\"000011\"",
+            "TEXT 412,16,\"2\",0,1,1,\"10,26 gr\"",
+            "TEXT 412,38,\"2\",0,1,1,\"22K BLZ\"",
             "PRINT 1,1",
             "");
         Assert.Equal(expected, tspl);
@@ -59,19 +59,19 @@ public class LabelTests
         var s = new LabelPrinterSettings { CodeType = LabelCodeType.QrCode, OffsetXMm = 1, OffsetYMm = -0.5, CodeTextTwoLines = false };
         var tspl = Tspl.RenderText(LabelLayout.BuildItemLabel(s, Bilezik));
 
-        Assert.Contains("QRCODE 24,14,L,3,A,0,\"200000000011\"", tspl);   // (2+1) mm, (2,2−0,5) mm
-        Assert.Contains("TEXT 76,12,\"2\",0,1,1,\"200000000011\"", tspl);
+        Assert.Contains("QRCODE 260,14,L,3,A,0,\"200000000011\"", tspl);   // (31,5+1) mm, (2,2−0,5) mm
+        Assert.Contains("TEXT 312,12,\"2\",0,1,1,\"200000000011\"", tspl);
         Assert.DoesNotContain("DMATRIX", tspl);
     }
 
     [Fact]
     public void Kategori_kapatilinca_basilmaz_dukkan_adi_istege_bagli()
     {
-        var s = new LabelPrinterSettings { ShowCategory = false, ShowBusinessName = true, BusinessText = "Çarşı" };
+        var s = new LabelPrinterSettings { ShowCategory = false, ShowBusinessName = true, BusinessText = "Çarşı", TransliterateTurkish = true };
         var tspl = Tspl.RenderText(LabelLayout.BuildItemLabel(s, Bilezik));
         Assert.Contains("\"22K\"", tspl);
         Assert.DoesNotContain("BLZ", tspl);
-        Assert.Contains("\"Carsi\"", tspl); // Türkçe sadeleştirme varsayılan açık
+        Assert.Contains("\"Carsi\"", tspl); // sadeleştirme açıkken
     }
 
     [Fact]
@@ -92,7 +92,7 @@ public class LabelTests
 
         Assert.Contains(LabelLayout.TurkishSample, text);
         Assert.Contains((byte)0xDE, bytes); // Ş (Windows-1254)
-        Assert.Contains((byte)0xFD, bytes); // ı
+        Assert.Contains((byte)0xDD, bytes); // İ
     }
 
     [Fact]

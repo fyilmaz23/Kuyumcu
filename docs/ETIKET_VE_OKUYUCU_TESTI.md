@@ -41,7 +41,7 @@ ayarlamanız gerekmez; ölçüyü komut (`SIZE 72 mm,10 mm`, `GAP 3 mm`) belirle
 
 **Hizalama etiketi** düğmesine basın. Etikete şunlar basılır:
 - Etiketin kenarına bir **çerçeve**,
-- Her **10 mm**'de bir dikey çizgi ve üstünde mm değeri (10, 20 … 70), aralarda 5 mm'de kısa çizgi.
+- Bir **mm cetveli**: her 1 mm'de kısa çentik, her 5 mm'de uzun çentik ve numara (5, 10 … 70), her 10 mm'de boydan boya çizgi.
 
 Etikete bakın:
 
@@ -63,8 +63,9 @@ Düğmeler kaydetmeden de ekrandaki değerlerle basar; uygun olunca **Kaydet**.
 
 ## 5. Kod ve yazının yeri
 
-Varsayılan yerleşim (mm): 1. kanatta kod X=2, rakamlar X=8,5; 2. kanatta gram/ayar X=25. Bunlar tahmindir.
-Hizalama etiketinden okuduğunuz kanat başlangıçlarına göre:
+Varsayılan yerleşim TE210 + 72 × 10 mm kuyruklu etikette ölçüldü: yazıcı etiketi **kuyruk solda** besler; kuyruk
+0–30 mm, 1. kanat 30–50 mm, 2. kanat 50–70 mm. Kod X=31,5, rakamlar X=38, gram/ayar X=51,5 mm. Farklı bir etikette
+kanat başlangıçlarını cetvelden okuyup şöyle ayarlayın:
 
 - **Kod X** = 1. kanadın başı + 1 mm
 - **Rakamlar X** = Kod X + kod genişliği (ekranda "Kod ≈ 5,3 mm" yazar) + 1 mm
@@ -74,9 +75,9 @@ Hizalama etiketinden okuduğunuz kanat başlangıçlarına göre:
 ## 6. Test etiketi
 
 **Test etiketi** basın. Üzerinde örnek kod (200000000011), "12,34 gr", "22K" ve Türkçe harf satırı
-`ÇĞİŞÖÜ çğış` vardır.
+`ÇĞİŞÖÜ` vardır.
 
-- Türkçe harfler doğru çıkıyorsa **Türkçe harfleri sadeleştir** kapatılabilir. Bozuk çıkıyorsa açık kalsın
+- TE210'da Türkçe harfler doğru çıkıyor; **Türkçe harfleri sadeleştir** varsayılan kapalı. Başka bir yazıcıda bozuk çıkarsa açın
   (etikete "KUNYE", "Carsi" gibi basılır).
 - Kodu okuyucuyla okutun (7. adım). Okunmuyorsa **Kare boyu (nokta)** 4 yapın (kod ≈ 7 mm olur) ya da kod tipini
   QR'a çevirip deneyin.

@@ -109,7 +109,7 @@ koda gömülü değil, Ayarlar'dan değişir.
 - **Ağırlık tam sayı mg** (`WeightMg`), milyem **binde** (916 = 0,916). Gram girişi virgül ya da nokta, en çok 3
   ondalık, > 0. Etikete **brüt** gram 2 ondalık basılır; has hesabı **net** (brüt − taş) üzerinden.
 - **Etikette fiyat yok.** DataMatrix (ayardan QR), kod rakamla (6+6), gram + ayar + isteğe bağlı kısa kategori;
-  dükkân adı isteğe bağlı (varsayılan kapalı). Yazılar Windows-1254 ile gider; Türkçe harf sadeleştirme varsayılan açık.
+  dükkân adı isteğe bağlı (varsayılan kapalı). Yazılar Windows-1254 ile gider; TE210 Türkçe harfleri düzgün basıyor; sadeleştirme varsayılan kapalı.
 - **Her stok değişikliği** ürünle aynı transaction'da `StockMovement`'a yazılır (giriş, satış, iade, düzeltme +
   değişen alanlar, silme + neden, kayıp/bulundu + sayım no, kasa giriş/çıkış/düzeltme). Silme = `IsDeleted`.
 - **Sayım:** bitirmek ürünü kayıp yapmaz; eksikleri seçip "kayıp yap" ayrı, onaylı adımdır. Aynı kod ikinci kez sayılmaz.
@@ -142,10 +142,10 @@ koda gömülü değil, Ayarlar'dan değişir.
   (Gram girişinde ise nokta ondalıktır: "12.5" → 12,5 gr; gramda binlik ayıracı kullanılmaz.)
 
 **Barkod/stok — doğrulanmadı**
-- **Etiket yazıcısına hiç baskı yapılmadı.** TSPL çıktısı birim testli; `WindowsLabelPrinter` (winspool RAW) ve
-  TCP 9100 gönderimi gerçek TE210'da denenmedi. Varsayılan yerleşim (kanat konumları X=2/8,5/25 mm) tahmindir;
-  hizalama etiketiyle ayarlanmalı (`docs/ETIKET_VE_OKUYUCU_TESTI.md`).
-- TE210 yerleşik fontlarının `CODEPAGE 1254` ile Türkçe harf basıp basmadığı bilinmiyor (test etiketi gösterir).
+- **İlk baskılar yapıldı (25.11.2026, TE210, USB, winspool RAW):** yazıcı etiketi **kuyruk solda** besliyor
+  (X = 0 kuyruğun ucu). Cetvelle ölçülen: kuyruk 0–30 mm, kanatlar 30–70 mm (her biri 20 mm, katlama 50 mm).
+  Varsayılan yerleşim buna göre: kod X 31,5 / rakamlar X 38 / gram-ayar X 51,5 mm. Türkçe harfler (CODEPAGE 1254)
+  doğru çıkıyor. Yeni yerleşimle basılan test etiketinin sonucu ve TCP 9100 gönderimi henüz doğrulanmadı.
 - DataMatrix 3 nokta/kare (≈ 5,3 mm) RH10 ile okunabilirliği denenmedi; okunmazsa kare boyu 4 yapılır.
 - Sunlux RH10 gerçek cihazla denenmedi. Önizlemede tuş basışlarıyla (rakam + Enter) okutma, odak kaçırma yönlendirmesi,
   çift okutma ve hatalı kod uyarıları denendi.
