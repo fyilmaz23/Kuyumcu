@@ -94,6 +94,7 @@ Eski uygulama (`com.companyname.kuyumcu`) ile yeni Store uygulaması farklı pak
 2. İlk açılışta **"Eski sürümün verileri bulundu → Eski Verileri Aktar"** düğmesi çıkar; tek tıkla müşteriler,
    işlemler, ayarlar ve lisans aktarılır. (Bulunamazsa: eski uygulamada Drive yedeği alıp yeni uygulamada
    Ayarlar → Yedeği İçe Aktar.)
-3. Altın fiyatı özelliği için: Ayarlar → **Altın Fiyatı Görseli** bölümüne ekeo üye kodu/şifresi girilir ve
-   `musteri-varliklari/carsi_kuyumculuk_template.jpg` şablon olarak yüklenir.
+3. Altın fiyatı özelliği için: Ayarlar → **Altın Fiyatı Görseli** bölümünde
+   `musteri-varliklari/carsi_kuyumculuk_template.jpg` şablon olarak yüklenir (fiyatlar elazigaltinfiyatlari.com'dan
+   şifresiz alınır).
 4. Her şey doğrulandıktan sonra eski uygulama kaldırılabilir.

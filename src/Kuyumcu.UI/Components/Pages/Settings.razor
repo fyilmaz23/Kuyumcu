@@ -10,6 +10,7 @@
 @inject IShareService ShareService
 @inject ILegacyDataLocator LegacyDataLocator
 @inject AppState AppState
+@inject GoldPriceExportService GoldPriceExportService
 
 <div class="kd-page" style="max-width:820px">
     <PageHeader Title="Ayarlar" Subtitle="İşletme bilgileri, yedekleme ve lisans" />
@@ -89,18 +90,9 @@
                 <MudIcon Icon="@Icons.Material.Filled.CurrencyExchange" Class="mr-1" /> Altın Fiyatı Görseli
             </MudText>
             <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-3 d-block">
-                Mobil uygulamadaki "Altın fiyatlarını paylaş" özelliği için. fiyat.ekeo.org.tr üyelik bilgilerinizi girin.
-                Bu bilgiler yedekle birlikte telefonunuza aktarılır.
+                Mobil uygulamadaki "Altın fiyatlarını paylaş" özelliği için. Fiyatlar @GoldPriceExportService.SourceName
+                adresinden alınır; üyelik veya şifre gerekmez. Şablon görseli yedekle birlikte telefonunuza aktarılır.
             </MudText>
-            <MudTextField @bind-Value="settings.GoldPriceSiteCode"
-                           Label="Üye Kodu"
-                           Variant="Variant.Outlined"
-                           Class="mb-3" />
-            <MudTextField @bind-Value="settings.GoldPriceSitePassword"
-                           Label="Şifre"
-                           Variant="Variant.Outlined"
-                           InputType="InputType.Password"
-                           Class="mb-3" />
 
             <div class="d-flex align-center gap-2 flex-wrap">
                 <MudButton Variant="Variant.Outlined" Color="Color.Primary"
