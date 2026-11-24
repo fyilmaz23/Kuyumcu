@@ -158,6 +158,7 @@ public sealed class StockServiceTests : IAsyncLifetime
         Assert.Equal(CountScanKind.NotInStock, (await _count.ScanAsync(session.Id, sold.Code)).Kind);
         Assert.Equal(CountScanKind.Unknown, (await _count.ScanAsync(session.Id, ProductCode.Format(999))).Kind);
         Assert.Equal(CountScanKind.Invalid, (await _count.ScanAsync(session.Id, "abc")).Kind);
+        Assert.Equal(CountScanKind.Invalid, (await _count.ScanAsync(session.Id, ProductCode.TestCode)).Kind); // test etiketi sayılmaz
 
         var done = await _count.CompleteAsync(session.Id);
         Assert.Equal(1, done.FoundCount);

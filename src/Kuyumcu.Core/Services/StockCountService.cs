@@ -101,6 +101,8 @@ public class StockCountService
         if (!parsed.IsValid)
             return new CountScanResult(CountScanKind.Invalid, parsed.Error!, null, null);
         var code = parsed.Code!;
+        if (ProductCode.IsTestCode(code))
+            return new CountScanResult(CountScanKind.Invalid, "Test etiketi; sayıma katılmaz.", null, null);
 
         await _lock.WaitAsync();
         try

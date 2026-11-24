@@ -12,8 +12,8 @@ public sealed record LabelContent(string Code, int WeightMg, int Karat, string? 
 /// </summary>
 public static class LabelLayout
 {
-    /// <summary>Test etiketinde kullanılan örnek kod (geçerli biçimde, gerçek ürüne ait değil).</summary>
-    public static readonly string SampleCode = ProductCode.Format(1);
+    /// <summary>Test etiketinde basılan kod: hiçbir ürüne verilmeyen test kodu (bkz. <see cref="ProductCode.TestCode"/>).</summary>
+    public static readonly string SampleCode = ProductCode.TestCode;
 
     /// <summary>Türkçe harflerin yazıcı fontunda nasıl çıktığını görmek için test etiketine basılan satır.</summary>
     public const string TurkishSample = "ÇĞİŞÖÜ";

@@ -74,7 +74,7 @@ kanat başlangıçlarını cetvelden okuyup şöyle ayarlayın:
 
 ## 6. Test etiketi
 
-**Test etiketi** basın. Üzerinde örnek kod (200000000011), "12,34 gr", "22K" ve Türkçe harf satırı
+**Test etiketi** basın. Üzerinde test kodu (200000000004; hiçbir ürüne verilmez, okutulunca "test etiketi" der), "12,34 gr", "22K" ve Türkçe harf satırı
 `ÇĞİŞÖÜ` vardır.
 
 - TE210'da Türkçe harfler doğru çıkıyor; **Türkçe harfleri sadeleştir** varsayılan kapalı. Başka bir yazıcıda bozuk çıkarsa açın
@@ -85,7 +85,7 @@ kanat başlangıçlarını cetvelden okuyup şöyle ayarlayın:
 ## 7. Okuyucu (Sunlux RH10)
 
 1. Okuyucuyu USB'ye takın, **Not Defteri**'ni açın ve test etiketini okutun.
-   Beklenen: `200000000011` ve ardından yeni satır (Enter).
+   Beklenen: `200000000004` ve ardından yeni satır (Enter).
 2. Rakamlar yerine başka karakterler geliyorsa okuyucunun klavye dili ayarını kontrol edin (kılavuzdaki ayar
    barkodları). Ürün kodları sadece rakam olduğu için ABD ya da Türkçe Q düzeni ikisi de genelde çalışır.
 3. Sonda yeni satır yoksa okuyucuya "Enter/CR son eki" ayarını kılavuzdaki barkodla verin. Uygulama **sadece Enter'la

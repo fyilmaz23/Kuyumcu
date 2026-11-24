@@ -127,6 +127,14 @@
             return; // okutma alanı temizlenir; yeniden okutulur
         }
 
+        if (ProductCode.IsTestCode(parsed.Code))
+        {
+            result = new ScanResult(null, "Test etiketi okundu: okuyucu çalışıyor. Bu kod hiçbir ürüne verilmez.", Severity.Info, "is-ok");
+            await Beep(true);
+            AddHistory(parsed.Code!, "Test etiketi", 0);
+            return;
+        }
+
         var item = await Stock.GetItemByCodeAsync(parsed.Code!);
         if (item == null)
         {

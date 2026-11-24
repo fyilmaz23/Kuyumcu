@@ -40,6 +40,16 @@ public class ProductCodeTests
     }
 
     [Fact]
+    public void Test_etiketi_kodu_gecerli_ama_hicbir_urune_verilmez()
+    {
+        Assert.Equal("200000000004", ProductCode.TestCode);
+        Assert.True(ProductCode.ParseInput(ProductCode.TestCode).IsValid); // okuyucu denemesinde okunabilsin
+        Assert.True(ProductCode.IsTestCode("200000000004"));
+        Assert.False(ProductCode.IsTestCode(ProductCode.Format(1)));
+        Assert.Equal(ProductCode.TestCode, Kuyumcu.Labels.LabelLayout.SampleCode);
+    }
+
+    [Fact]
     public void Gecersiz_sira_numarasi_hata_verir()
     {
         Assert.Throws<ArgumentOutOfRangeException>(() => ProductCode.Format(0));

@@ -17,7 +17,19 @@ public static class ProductCode
     {
         if (sequence < 1 || sequence > MaxSequence)
             throw new ArgumentOutOfRangeException(nameof(sequence), "Ürün kodu sıra numarası tükendi veya geçersiz.");
+        return Build(sequence);
+    }
 
+    /// <summary>
+    /// Test ve hizalama etiketlerinde basılan kod: sıra 0 ("200000000004"). Biçimi geçerlidir (okuyucu denemesi için)
+    /// ama hiçbir ürüne verilmez; okutulunca "test etiketi" olarak tanınır.
+    /// </summary>
+    public static readonly string TestCode = Build(0);
+
+    public static bool IsTestCode(string? code) => code == TestCode;
+
+    private static string Build(long sequence)
+    {
         var body = Prefix + sequence.ToString("D10");
         return body + ComputeCheckDigit(body);
     }
