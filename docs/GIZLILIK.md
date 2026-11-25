@@ -1,14 +1,11 @@
-# Kuyumcu Defteri – Gizlilik Politikası (taslak)
+# Kuyumcu Defteri – Gizlilik Politikası
 
-> Bu metin Microsoft Store ve Google Play'in istediği **gizlilik politikası sayfası** için taslaktır.
-> Yayınlamadan önce `[...]` ile işaretli yerleri doldurun ve herkese açık bir adreste yayınlayın
-> (ör. kendi alan adınız, GitHub Pages ya da Google Sites). O adres Partner Center ve Play Console'a girilir.
-> Hukuki danışmanlık değildir; KVKK yükümlülükleriniz için gerekirse bir uzmana danışın.
+<!-- Bu dosya Google Play'deki gizlilik politikası adresidir (docs/YAYIN.md 2.3); yolunu/dalını değiştirmeyin. -->
 
-Son güncelleme: [tarih]
+Son güncelleme: 25.11.2026
 
 Kuyumcu Defteri ("Uygulama"), kuyumcuların müşteri, altın ve döviz hesaplarını tuttuğu bir defter uygulamasıdır.
-Uygulamayı geliştiren ve dağıtan: [ad / firma adı], [iletişim e-postası].
+Uygulamayı geliştiren ve dağıtan: Fatih Yılmaz, fyilmaz2124@gmail.com.
 
 ## Hangi verileri işler?
 
@@ -64,4 +61,4 @@ Uygulama işletmeler içindir; 18 yaş altına yönelik değildir.
 
 ## Değişiklikler ve iletişim
 
-Bu politika değişirse bu sayfa güncellenir. Sorularınız için: [iletişim e-postası].
+Bu politika değişirse bu sayfa güncellenir. Sorularınız için: fyilmaz2124@gmail.com.

@@ -104,7 +104,9 @@ paket adı + imza sertifikasının SHA-1'i ile eşler.
 
 ### 2.3 Mağaza kaydı ve formlar
 
-- **Gizlilik politikası URL'si:** `docs/GIZLILIK.md` taslağını doldurup herkese açık bir adreste yayınlayın.
+- **Gizlilik politikası URL'si:** https://github.com/fyilmaz23/Kuyumcu/blob/kuyumcudefteri/docs/GIZLILIK.md
+  (Play Console'a girildi, 25.11.2026). `kuyumcudefteri` dalı silinir/yeniden adlandırılırsa veya depo gizli yapılırsa
+  bu adres kırılır: önce Play'deki adresi güncelleyin.
 - **Uygulama erişimi:** "Tüm işlevler özel erişim gerektirmez" yerine *"Bazı işlevler kısıtlı"* seçip şu talimatı
   yazın: *"Uygulama, Windows uygulamasının kullanıcının kendi Google Drive'ına aldığı yedeği okur. İnceleme için açılış
   ekranında 'Örnek verilerle dene' düğmesine dokunun; tüm ekranlar örnek verilerle çalışır. Giriş bilgisi gerekmez."*
