@@ -35,6 +35,7 @@ public static class MauiProgram
         builder.Services.AddSingleton<BackupStore>();
         builder.Services.AddSingleton<BackupSyncService>();
         builder.Services.AddSingleton<UiState>();
+        builder.Services.AddSingleton<PriceBackgroundStore>();
 
 #if DEBUG
         builder.Services.AddBlazorWebViewDeveloperTools();

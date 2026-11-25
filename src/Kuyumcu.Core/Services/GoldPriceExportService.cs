@@ -72,9 +72,9 @@ public class GoldPriceExportService
                 _logger.LogError("Altın fiyat listesi boş!");
                 return null;
             }
-            using var bitmap = templateImage is { Length: > 0 }
-                ? SKBitmap.Decode(templateImage)
-                : CreateDefaultTemplate(businessName);
+            // Arka plan: yüklenen/seçilen resim (yönü düzeltilmiş, 1080 px genişliğe getirilmiş); okunamazsa sade varsayılan
+            using var bitmap = (templateImage is { Length: > 0 } ? LoadTemplate(templateImage) : null)
+                               ?? CreateDefaultTemplate(businessName);
 
             using var surface = SKSurface.Create(new SKImageInfo(bitmap.Width, bitmap.Height));
             var canvas = surface.Canvas;
@@ -223,6 +223,81 @@ public class GoldPriceExportService
             _logger.LogError(ex, "Altın fiyat görseli oluşturulurken hata!");
             return null;
         }
+    }
+
+    /// <summary>
+    /// Fiyatlar arka plana göre konumlanır (sol %20, üst %25) ve yazı boyutu sabittir (67 px); bu ölçüler 1080 px
+    /// genişliğindeki şablona göredir. Bu yüzden her arka plan bu genişliğe getirilir.
+    /// </summary>
+    public const int TemplateWidth = 1080;
+
+    /// <summary>
+    /// Arka plan resmini çizime hazırlar: telefon fotoğraflarındaki EXIF yönü uygulanır ve en-boy oranı korunarak
+    /// genişlik <see cref="TemplateWidth"/> yapılır (1080 px şablonlar aynen kalır). Resim okunamazsa null.
+    /// </summary>
+    public static SKBitmap? LoadTemplate(byte[] imageData)
+    {
+        try
+        {
+            using var codec = SKCodec.Create(new SKMemoryStream(imageData));
+            if (codec == null)
+                return null;
+
+            var info = new SKImageInfo(codec.Info.Width, codec.Info.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
+            using var decoded = new SKBitmap(info);
+            var result = codec.GetPixels(info, decoded.GetPixels());
+            if (result is not (SKCodecResult.Success or SKCodecResult.IncompleteInput))
+                return null;
+
+            using var oriented = ApplyOrientation(decoded, codec.EncodedOrigin);
+            if (oriented.Width == TemplateWidth)
+                return oriented.Copy();
+
+            var height = Math.Max(1, (int)Math.Round(oriented.Height * (double)TemplateWidth / oriented.Width));
+            return oriented.Resize(new SKImageInfo(TemplateWidth, height, SKColorType.Rgba8888, SKAlphaType.Premul),
+                new SKSamplingOptions(SKCubicResampler.Mitchell));
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Seçilen arka plan resmini saklamaya uygun hale getirir (yönü düzeltilmiş, 1080 px genişlik, JPEG).
+    /// Telefonda seçilen büyük fotoğraflar böylece küçük yer kaplar. Resim okunamazsa null.
+    /// </summary>
+    public static byte[]? NormalizeTemplate(byte[] imageData)
+    {
+        using var bitmap = LoadTemplate(imageData);
+        if (bitmap == null)
+            return null;
+        using var image = SKImage.FromBitmap(bitmap);
+        using var data = image.Encode(SKEncodedImageFormat.Jpeg, 92);
+        return data?.ToArray();
+    }
+
+    private static SKBitmap ApplyOrientation(SKBitmap source, SKEncodedOrigin origin)
+    {
+        // Yatay/dikey aynalı (nadir) yönler döndürme olarak ele alınır
+        var degrees = origin switch
+        {
+            SKEncodedOrigin.BottomRight or SKEncodedOrigin.BottomLeft => 180,
+            SKEncodedOrigin.RightTop or SKEncodedOrigin.RightBottom => 90,
+            SKEncodedOrigin.LeftBottom or SKEncodedOrigin.LeftTop => 270,
+            _ => 0,
+        };
+        if (degrees == 0)
+            return source.Copy();
+
+        var swap = degrees != 180;
+        var rotated = new SKBitmap(swap ? source.Height : source.Width, swap ? source.Width : source.Height);
+        using var canvas = new SKCanvas(rotated);
+        canvas.Translate(rotated.Width / 2f, rotated.Height / 2f);
+        canvas.RotateDegrees(degrees);
+        canvas.Translate(-source.Width / 2f, -source.Height / 2f);
+        canvas.DrawBitmap(source, 0, 0);
+        return rotated;
     }
 
     /// <summary>

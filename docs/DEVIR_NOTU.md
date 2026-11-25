@@ -209,7 +209,7 @@ otomatik erişim (+ dosya seçici yedek yol).
   (`/musteriler`: Türkçe harf/şapka duyarsız arama, telefonla arama, Borçlu/Alacaklı filtresi, sanal liste),
   Müşteri detayı (`/musteriler/{id}`: bakiye kutucukları, emanetler ayrı, cins başına hareketler yeniden eskiye +
   "Kalan", isme dokununca gizli işlemler, özet görselini paylaş), Fiyatlar (`/fiyatlar`: elazigaltinfiyatlari.com
-  fiyatları şifresiz + görsel paylaş; şablon ve işletme adı yedekteki ayarlardan),
+  fiyatları şifresiz; "Fiyat listesini paylaş" listeyi **arka plan resmine** yazar — bkz. aşağıdaki not),
   Yedek (`/yedek`: Drive bağlantısı, telefondaki yedeğin bilgileri, dosyadan aç, telefondan sil, gizlilik notu).
   İlk açılışta `Welcome`: Google ile bağlan / Yedek dosyasını seç / Örnek verilerle dene.
 - Core'a eklenenler (masaüstü kullanmıyor, davranışı değişmedi):
@@ -244,8 +244,15 @@ otomatik erişim (+ dosya seçici yedek yol).
 - **25.11.2026:** `kuyumcudefteri` (barkodlu stok + şifresiz fiyat kaynağı) bu dala birleştirildi; Android Fiyatlar
   ekranı `IGoldPriceSource`a uyarlandı. **Release APK** (R8 + kırpma) emülatörde denendi: örnek veriler, canlı fiyatlar
   (elazigaltinfiyatlari.com) ve fiyat görseli paylaşma çalışıyor. Release AAB derleniyor (0 uyarı). 72 birim testi geçiyor.
+- **Fiyat görseli arka planı (25.11.2026, kullanıcı isteği):** Fiyatlar ekranında "Resim seç / Değiştir / Kaldır".
+  Seçilen resim `Services/PriceBackgroundStore.cs` ile `AppDataDirectory/fiyat_arka_plan.jpg` olarak saklanır (yedek
+  değişse de kalır). Öncelik: telefonda seçilen > bilgisayardaki şablon (`AppSettings.GoldPriceTemplateImage`) > sade
+  varsayılan. Her paylaşımda güncel fiyatlar bu resmin üzerine yeniden yazılır; ekranda "Paylaşılacak görsel" önizlemesi.
+  Core `GoldPriceExportService.LoadTemplate/NormalizeTemplate`: telefon fotoğrafının EXIF yönü uygulanır, genişlik
+  1080 px yapılır (yazı boyutu ve konumlar 1080 px şablona göre; 1080 px Çarşı şablonunun çıktısı değişmez). Birim
+  testli (`GoldPriceTemplateTests`). Emülatörde Çarşı şablonu seçilip paylaşıldı, kapatıp açınca seçim korundu.
 - **Denenmedi:** Drive'dan gerçek indirme (Cloud projesinde Android OAuth istemcisi henüz yok; emülatördeki Google
-  hesabının oturumu da yenilenmeyi bekliyordu), gerçek cihaz,
+  hesabının oturumu da yenilenmeyi bekliyordu), gerçek cihaz, yan çekilmiş (EXIF yönlü) gerçek telefon fotoğrafıyla arka plan,
   imzalı AAB'nin Play'e yüklenmesi.
 
 ## Kullanıcıya sunulan öneriler (karar bekleyen sıra)

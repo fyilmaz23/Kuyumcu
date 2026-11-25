@@ -1,6 +1,7 @@
 @page "/fiyatlar"
 @inject BackupStore Store
 @inject GoldPriceExportService GoldPrices
+@inject PriceBackgroundStore Background
 @inject IShareService Share
 
 @if (Store.Snapshot is not { } data)
@@ -9,6 +10,8 @@
 }
 else
 {
+    var (backgroundImage, backgroundSource) = Background.Resolve(data.Settings.GoldPriceTemplateImage);
+
     <TopBar Title="Altın fiyatları" Subtitle="@(_updatedAt == null ? GoldPrices.SourceName : $"{GoldPrices.SourceName} · {_updatedAt:HH:mm}")">
         <button class="kd-icon-btn @(_loading ? "spinning" : "")" aria-label="Fiyatları yenile" disabled="@_loading" @onclick="Refresh"><Icon Name="refresh" /></button>
     </TopBar>
@@ -19,8 +22,64 @@ else
             <div class="kd-alert is-error"><Icon Name="warning" /><span>@_error</span></div>
         }
 
+        @* ---------- Paylaş: güncel fiyatlar seçili arka plana yazılır ---------- *@
         @if (_prices is { Count: > 0 })
         {
+            <button class="kd-btn kd-btn-primary kd-btn-block kd-btn-lg kd-share-top" disabled="@_busy" @onclick="ShareImage">
+                @if (_busy)
+                {
+                    <span class="kd-spinner"></span><span>Görsel hazırlanıyor…</span>
+                }
+                else
+                {
+                    <Icon Name="share" /><span>Fiyat listesini paylaş</span>
+                }
+            </button>
+        }
+        else if (_loading)
+        {
+            <div class="kd-card"><EmptyState Icon="diamond" Title="Fiyatlar getiriliyor…" /></div>
+        }
+
+        @* ---------- Arka plan resmi: her paylaşımda liste bunun üzerine yazılır ---------- *@
+        <h2 class="kd-section">Arka plan resmi</h2>
+        <div class="kd-card kd-bg-card">
+            <div class="kd-bg-thumb @(backgroundImage == null ? "is-default" : "")">
+                @if (backgroundImage != null)
+                {
+                    <img src="@ThumbnailUrl(backgroundImage)" alt="Arka plan resmi" />
+                }
+                else
+                {
+                    <Icon Name="diamond" />
+                }
+            </div>
+            <div class="kd-bg-main">
+                <div class="kd-bg-title">@SourceTitle(backgroundSource)</div>
+                <div class="kd-bg-sub">@SourceHint(backgroundSource)</div>
+                <div class="kd-bg-actions">
+                    <button class="kd-btn kd-btn-ghost small" disabled="@_busy" @onclick="PickBackground">
+                        <Icon Name="image" /><span>@(Background.HasPhoneBackground ? "Değiştir" : "Resim seç")</span>
+                    </button>
+                    @if (Background.HasPhoneBackground)
+                    {
+                        <button class="kd-btn kd-btn-ghost small danger" disabled="@_busy" @onclick="RemoveBackground">
+                            <Icon Name="delete" /><span>Kaldır</span>
+                        </button>
+                    }
+                </div>
+            </div>
+        </div>
+
+        @if (_prices is { Count: > 0 })
+        {
+            @if (_previewDataUrl != null)
+            {
+                <h2 class="kd-section">Paylaşılacak görsel</h2>
+                <img class="kd-preview" src="@_previewDataUrl" alt="Altın fiyatı görseli" />
+            }
+
+            <h2 class="kd-section">Fiyatlar</h2>
             <div class="kd-card kd-prices">
                 <div class="kd-prices-head"><span>Cins</span><span>Alış</span><span>Satış</span></div>
                 @foreach (var p in _prices)
@@ -32,27 +91,6 @@ else
                     </div>
                 }
             </div>
-
-            <button class="kd-btn kd-btn-primary kd-btn-block kd-btn-lg" disabled="@_sharing" @onclick="ShareImage">
-                @if (_sharing)
-                {
-                    <span class="kd-spinner"></span><span>Görsel hazırlanıyor…</span>
-                }
-                else
-                {
-                    <Icon Name="share" /><span>Fiyat görselini paylaş</span>
-                }
-            </button>
-
-            @if (_previewDataUrl != null)
-            {
-                <h2 class="kd-section">Son hazırlanan görsel</h2>
-                <img class="kd-preview" src="@_previewDataUrl" alt="Altın fiyatı görseli" />
-            }
-        }
-        else if (_loading)
-        {
-            <div class="kd-card"><EmptyState Icon="diamond" Title="Fiyatlar getiriliyor…" /></div>
         }
     </div>
 }
@@ -63,13 +101,25 @@ else
     private List<GoldPriceDto>? _prices;
     private DateTime? _updatedAt;
     private bool _loading;
-    private bool _sharing;
+    private bool _busy;
     private string? _error;
     private string? _previewDataUrl;
 
-    protected override Task OnInitializedAsync() => LoadPrices(forceRefresh: false);
+    // Küçük resim her çizimde yeniden kodlanmasın
+    private byte[]? _thumbFor;
+    private string? _thumbUrl;
 
-    private Task Refresh() => LoadPrices(forceRefresh: true);
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadPrices(forceRefresh: false);
+        await RenderPreview();
+    }
+
+    private async Task Refresh()
+    {
+        await LoadPrices(forceRefresh: true);
+        await RenderPreview();
+    }
 
     /// <summary>
     /// Fiyatlar herkese açık kaynaktan (elazigaltinfiyatlari.com) gelir; üyelik/şifre gerekmez.
@@ -109,25 +159,46 @@ else
         }
     }
 
-    private async Task ShareImage()
+    /// <summary>Fiyat listesini seçili arka plana yazar; görselin yolunu döndürür (önizlemeyi de günceller).</summary>
+    private async Task<string?> RenderImage()
     {
-        if (_prices == null || Store.Snapshot is not { } data)
-            return;
+        if (_prices is not { Count: > 0 } || Store.Snapshot is not { } data)
+            return null;
 
-        _sharing = true;
+        var (background, _) = Background.Resolve(data.Settings.GoldPriceTemplateImage);
+        var prices = _prices;
+        var path = await Task.Run(() => GoldPrices.CreateGoldPriceImageAsync(prices, background, data.Settings.BusinessName, share: false));
+        if (string.IsNullOrEmpty(path))
+        {
+            _error = "Görsel oluşturulamadı.";
+            return null;
+        }
+
+        _previewDataUrl = "data:image/jpeg;base64," + Convert.ToBase64String(await File.ReadAllBytesAsync(path));
+        return path;
+    }
+
+    private async Task RenderPreview()
+    {
         try
         {
-            var path = await Task.Run(() => GoldPrices.CreateGoldPriceImageAsync(
-                _prices, data.Settings.GoldPriceTemplateImage, data.Settings.BusinessName, share: false));
-            if (string.IsNullOrEmpty(path))
-            {
-                _error = "Görsel oluşturulamadı.";
-                return;
-            }
+            await RenderImage();
+        }
+        catch (Exception ex)
+        {
+            _error = "Görsel oluşturulamadı: " + ex.Message;
+        }
+    }
 
-            _previewDataUrl = $"data:image/{(path.EndsWith(".png", StringComparison.OrdinalIgnoreCase) ? "png" : "jpeg")};base64," + Convert.ToBase64String(await File.ReadAllBytesAsync(path));
+    private async Task ShareImage()
+    {
+        _busy = true;
+        try
+        {
+            // Her paylaşımda güncel fiyatlar seçili arka plana yeniden yazılır
+            var path = await RenderImage();
             StateHasChanged();
-            if (!await Share.ShareFileAsync(path, "Altın Fiyatları"))
+            if (path != null && !await Share.ShareFileAsync(path, "Altın Fiyatları"))
                 _error = "Paylaşım menüsü açılamadı.";
         }
         catch (Exception ex)
@@ -136,7 +207,68 @@ else
         }
         finally
         {
-            _sharing = false;
+            _busy = false;
         }
     }
+
+    private async Task PickBackground()
+    {
+        _busy = true;
+        _error = null;
+        try
+        {
+            if (await Background.PickAsync())
+            {
+                await RenderPreview();
+                NativeDialogs.Toast("Arka plan kaydedildi");
+            }
+        }
+        catch (InvalidDataException ex)
+        {
+            _error = ex.Message;
+        }
+        catch (Exception ex)
+        {
+            _error = "Resim seçilemedi: " + ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task RemoveBackground()
+    {
+        if (!await NativeDialogs.ConfirmAsync("Arka planı kaldır",
+                "Telefonda seçilen arka plan kaldırılır. Paylaşımlarda bilgisayardaki şablon (yoksa sade arka plan) kullanılır.",
+                "Kaldır"))
+            return;
+
+        Background.Clear();
+        await RenderPreview();
+    }
+
+    private string ThumbnailUrl(byte[] image)
+    {
+        if (!ReferenceEquals(image, _thumbFor))
+        {
+            _thumbFor = image;
+            _thumbUrl = "data:image/jpeg;base64," + Convert.ToBase64String(image);
+        }
+        return _thumbUrl!;
+    }
+
+    private static string SourceTitle(PriceBackgroundSource source) => source switch
+    {
+        PriceBackgroundSource.Phone => "Telefonda seçilen resim",
+        PriceBackgroundSource.Desktop => "Bilgisayardaki şablon",
+        _ => "Sade arka plan",
+    };
+
+    private static string SourceHint(PriceBackgroundSource source) => source switch
+    {
+        PriceBackgroundSource.Phone => "Her paylaşımda fiyat listesi bu resmin üzerine yazılır.",
+        PriceBackgroundSource.Desktop => "Bilgisayarda Ayarlar'dan yüklenen şablon. Telefondan başka bir resim seçebilirsiniz.",
+        _ => "Kendi arka plan resminizi seçin; fiyat listesi her paylaşımda onun üzerine yazılır.",
+    };
 }
