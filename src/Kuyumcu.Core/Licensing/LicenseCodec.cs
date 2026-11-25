@@ -8,9 +8,9 @@ namespace Kuyumcu.Licensing;
 /// <param name="DeviceId">Lisansın bağlı olduğu cihaz kimliği (16 onaltılık karakter).</param>
 /// <param name="IssuedOn">Veriliş tarihi.</param>
 /// <param name="ExpiresOn">Son geçerlilik günü; null ise süresiz.</param>
-public sealed record LicensePayload(string DeviceId, DateOnly IssuedOn, DateOnly? ExpiresOn);
+internal sealed record LicensePayload(string DeviceId, DateOnly IssuedOn, DateOnly? ExpiresOn);
 
-public enum LicenseKeyError
+internal enum LicenseKeyError
 {
     None,
     Empty,
@@ -22,7 +22,7 @@ public enum LicenseKeyError
     Expired,
 }
 
-public sealed record LicenseCheckResult(LicenseKeyError Error, LicensePayload? Payload)
+internal sealed record LicenseCheckResult(LicenseKeyError Error, LicensePayload? Payload)
 {
     public bool IsValid => Error == LicenseKeyError.None;
 
@@ -50,7 +50,7 @@ public sealed record LicenseCheckResult(LicenseKeyError Error, LicensePayload? P
 ///   yük: sürüm(1) · cihaz(8) · veriliş günü(2) · bitiş günü(2, 0 = süresiz) · bayraklar(1)
 ///   günler 2024-01-01'den itibaren sayılır.
 /// </summary>
-public static class LicenseCodec
+internal static class LicenseCodec
 {
     public const string Prefix = "KD1";
     private const byte FormatVersion = 1;

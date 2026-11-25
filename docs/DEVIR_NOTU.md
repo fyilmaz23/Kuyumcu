@@ -335,8 +335,28 @@ otomatik erişim (+ dosya seçici yedek yol).
   davranış değişmedi: koşullar zaten hep "yazılabilir" yönündeydi. `IsMobile` duruyor (Android'de görsel üretimi kullanıyor).
 - Önizlemede bütün menü sayfaları hatasız açıldı; stok düğmeleri (Ürün Girişi, Yeni sayım, Kasa giriş/çıkış) yerinde.
 
+### 13. Kod karıştırma (Obfuscar, 25.11.2026)
+- `build/obfuscate.ps1`: yayın çıktısındaki `Kuyumcu.Core.dll`'yi Obfuscar 2.2.50 (yerel dotnet aracı,
+  `dotnet-tools.json`) ile karıştırır. CI'da `dotnet publish`'ten sonra, MSIX'ten önce çalışır (`release.yml`).
+  Eşleme dosyası CI'da artifact olarak yüklenmez (depo herkese açık).
+- Ayarlar ihtiyatlı: public API ve **özellik/olay adları korunur** (SQLite tabloları, `cloud-backup.json`, Google API
+  modelleri ada göre çalışır); private/internal tip, metot ve alan adları değişir; metinler gizlenir (`HideStrings`).
+- Lisans sınıfları (`Licensing/*`: `LicenseCodec`, `LicensePublicKey`, `LicenseSigningKey`, `LicensePayload`,
+  `LicenseCheckResult`, `LicenseKeyError`) **internal** yapıldı → karıştırmada adları da değişiyor. Erişim:
+  `InternalsVisibleTo` ile lisans aracı (`kuyumcu-lisans`), testler ve `Kuyumcu.UI` (yerel anahtar üretme sayfası için).
+- Yerel anahtar üretme sayfası (`LicenseKeyGenerator.razor`, gitignore'da) **Release derlemesine girmez**
+  (`Kuyumcu.UI.csproj`'da koşullu `Content/RazorComponent Remove`; `/generate-license` Release DLL'de yok).
+- Doğrulama (karıştırılmış Release, paketsiz): `CheckStoredKey`, `EffectiveToday`, `LicenseCodec`, `LicensePublicKey` adları
+  ve açık anahtar metni DLL'de bulunamıyor. Bütün menü sayfaları hatasız açıldı; kayıtlı lisans doğrulandı
+  ("Lisanslı"), geçersiz anahtar doğru mesajla reddedildi, Drive durum dosyası okundu, "Şimdi Yedekle" Drive'a yükledi.
+  Hata günlüğünde hata yok. Lisans aracı ve 86 test çalışıyor.
+- **Sınır:** Obfuscar kontrol akışını karıştırmaz ve `LicenseService`'in public metotları (UI çağırdığı için) adını korur;
+  .NET kodu dnSpy gibi araçlarla hâlâ açılıp yamanabilir. Amaç caydırmak. Daha güçlüsü (çevrimiçi aktivasyon, birden çok
+  yerde dağıtık kontrol) istenirse ayrıca konuşulmalı.
+
 ## Kullanıcıya sunulan öneriler (karar bekleyen sıra)
-1. ~~Lisans~~ (yapıldı, bölüm 5). Kalan: Obfuscar ile kod karıştırma (yamalamayı zorlaştırır), istenirse çevrimiçi aktivasyon.
+1. ~~Lisans~~ (yapıldı, bölüm 5), ~~Obfuscar ile kod karıştırma~~ (bölüm 13). Kalan (istenirse): çevrimiçi aktivasyon,
+   dağıtık lisans kontrolü.
 2. ~~Otomatik Drive yedeği~~ (yapıldı, bölüm 6). Kalan: ürünün OAuth istemcisi oluşturulup izin ekranı "Üretim"e
    alınmalı ("Test"te yenileme jetonları 7 günde düşer → yedek durur ve "Yeniden bağlanın" çıkar).
 3. Android: ~~Drive'dan son yedeği otomatik okuma~~ (yapıldı, bölüm 9). Play kaydı ve dahili test yapıldı; kalan: kapalı test (12 kişi / 14 gün; aynı Play hesabı — kullanıcı

@@ -17,4 +17,11 @@
   <ItemGroup>
     <ProjectReference Include="..\Kuyumcu.Core\Kuyumcu.Core.csproj" />
   </ItemGroup>
+
+  <!-- Geliştiricinin yerel lisans üretme sayfası (gitignore'da) yayın derlemesine girmez: Core'un karıştırılan iç
+       lisans sınıflarını kullanır ve müşteriye gönderilen uygulamada olmamalı. -->
+  <ItemGroup Condition="'$(Configuration)' == 'Release'">
+    <Content Remove="Components\Pages\LicenseKeyGenerator.razor" />
+    <RazorComponent Remove="Components\Pages\LicenseKeyGenerator.razor" />
+  </ItemGroup>
 </Project>

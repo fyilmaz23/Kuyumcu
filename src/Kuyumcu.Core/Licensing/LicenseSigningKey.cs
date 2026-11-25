@@ -7,7 +7,7 @@ namespace Kuyumcu.Licensing;
 /// depoya, CI'a ve uygulama paketine asla girmez. Kaybolursa mevcut açık anahtarla yeni lisans üretilemez
 /// (uygulama güncellemesiyle yeni anahtar çiftine geçmek gerekir) — mutlaka yedekleyin.
 /// </summary>
-public static class LicenseSigningKey
+internal static class LicenseSigningKey
 {
     /// <summary>Varsayılan yolu değiştirmek için bu ortam değişkeni kullanılabilir.</summary>
     public const string PathEnvironmentVariable = "KUYUMCU_LISANS_OZEL_ANAHTAR";

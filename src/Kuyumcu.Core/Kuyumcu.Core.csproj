@@ -7,6 +7,10 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="Kuyumcu.Core.Tests" />
+    <!-- Lisans sınıfları (Licensing/*) internal: yayında karıştırılır (build/obfuscate.ps1). Sadece lisans aracı ve
+         geliştiricinin yerel anahtar üretme sayfası (UI, Debug derlemesi) erişir. -->
+    <InternalsVisibleTo Include="kuyumcu-lisans" />
+    <InternalsVisibleTo Include="Kuyumcu.UI" />
   </ItemGroup>
 
   <ItemGroup>

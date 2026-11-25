@@ -68,6 +68,12 @@ jobs:
           -p:DebugType=none
           -o artifacts/desktop-publish
 
+      # Kuyumcu.Core.dll karıştırılır (lisans kodunu okumayı/yamamayı zorlaştırır). Eşleme dosyası bilerek
+      # artifact olarak YÜKLENMEZ: depo herkese açıksa karıştırmayı geri çözmeye yarar.
+      - name: Lisans kodunu karıştır (Obfuscar)
+        shell: pwsh
+        run: ./build/obfuscate.ps1 -PublishDir artifacts/desktop-publish -MappingPath "$env:RUNNER_TEMP/obfuscar-mapping.txt"
+
       - name: MSIX paketi oluştur
         shell: pwsh
         env:

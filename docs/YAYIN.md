@@ -42,6 +42,7 @@ GitHub Actions (`.github/workflows/release.yml`) iki dosya üretir ve GitHub Rel
 
    ```powershell
    dotnet publish src/Kuyumcu.Desktop/Kuyumcu.Desktop.csproj -c Release -r win-x64 --self-contained true -p:Version=2.0.0 -p:DebugType=none -o artifacts/desktop-publish
+   ./build/obfuscate.ps1 -PublishDir artifacts/desktop-publish -MappingPath artifacts/obfuscar-mapping.txt   # CI'daki gibi karıştır
    $env:STORE_PACKAGE_NAME = "KuyumcuDefteri.YerelDeneme"; $env:STORE_PUBLISHER = "CN=KuyumcuDefteriYerelDeneme"; $env:STORE_PUBLISHER_DISPLAY_NAME = "Yerel Deneme"
    ./build/pack-msix.ps1 -PublishDir artifacts/desktop-publish -PackagingDir src/Kuyumcu.Desktop/Packaging -Version 2.0.0.0 -OutputPath artifacts/KuyumcuDefteri_test.msix -LayoutDir artifacts/msix-layout
    Add-AppxPackage -Register artifacts/msix-layout/AppxManifest.xml     # Başlat menüsünde "Kuyumcu Defteri"
@@ -190,6 +191,8 @@ Lisans için GitHub'a gizli bilgi **girilmez** (aşağıya bakın).
 
 Lisanslar geliştiricinin **özel anahtarıyla imzalanır** (ECDSA P-256). Uygulamada sadece açık anahtar vardır
 (`src/Kuyumcu.Core/Licensing/LicensePublicKey.cs`); uygulamayı açıp incelemek yeni lisans üretmeye yetmez.
+Yayın derlemesinde `Kuyumcu.Core.dll` ayrıca Obfuscar ile karıştırılır (`build/obfuscate.ps1`): lisans sınıflarının ve
+iç adımların adları ile metinler okunamaz hale gelir. Bu, lisans kontrolünü yamalamayı **zorlaştırır, imkânsız kılmaz**.
 
 - Özel anahtar: `%USERPROFILE%\.kuyumcu-lisans\ozel-anahtar.pem` (depoda, CI'da ve buluttaki açık klasörlerde **olmamalı**).
   **Mutlaka yedekleyin** (şifre yöneticisi / şifreli USB). Kaybolursa yeni lisans üretilemez; başkasının eline geçerse

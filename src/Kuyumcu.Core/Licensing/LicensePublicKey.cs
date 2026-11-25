@@ -7,7 +7,7 @@ namespace Kuyumcu.Licensing;
 /// Karşılığı olan özel anahtar sadece geliştiricide durur (bkz. LicenseSigningKey, tools/Kuyumcu.LicenseTool).
 /// Bu değer değişirse daha önce verilmiş TÜM lisanslar geçersiz olur.
 /// </summary>
-public static class LicensePublicKey
+internal static class LicensePublicKey
 {
     // Üretim anahtarı (24.11.2026, tools/Kuyumcu.LicenseTool anahtar-olustur)
     public const string Base64 =
