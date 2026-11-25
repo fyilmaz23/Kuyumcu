@@ -56,6 +56,15 @@ public class GoldPriceExportService
     }
 
     /// <summary>
+    /// Görseldeki bir satır: "22 Ayar: 5.415-5.960". Kaynak ayrı bir alış fiyatı vermiyorsa
+    /// (alış = satış, örn. 14 Ayar) yalnızca satış yazılır: "14 Ayar: 5.010".
+    /// </summary>
+    public static string FormatPriceLine(string displayName, decimal buyPrice, decimal sellPrice)
+        => buyPrice > 0 && buyPrice != sellPrice
+            ? $"{displayName}: {buyPrice:N0}-{sellPrice:N0}"
+            : $"{displayName}: {sellPrice:N0}";
+
+    /// <summary>
     /// Altın fiyatlarını şablon görsel üzerine yerleştirip kaydeder
     /// </summary>
     /// <param name="goldPrices">Altın fiyat listesi</param>
@@ -184,8 +193,7 @@ public class GoldPriceExportService
             // Altın fiyatlarını istenen formatta yazdır
             foreach (var (displayText, buyPrice, sellPrice) in displayItems)
             {
-                string text = $"{displayText}: {(displayText.Contains("14 Ayar") || displayText.Contains("24 Ayar") ? sellPrice.ToString("N0") : $"{buyPrice:N0}-{sellPrice:N0}")}";
-                canvas.DrawText(text, startX, currentY, textPaint);
+                canvas.DrawText(FormatPriceLine(displayText, buyPrice, sellPrice), startX, currentY, textPaint);
                 currentY += rowHeight;
             }
 

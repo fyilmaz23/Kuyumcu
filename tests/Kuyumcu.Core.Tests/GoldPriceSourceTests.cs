@@ -60,6 +60,27 @@ public class GoldPriceSourceTests
     }
 
     [Fact]
+    public void Gorsel_satirlarinda_24_ayar_alisi_da_yazilir()
+    {
+        var previous = System.Globalization.CultureInfo.CurrentCulture;
+        System.Globalization.CultureInfo.CurrentCulture = new System.Globalization.CultureInfo("tr-TR");
+        try
+        {
+            var prices = ElazigAltinFiyatlariSource.Parse(SampleHtml, new DateTime(2026, 11, 24, 17, 0, 0));
+            var has = prices.Single(p => p.Type == "24 Ayar");
+            var k14 = prices.Single(p => p.Type == "14 Ayar");
+
+            // Alışı olan cins "alış-satış", alışı verilmeyen (14 Ayar) yalnızca satış
+            Assert.Equal("24 Ayar: 6.090-6.160", GoldPriceExportService.FormatPriceLine("24 Ayar", has.BuyPrice, has.SellPrice));
+            Assert.Equal("14 Ayar: 5.140", GoldPriceExportService.FormatPriceLine("14 Ayar", k14.BuyPrice, k14.SellPrice));
+        }
+        finally
+        {
+            System.Globalization.CultureInfo.CurrentCulture = previous;
+        }
+    }
+
+    [Fact]
     public void Tablo_yoksa_bos_liste()
     {
         Assert.Empty(ElazigAltinFiyatlariSource.Parse("<html><body>bakım</body></html>", DateTime.Now));
