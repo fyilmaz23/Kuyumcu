@@ -234,6 +234,9 @@
                         }
                     </MudTabPanel>
                 }
+                <MudTabPanel Text="Vitrin Stoku">
+                    <ImportedStockView Data="ImportedStock" />
+                </MudTabPanel>
             </MudTabs>
         }
     </MudPaper>
@@ -258,6 +261,7 @@
 
     private int? SelectedCustomerId = null;
     private int ActiveTabIndex = 0;
+    private ImportedStockData ImportedStock = ImportedStockData.Empty;
 
     // Arama işlevselliği için
     private string CustomerSearchText { get; set; } = string.Empty;
@@ -353,6 +357,7 @@
         {
             IsCustomersLoading = true;
             ImportedCustomers = await DbImportService.GetImportedCustomersAsync();
+            ImportedStock = await DbImportService.GetImportedStockAsync();
         }
         catch (Exception ex)
         {
@@ -419,6 +424,7 @@
         HasImportedDatabase = false;
         ImportedCustomers.Clear();
         ImportedTransactions.Clear();
+        ImportedStock = ImportedStockData.Empty;
         CustomerTransactions.Clear();
         SelectedCustomerId = null;
         _groupedCustomerTransactions = null;
@@ -451,23 +457,10 @@
             ErrorMessage = string.Empty;
             showGoldPrices = false;
 
-            // Altın fiyatlarını çekme işlemi
-            if (!HasImportedDatabase)
-            {
-                ExportError = true;
-                ErrorMessage = "Önce bilgisayardan aldığınız yedek dosyasını açın. Altın fiyatı ayarları yedekle birlikte gelir.";
-                return;
-            }
+            // Fiyatlar herkese açık kaynaktan alınır. Şablon görseli ve işletme adı (varsa) yedekten gelir.
+            var settings = HasImportedDatabase ? await DbImportService.GetImportedSettingsAsync() : new AppSettings();
 
-            var settings = await DbImportService.GetImportedSettingsAsync();
-            if (!settings.HasGoldPriceSiteCredentials)
-            {
-                ExportError = true;
-                ErrorMessage = "Altın fiyat sitesi bilgileri girilmemiş. Bilgisayardaki uygulamada Ayarlar > Altın Fiyatı Görseli bölümünü doldurup yeni bir yedek alın.";
-                return;
-            }
-
-            goldPrices = await GoldPriceExportService.GetGoldPricesAsync(settings);
+            goldPrices = await GoldPriceExportService.GetGoldPricesAsync(forceRefresh: true);
             if (goldPrices == null || !goldPrices.Any())
             {
                 ExportError = true;

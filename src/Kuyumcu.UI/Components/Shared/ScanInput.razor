@@ -1,0 +1,93 @@
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+@*
+    Barkod okutma / "yaz → Enter" alanı. Okuyucu klavye gibi yazar ve sonuna Enter ekler; sadece Enter'la gelen
+    giriş işlenir. Sayfa açılınca alan seçili gelir, okutmadan sonra temizlenip yeniden seçilir.
+    Değer JS tarafında okunur (Blazor bağlaması yok): hızlı okutmalarda karakter kaçmaz.
+*@
+
+<div class="kd-scan @(Large ? "lg" : "") @(Disabled ? "is-disabled" : "")" @onclick="FocusAsync">
+    <MudIcon Icon="@(Icon ?? (Mode == ScanInputMode.Decimal ? Icons.Material.Outlined.Scale : Icons.Material.Outlined.QrCodeScanner))" Class="kd-scan-icon" />
+    <div class="kd-scan-field">
+        @if (!string.IsNullOrEmpty(Label))
+        {
+            <label for="@Id" class="kd-scan-label">@Label</label>
+        }
+        <input id="@Id" class="kd-scan-input" type="text" autocomplete="off" spellcheck="false"
+               inputmode="@(Mode == ScanInputMode.Decimal ? "decimal" : "numeric")"
+               placeholder="@Placeholder" disabled="@Disabled" />
+    </div>
+    <span class="kd-kbd">Enter ↵</span>
+</div>
+
+@code {
+    /// <summary>Gönderilen metni işler. Geçersizse e.Accepted = false yapılır (metin alanda kalır, düzeltilebilir).</summary>
+    [Parameter, EditorRequired] public EventCallback<ScanSubmitEventArgs> OnSubmit { get; set; }
+    [Parameter] public string? Label { get; set; }
+    [Parameter] public string? Placeholder { get; set; }
+    [Parameter] public string? Icon { get; set; }
+    [Parameter] public ScanInputMode Mode { get; set; } = ScanInputMode.Code;
+    [Parameter] public bool Large { get; set; } = true;
+    [Parameter] public bool Disabled { get; set; }
+    /// <summary>Odak bir giriş alanında değilken gelen rakamları bu alana yönlendir (okutma ekranları).</summary>
+    [Parameter] public bool CaptureStrayKeys { get; set; }
+
+    public string Id { get; } = "kd-scan-" + Guid.NewGuid().ToString("N")[..8];
+
+    private DotNetObjectReference<ScanInput>? selfRef;
+    private bool attached;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+            return;
+        selfRef = DotNetObjectReference.Create(this);
+        try
+        {
+            await JS.InvokeVoidAsync("kuyumcu.attachScanInput", Id, selfRef, CaptureStrayKeys);
+            attached = true;
+        }
+        catch (JSDisconnectedException) { }
+    }
+
+    [JSInvokable]
+    public async Task<bool> OnEnter(string value)
+    {
+        if (Disabled)
+            return false;
+        try
+        {
+            var args = new ScanSubmitEventArgs(value ?? string.Empty);
+            await OnSubmit.InvokeAsync(args); // EventCallback: işlem bitince sayfa yeniden çizilir
+            return args.Accepted;
+        }
+        finally
+        {
+            StateHasChanged();
+        }
+    }
+
+    /// <summary>Alanı odaklar ve içindekini seçer (pencere kapandıktan sonra çağrılır).</summary>
+    public async Task FocusAsync()
+    {
+        try { await JS.InvokeVoidAsync("kuyumcu.focusAndSelect", Id); }
+        catch (JSDisconnectedException) { }
+    }
+
+    public async Task SetValueAsync(string value)
+    {
+        try { await JS.InvokeVoidAsync("kuyumcu.setInputValue", Id, value); }
+        catch (JSDisconnectedException) { }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (attached)
+        {
+            try { await JS.InvokeVoidAsync("kuyumcu.detachScanInput", Id); }
+            catch (JSDisconnectedException) { }
+            catch (TaskCanceledException) { }
+        }
+        selfRef?.Dispose();
+    }
+}

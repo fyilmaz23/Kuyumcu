@@ -9,60 +9,50 @@
 }
 else
 {
-    <TopBar Title="Altın fiyatları" Subtitle="@(_updatedAt == null ? "Fiyat görseli paylaşma" : $"Güncelleme {_updatedAt:HH:mm}")">
-        <button class="kd-icon-btn @(_loading ? "spinning" : "")" aria-label="Fiyatları yenile" disabled="@_loading" @onclick="LoadPrices"><Icon Name="refresh" /></button>
+    <TopBar Title="Altın fiyatları" Subtitle="@(_updatedAt == null ? GoldPrices.SourceName : $"{GoldPrices.SourceName} · {_updatedAt:HH:mm}")">
+        <button class="kd-icon-btn @(_loading ? "spinning" : "")" aria-label="Fiyatları yenile" disabled="@_loading" @onclick="Refresh"><Icon Name="refresh" /></button>
     </TopBar>
 
     <div class="kd-page">
-        @if (!data.Settings.HasGoldPriceSiteCredentials)
+        @if (_error != null)
         {
-            <div class="kd-card">
-                <EmptyState Icon="diamond" Title="Fiyat sitesi bilgisi yok"
-                            Text="Altın fiyatları, bilgisayardaki Kuyumcu Defteri'nde Ayarlar'a girilen fiyat sitesi üye bilgileriyle çekilir. Bilgileri girip yeni yedek alındığında burada görünür." />
-            </div>
+            <div class="kd-alert is-error"><Icon Name="warning" /><span>@_error</span></div>
         }
-        else
+
+        @if (_prices is { Count: > 0 })
         {
-            @if (_error != null)
-            {
-                <div class="kd-alert is-error"><Icon Name="warning" /><span>@_error</span></div>
-            }
-
-            @if (_prices is { Count: > 0 })
-            {
-                <div class="kd-card kd-prices">
-                    <div class="kd-prices-head"><span>Cins</span><span>Alış</span><span>Satış</span></div>
-                    @foreach (var p in _prices)
-                    {
-                        <div class="kd-prices-row">
-                            <span class="kd-prices-name">@p.Type</span>
-                            <span class="kd-num">@p.BuyPrice.ToString("N2")</span>
-                            <span class="kd-num kd-strong">@p.SellPrice.ToString("N2")</span>
-                        </div>
-                    }
-                </div>
-
-                <button class="kd-btn kd-btn-primary kd-btn-block kd-btn-lg" disabled="@_sharing" @onclick="ShareImage">
-                    @if (_sharing)
-                    {
-                        <span class="kd-spinner"></span><span>Görsel hazırlanıyor…</span>
-                    }
-                    else
-                    {
-                        <Icon Name="share" /><span>Fiyat görselini paylaş</span>
-                    }
-                </button>
-
-                @if (_previewDataUrl != null)
+            <div class="kd-card kd-prices">
+                <div class="kd-prices-head"><span>Cins</span><span>Alış</span><span>Satış</span></div>
+                @foreach (var p in _prices)
                 {
-                    <h2 class="kd-section">Son hazırlanan görsel</h2>
-                    <img class="kd-preview" src="@_previewDataUrl" alt="Altın fiyatı görseli" />
+                    <div class="kd-prices-row">
+                        <span class="kd-prices-name">@p.Type</span>
+                        <span class="kd-num">@p.BuyPrice.ToString("N2")</span>
+                        <span class="kd-num kd-strong">@p.SellPrice.ToString("N2")</span>
+                    </div>
                 }
-            }
-            else if (_loading)
+            </div>
+
+            <button class="kd-btn kd-btn-primary kd-btn-block kd-btn-lg" disabled="@_sharing" @onclick="ShareImage">
+                @if (_sharing)
+                {
+                    <span class="kd-spinner"></span><span>Görsel hazırlanıyor…</span>
+                }
+                else
+                {
+                    <Icon Name="share" /><span>Fiyat görselini paylaş</span>
+                }
+            </button>
+
+            @if (_previewDataUrl != null)
             {
-                <div class="kd-card"><EmptyState Icon="diamond" Title="Fiyatlar getiriliyor…" /></div>
+                <h2 class="kd-section">Son hazırlanan görsel</h2>
+                <img class="kd-preview" src="@_previewDataUrl" alt="Altın fiyatı görseli" />
             }
+        }
+        else if (_loading)
+        {
+            <div class="kd-card"><EmptyState Icon="diamond" Title="Fiyatlar getiriliyor…" /></div>
         }
     </div>
 }
@@ -77,18 +67,16 @@ else
     private string? _error;
     private string? _previewDataUrl;
 
-    protected override async Task OnInitializedAsync()
-    {
-        if (Store.Snapshot?.Settings.HasGoldPriceSiteCredentials == true)
-            await LoadPrices();
-    }
+    protected override Task OnInitializedAsync() => LoadPrices(forceRefresh: false);
 
-    private async Task LoadPrices()
-    {
-        var settings = Store.Snapshot?.Settings;
-        if (settings == null)
-            return;
+    private Task Refresh() => LoadPrices(forceRefresh: true);
 
+    /// <summary>
+    /// Fiyatlar herkese açık kaynaktan (elazigaltinfiyatlari.com) gelir; üyelik/şifre gerekmez.
+    /// Servis son 5 dakikadaki fiyatları yeniden kullanır; "Yenile" her zaman yeniden çeker.
+    /// </summary>
+    private async Task LoadPrices(bool forceRefresh)
+    {
         if (Connectivity.Current.NetworkAccess != NetworkAccess.Internet)
         {
             _error = "İnternet yok; fiyatlar getirilemedi.";
@@ -100,15 +88,15 @@ else
         StateHasChanged();
         try
         {
-            var prices = await Task.Run(() => GoldPrices.GetGoldPricesAsync(settings));
+            var prices = await Task.Run(() => GoldPrices.GetGoldPricesAsync(forceRefresh));
             if (prices is { Count: > 0 })
             {
                 _prices = prices;
-                _updatedAt = DateTime.Now;
+                _updatedAt = prices.Max(p => p.UpdateTime);
             }
             else
             {
-                _error = "Fiyatlar alınamadı. Fiyat sitesi bilgileri doğru mu, site açık mı kontrol edin.";
+                _error = $"Fiyatlar alınamadı ({GoldPrices.SourceName}). İnterneti kontrol edip yenileyin.";
             }
         }
         catch (Exception ex)

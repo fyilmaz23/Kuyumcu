@@ -25,6 +25,7 @@ public static class MauiProgram
         builder.Services.AddSingleton<IClipboardService, AndroidClipboardService>();
 
         // Core: sadece okuma ve görsel üretimi. Telefon kendi veritabanına yazmaz, lisans/yedekleme servisleri yoktur.
+        builder.Services.AddSingleton<IGoldPriceSource, ElazigAltinFiyatlariSource>();
         builder.Services.AddSingleton<GoldPriceExportService>();
         builder.Services.AddSingleton<CustomerSummaryImageService>();
         builder.Services.AddSingleton(_ => new DriveLatestBackupClient(new HttpClient { Timeout = TimeSpan.FromMinutes(5) }));

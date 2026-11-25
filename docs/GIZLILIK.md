@@ -16,7 +16,7 @@ Uygulamaya **siz (işletme)** şu verileri girersiniz:
 
 - Müşteri adı ve telefon numarası,
 - Müşterilerle yapılan işlemler (tutar, cins, tarih, açıklama, emanetler),
-- İşletme ayarları (işletme adı, altın fiyatı sitesi üye bilgileri, fiyat görseli şablonu).
+- İşletme ayarları (işletme adı, fiyat görseli şablonu vb.).
 
 ## Veriler nerede durur?
 
@@ -37,7 +37,7 @@ satılmaz, reklam veya analiz amacıyla kullanılmaz. Uygulamada reklam ve kulla
 | Hizmet | Ne için | Gönderilen |
 |---|---|---|
 | Google (giriş ve Google Drive API) | Yedeği sizin Drive'ınıza yüklemek / oradan indirmek | Google hesabınızla verdiğiniz izin; yedek dosyası (yalnızca sizin Drive'ınıza) |
-| Altın fiyatı sitesi ([site adresi]) | Güncel fiyatları çekmek (isteğe bağlı) | Ayarlar'a girdiğiniz site üye bilgileri (yalnızca o siteye giriş için) |
+| Altın fiyatı sayfası (elazigaltinfiyatlari.com) | Güncel fiyatları okumak | Hiçbir kullanıcı verisi gönderilmez (herkese açık sayfa okunur) |
 
 Bu hizmetlerin kendi gizlilik politikaları geçerlidir (ör. https://policies.google.com/privacy).
 

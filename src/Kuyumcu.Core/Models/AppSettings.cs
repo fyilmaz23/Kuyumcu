@@ -28,13 +28,12 @@ namespace Kuyumcu.Models
         public bool IsSetupCompleted { get; set; } = false;
 
         /// <summary>
-        /// Altın fiyat sitesi (fiyat.ekeo.org.tr) üye kodu. Boşsa fiyat çekme özelliği kapalıdır.
+        /// Eski altın fiyat sitesi (fiyat.ekeo.org.tr) üye kodu. Artık kullanılmıyor: fiyatlar herkese açık
+        /// kaynaktan alınıyor. Kolon eski veritabanlarıyla uyum için duruyor.
         /// </summary>
         public string GoldPriceSiteCode { get; set; } = string.Empty;
 
-        /// <summary>
-        /// Altın fiyat sitesi şifresi.
-        /// </summary>
+        /// <summary>Eski altın fiyat sitesi şifresi. Artık kullanılmıyor (bkz. <see cref="GoldPriceSiteCode"/>).</summary>
         public string GoldPriceSitePassword { get; set; } = string.Empty;
 
         /// <summary>
@@ -49,12 +48,5 @@ namespace Kuyumcu.Models
         [SQLite.Ignore]
         public bool HasCustomGoogleClient =>
             !string.IsNullOrWhiteSpace(GoogleClientId) && !string.IsNullOrWhiteSpace(GoogleClientSecret);
-
-        /// <summary>
-        /// Altın fiyat sitesi bilgileri girilmiş mi?
-        /// </summary>
-        [SQLite.Ignore]
-        public bool HasGoldPriceSiteCredentials =>
-            !string.IsNullOrWhiteSpace(GoldPriceSiteCode) && !string.IsNullOrWhiteSpace(GoldPriceSitePassword);
     }
 }

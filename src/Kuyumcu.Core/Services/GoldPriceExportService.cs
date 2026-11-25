@@ -1,6 +1,3 @@
-using System.Net;
-using System.Text.RegularExpressions;
-using HtmlAgilityPack;
 using Kuyumcu.Models;
 using Kuyumcu.Platform;
 using Microsoft.Extensions.Logging;
@@ -10,192 +7,52 @@ namespace Kuyumcu.Services;
 
 public class GoldPriceExportService
 {
-    private readonly ILogger<GoldPriceExportService> _logger;
-    private const string BaseUrl = "https://fiyat.ekeo.org.tr";
-    private const string LoginUrl = "https://fiyat.ekeo.org.tr/login";
-    private const string DashboardUrl = "https://fiyat.ekeo.org.tr/dashboard";
+    private static readonly TimeSpan CacheDuration = TimeSpan.FromMinutes(5);
 
+    private readonly ILogger<GoldPriceExportService> _logger;
     private readonly IAppEnvironment _environment;
     private readonly IShareService _share;
+    private readonly IGoldPriceSource _source;
 
-    public GoldPriceExportService(ILogger<GoldPriceExportService> logger, IAppEnvironment environment, IShareService share)
+    private List<GoldPriceDto>? _cache;
+    private DateTime _cacheTime;
+
+    public GoldPriceExportService(ILogger<GoldPriceExportService> logger, IAppEnvironment environment, IShareService share, IGoldPriceSource source)
     {
         _logger = logger;
         _environment = environment;
         _share = share;
+        _source = source;
     }
 
-    /// <summary>
-    /// Her istek için yeni bir HttpClient oluşturur
-    /// </summary>
-    private HttpClient CreateHttpClient()
-    {
-        var handler = new HttpClientHandler
-        {
-            UseCookies = true,
-            CookieContainer = new CookieContainer(),
-            AllowAutoRedirect = true
-        };
+    /// <summary>Fiyatların alındığı kaynağın adı (ekranda gösterilir).</summary>
+    public string SourceName => _source.DisplayName;
 
-        var client = new HttpClient(handler);
-        client.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36");
-        return client;
+    /// <summary>
+    /// Güncel altın fiyatlarını döndürür (herkese açık kaynaktan; üyelik/şifre gerekmez).
+    /// Son 5 dakikada alınan fiyatlar yeniden kullanılır. Alınamazsa null döner.
+    /// </summary>
+    public async Task<List<GoldPriceDto>?> GetGoldPricesAsync(bool forceRefresh = false)
+    {
+        if (!forceRefresh && _cache != null && DateTime.Now - _cacheTime < CacheDuration)
+            return _cache;
+
+        _logger.LogInformation("Altın fiyatları çekiliyor: {Source}", _source.DisplayName);
+        var prices = await _source.FetchAsync();
+        if (prices is { Count: > 0 })
+        {
+            _cache = prices;
+            _cacheTime = DateTime.Now;
+        }
+        return prices;
     }
 
-    /// <summary>
-    /// Altın fiyatlarını web sitesinden çekip döndürür
-    /// </summary>
-    /// <param name="settings">Site üye kodu ve şifresinin okunduğu işletme ayarları</param>
-    public async Task<List<GoldPriceDto>> GetGoldPricesAsync(AppSettings settings)
+    /// <summary>Has altın (24 ayar, gram) satış fiyatı. Satış fiyatı önerisinde kullanılır.</summary>
+    public async Task<GoldPriceDto?> GetHasGoldPriceAsync(bool forceRefresh = false)
     {
-        if (settings == null || !settings.HasGoldPriceSiteCredentials)
-        {
-            _logger.LogWarning("Altın fiyat sitesi bilgileri ayarlanmamış.");
-            return null;
-        }
-
-        using var httpClient = CreateHttpClient();
-        try
-        {
-            _logger.LogInformation("Altın fiyatları çekiliyor...");
-
-            // Siteye giriş yapma
-            bool loginSuccess = await LoginToWebsiteAsync(httpClient, settings.GoldPriceSiteCode, settings.GoldPriceSitePassword);
-            if (!loginSuccess)
-            {
-                _logger.LogError("Web sitesine giriş yapılamadı!");
-                return null;
-            }
-
-            // Dashboard sayfasını çekme
-            var dashboardHtml = await httpClient.GetStringAsync(DashboardUrl);
-            return ExtractGoldPrices(dashboardHtml);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Altın fiyatları çekilirken hata oluştu!");
-            return null;
-        }
-    }
-
-    /// <summary>
-    /// Web sitesine giriş yapar
-    /// </summary>
-    private async Task<bool> LoginToWebsiteAsync(HttpClient httpClient, string code, string password)
-    {
-        try
-        {
-            // Önce login sayfasını çekerek csrf token'ı alalım
-            var loginPageResponse = await httpClient.GetStringAsync(LoginUrl);
-            var csrfToken = ExtractCsrfToken(loginPageResponse);
-
-            if (string.IsNullOrEmpty(csrfToken))
-            {
-                _logger.LogError("CSRF token bulunamadı!");
-                return false;
-            }
-
-            // Form verilerini hazırlama
-            var formContent = new FormUrlEncodedContent(new[]
-            {
-                new KeyValuePair<string, string>("_token", csrfToken),
-                new KeyValuePair<string, string>("code", code),
-                new KeyValuePair<string, string>("password", password)
-            });
-
-            // Login isteğini gönderme
-            var response = await httpClient.PostAsync(LoginUrl, formContent);
-            return response.IsSuccessStatusCode && response.RequestMessage.RequestUri.AbsolutePath.Contains("dashboard");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Login işlemi sırasında hata oluştu!");
-            return false;
-        }
-    }
-
-    /// <summary>
-    /// HTML içeriğinden CSRF token'ı çıkarır
-    /// </summary>
-    private string ExtractCsrfToken(string html)
-    {
-        try
-        {
-            var csrfMatch = Regex.Match(html, "<input type=\"hidden\" name=\"_token\" value=\"([^\"]+)\"");
-            return csrfMatch.Success ? csrfMatch.Groups[1].Value : null;
-        }
-        catch
-        {
-            return null;
-        }
-    }
-
-    /// <summary>
-    /// Dashboard HTML içeriğinden altın fiyatlarını çıkarır
-    /// </summary>
-    private List<GoldPriceDto> ExtractGoldPrices(string html)
-    {
-        var result = new List<GoldPriceDto>();
-        var htmlDoc = new HtmlDocument();
-        htmlDoc.LoadHtml(html);
-
-        // Altın fiyat verilerini seçme
-        var goldItems = htmlDoc.DocumentNode.SelectNodes("//li[@class='veri']");
-        if (goldItems == null || goldItems.Count == 0)
-        {
-            _logger.LogWarning("HTML içeriğinde altın fiyat bilgisi bulunamadı!");
-            return result;
-        }
-
-        foreach (var item in goldItems)
-        {
-            try
-            {
-                // Altın türü
-                var typeNode = item.SelectSingleNode(".//li[@class='v_a']");
-                // Sadece text node'u alarak içindeki span vb. elementlerin görünmez metinlerini ekarte edelim
-                string goldType = typeNode?.ChildNodes.FirstOrDefault(n => n.NodeType == HtmlNodeType.Text)?.InnerText?.Trim();
-                
-                if (string.IsNullOrEmpty(goldType))
-                    goldType = typeNode?.InnerText?.Trim();
-
-                if (string.IsNullOrEmpty(goldType))
-                    continue;
-
-                // Satış fiyatı
-                var sellNode = item.SelectSingleNode(".//li[@class='v_d2 odometer']//span");
-                string sellPriceText = sellNode?.InnerText?.Trim().Replace(".", "").Replace(",", ".");
-
-                // 14 Ayar ve 24 Ayar için sadece satış fiyatını kullan
-                if (goldType.Contains("14 AYAR") || goldType.Equals("24 AYAR"))
-                {
-                    // Sadece satış fiyatını kullan (hem alış hem satış için aynı değer)
-                    if (!string.IsNullOrEmpty(sellPriceText) && decimal.TryParse(sellPriceText, out decimal sellPrice))
-                    {
-                        result.Add(new GoldPriceDto(goldType, sellPrice, sellPrice));
-                    }
-                }
-                else
-                {
-                    // Diğer altın türleri için hem alış hem satış fiyatı kullan
-                    var buyNode = item.SelectSingleNode(".//li[@class='v_d1 odometer']//span[not(contains(@class, 'iscilik'))]");
-                    string buyPriceText = buyNode?.InnerText?.Trim().Replace(".", "").Replace(",", ".");
-
-                    if (!string.IsNullOrEmpty(buyPriceText) && !string.IsNullOrEmpty(sellPriceText) &&
-                        decimal.TryParse(buyPriceText, out decimal buyPrice) &&
-                        decimal.TryParse(sellPriceText, out decimal sellPrice))
-                    {
-                        result.Add(new GoldPriceDto(goldType, buyPrice, sellPrice));
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Altın fiyat bilgisi çıkarılırken hata oluştu!");
-            }
-        }
-
-        return result;
+        var prices = await GetGoldPricesAsync(forceRefresh);
+        return prices?.FirstOrDefault(p => p.Type.Trim().Equals("24 Ayar", StringComparison.OrdinalIgnoreCase))
+               ?? prices?.FirstOrDefault(p => p.Type.Contains("24", StringComparison.Ordinal) && !p.Type.Contains("Gram", StringComparison.OrdinalIgnoreCase));
     }
 
     /// <summary>

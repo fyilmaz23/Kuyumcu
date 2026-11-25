@@ -1,7 +1,7 @@
 # Devir Notu — Kuyumcu Defteri
 
 Bu belge, projeyi başka bir oturumda / geliştiricide kaldığı yerden sürdürmek için gereken bağlamı içerir.
-Son güncelleme: dal `claude/android-yeniden-2ef27f` (üzerine kurulduğu dal: `kuyumcudefteri`).
+Son güncelleme: dal `claude/android-yeniden-2ef27f` = güncel `kuyumcudefteri` (barkodlu stok dahil, bölüm 7–8) + yeni Android uygulaması (bölüm 9).
 
 ## Amaç
 
@@ -23,15 +23,19 @@ src/Kuyumcu.Desktop   WPF kabuğu (net10.0-windows10.0.19041.0, self-contained, 
 src/Kuyumcu.Android   Android uygulaması (MAUI + BlazorWebView, net10.0-android), salt okunur; kendi telefon arayüzü
                       (Components/), Kuyumcu.UI'yi KULLANMAZ. Kök ad alanı Kuyumcu.Droid, derleme adı KuyumcuDefteri
 src/Kuyumcu.Preview   Blazor Server tarayıcı önizlemesi (Mac/Linux'ta arayüz geliştirmek için, örnek verili) — dağıtılmaz
+tests/Kuyumcu.Core.Tests  xUnit birim testleri (kod üretimi, TSPL, toplamlar, fiyat sitesi, stok servisi, yedek/geri yükleme)
 build/                CI betikleri: write-secrets.ps1 (gizli dosyaları üretir), pack-msix.ps1 (makeappx ile MSIX)
 tools/Kuyumcu.LicenseTool  Lisans anahtarı üretme aracı (geliştirici bilgisayarında; bkz. docs/YAYIN.md "Lisans anahtarları")
 docs/YAYIN.md         Partner Center, Play Console (OAuth Android istemcisi, Veri güvenliği, kapalı test), GitHub Secrets
 docs/GIZLILIK.md      Gizlilik politikası taslağı (yayınlanıp URL'si mağazalara girilecek)
+docs/ETIKET_VE_OKUYUCU_TESTI.md  Etiket yazıcısı (TSC TE210) ve barkod okuyucu (Sunlux RH10) deneme adımları
 ```
 
 - Platforma özgü her şey `src/Kuyumcu.Core/Platform/IPlatformServices.cs` arayüzlerinin arkasında:
   `IAppEnvironment`, `ISecureStore` (Windows: DPAPI), `IFilePickerService`, `IClipboardService`, `IShareService`,
-  `IReceiptPrinter`, `ILegacyDataLocator`. Her kabuk projesi kendi uygulamasını kaydeder.
+  `IReceiptPrinter`, `ILabelPrinter` (etiket yazıcısı, ham komut), `ILegacyDataLocator`. Her kabuk projesi kendi
+  uygulamasını kaydeder (Desktop, Preview). Android (`Kuyumcu.Android`) `AddKuyumcuCore` çağırmaz; sadece kullandığı
+  servisleri kaydeder (görsel üretimi, fiyat kaynağı) — etiket/yazıcı/lisans servisleri yoktur.
 - Ürün adı/klasör adı tek yerde: `src/Kuyumcu.Core/Platform/ProductInfo.cs`.
 - Paket sürümleri merkezi: `Directory.Packages.props`.
 - Gizli dosyalar (gitignore'da, CI üretir): `src/Kuyumcu.Core/Services/LicenseService.Secrets.cs`,
@@ -93,7 +97,8 @@ docs/GIZLILIK.md      Gizlilik politikası taslağı (yayınlanıp URL'si mağaz
 ### 4. Üst menü (24.11.2026, kullanıcı isteği)
 - Sol menü kaldırıldı (`NavMenu.razor` silindi). `MainLayout`: antrasit tek satır üst bar (52 px) — marka/iş yeri adı,
   ikonlu sayfa düğmeleri (üzerine gelince başlık + kısayol), müşteri arama, deneme süresi rozeti, Drive yedek,
-  tema, Ayarlar, "Yeni Müşteri". Kısayollar: Alt+1 Ana Sayfa, Alt+2 Müşteriler, Alt+3 İşlemler, Alt+4 Ayarlar.
+  tema, Ayarlar, "Yeni Müşteri". Kısayollar: Alt+1 Ana Sayfa, Alt+2 Müşteriler, Alt+3 İşlemler, Alt+4–7 stok sayfaları (bölüm 8),
+  Alt+8 Ayarlar. Alt+rakam sadece üst sıradaki rakam tuşlarıyla çalışır (Numpad değil: bazı okuyucular Alt+Numpad ile yazar).
 - `.kd-page` genişlik sınırı kaldırıldı (tam ekran). Dar pencerede önce iş yeri adı, sonra düğme yazısı gizlenir.
 
 ### 5. İmzalı lisans + Ayarlar/Kurulum/Lisans ekranları (24.11.2026)
@@ -131,7 +136,71 @@ docs/GIZLILIK.md      Gizlilik politikası taslağı (yayınlanıp URL'si mağaz
   yedekler ya da Ayarlar'a götürür). Ayarlar > Google Drive kartı: hesap, son yedek, Şimdi Yedekle, Drive'da Aç,
   Bağlantıyı Kes. Eski onaylı elle yedek düğmesi kaldırıldı.
 
-### 7. Android uygulaması sıfırdan (24.11.2026)
+### 7. Altın fiyatı kaynağı (25.11.2026)
+- ekeo (fiyat.ekeo.org.tr) girişi kaldırıldı. Fiyatlar **https://elazigaltinfiyatlari.com/** sayfasından şifresiz alınır
+  (`Services/GoldPriceSource.cs`: `IGoldPriceSource` + `ElazigAltinFiyatlariSource`; "BUGÜN" tablosu, `span.alis/satis`).
+  14 Ayar'ın sadece satış fiyatı var (alış = satış). Başka şehir için yeni bir `IGoldPriceSource` yazılır.
+- `GoldPriceExportService` fiyatları 5 dk önbellekte tutar; `GetHasGoldPriceAsync()` = "24 Ayar" satış (has fiyatı).
+- `AppSettings.GoldPriceSiteCode/Password` kolonları eski veritabanlarıyla uyum için duruyor, kullanılmıyor.
+
+### 8. Barkodlu vitrin stoğu (dal `feature/barkod-stok`, 24–25.11.2026)
+İlk kullanıcı dükkânın cihazları: **TSC TE210** (203 dpi, TSPL, USB), **Sunlux RH10** (2D, USB klavye gibi, sonuna Enter),
+**72 × 10 mm kelebek PP kuyumcu etiketi** (kanatlar basılır, kuyruk yapışkansız). Yazıcı/etiket/kategori ayarları
+koda gömülü değil, Ayarlar'dan değişir.
+
+**Core**
+- `Models/Stock.cs`: `StockItem` (etiketli ürün), `StockMovement` (her hareket), `StockCategory`, `KaratDefinition`
+  (ayar → milyem), `StockLocation`, `BulkProduct` (kasa: çeyrek, yarım, tam, gram altın…), `StockCountSession` +
+  `StockCountLine` (sayım), `StockCodeCounter`. `Models/LabelPrinterSettings.cs` (tek satır, cihaza özel).
+- Tablolar `DatabaseService.CreateTablesAsync` ile oluşur (InitializeAsync ve UpdateDatabaseSchemaAsync ortak);
+  boş tablolara `Stock/StockDefaults.cs` varsayılanları eklenir. `DatabaseService.GetConnectionAsync()` (internal)
+  stok servislerine aynı bağlantıyı verir.
+- `Services/StockService.cs` (ürün, hareket, kasa, tanımlar, etiket ayarı), `StockCountService.cs` (sayım),
+  `LabelPrintService.cs` (yerleşim → dil → USB/TCP), `ReportExportService.cs` (CSV), `DatabaseImportService
+  .GetImportedStockAsync()` (Android).
+- `Stock/`: `ProductCode` (kod üretimi/denetimi), `WeightFormat` (gram/milyem okuma-yazma), `StockCalculator`
+  (toplam, has, fiyat önerisi, sayım karşılaştırması). Hepsi saf; birim testli.
+- `Labels/`: dilden bağımsız `LabelDocument` (nokta cinsinden öğeler) ← `LabelLayout` (ürün / test / hizalama
+  etiketi) → `ILabelLanguage` (`TsplLanguage`; ZPL eklemek için yeni bir uygulama + `LabelPrinterLanguage` değeri).
+- Platform: `ILabelPrinter`. Desktop `WindowsLabelPrinter` (winspool.drv P/Invoke, "RAW"; GDI yok), (eski Mobile)
+  `UnsupportedLabelPrinter`, Preview `FileLabelPrinter` (`.preview-data/labels/*.tspl`). Ağ (TCP 9100) Core'da.
+
+**UI** (`Components/Pages/Stok`; üst menüde Vitrin Stoku, Okut / Satış, Ürün Girişi, Sayım; Kasa ve Stok Raporları
+Vitrin Stoku sayfasının üst düğmelerinde)
+- `/stock` liste + ayar bazında adet/gram/has, `/stock/entry` seri giriş, `/stock/item/{id}` detay,
+  `/stock/scan` okut/satış/iade, `/stock/count` sayım, `/stock/bulk` kasa, `/stock/reports` raporlar.
+- Ayarlar: `LabelPrinterSettingsSection` (yazıcı, ölçüler, kaydırma, kod tipi, konumlar, önizleme, test ve hizalama
+  etiketi) ve `StockDefinitionsSection` (kategori, ayar/milyem, konum, kasa ürünleri).
+- Okutma: `Shared/ScanInput.razor` + `app.js` `kuyumcu.attachScanInput`. Sadece Enter'la gelen giriş işlenir; değer
+  JS'de okunup alan hemen temizlenir (hızlı okutmada karakter/okutma kaybolmaz), geçersizse geri yazılır. Sayfa
+  açılınca ve pencere kapanınca alan seçilir. Okutma ekranlarında odak bir giriş alanında değilken gelen rakamlar
+  okutma alanına yönlendirilir (pencere açıkken ya da başka alana yazılırken karışmaz). Global kısayollar (Ctrl+K,
+  F2/F3) rakam ve Enter'a dokunmaz.
+- Android: eski `ImportData` → "Vitrin Stoku" sekmesi (`Shared/ImportedStockView.razor`). **Yeni Android uygulamasında
+  (bölüm 9) vitrin stoğu henüz yok**; `DatabaseImportService.GetImportedStockAsync` ile eklenebilir.
+
+### Barkod/stok iş kuralları (korunmalı)
+- **Ürün kodu:** 12 hane, sadece rakam = "2" + 10 hane sıra + 1 GS1 mod-10 kontrol hanesi. Kodda gram/fiyat yok.
+  Benzersiz (unique index) ve **asla yeniden kullanılmaz**: sonraki = max(sayaç, tablodaki en büyük kod) + 1;
+  silinen ürün satırı (IsDeleted) kodu tutar. **Geri yüklemede sayaç geri sarılmaz** (büyük olan korunur) — eski
+  yedek dönse bile basılmış etiketlerin kodu başka ürüne verilmez.
+- **Ağırlık tam sayı mg** (`WeightMg`), milyem **binde** (916 = 0,916). Gram girişi virgül ya da nokta, en çok 3
+  ondalık, > 0. Etikete **brüt** gram 2 ondalık basılır; has hesabı **net** (brüt − taş) üzerinden.
+- **Etikette fiyat yok.** DataMatrix (ayardan QR), kod rakamla (6+6), gram + ayar + isteğe bağlı kısa kategori;
+  dükkân adı isteğe bağlı (varsayılan kapalı). Yazılar Windows-1254 ile gider; TE210 Türkçe harfleri düzgün basıyor; sadeleştirme varsayılan kapalı.
+- **Her stok değişikliği** ürünle aynı transaction'da `StockMovement`'a yazılır (giriş, satış, iade, düzeltme +
+  değişen alanlar, silme + neden, kayıp/bulundu + sayım no, kasa giriş/çıkış/düzeltme). Silme = `IsDeleted`.
+- **Sayım:** bitirmek ürünü kayıp yapmaz; eksikleri seçip "kayıp yap" ayrı, onaylı adımdır. Aynı kod ikinci kez sayılmaz.
+- **Satış:** fiyat isteğe bağlı; öneri = net gram × (ayar milyemi + kategori işçilik milyemi) × has fiyatı (canlı,
+  elle değiştirilebilir), 10 TL'ye yuvarlanır. **Veresiye**: defterde müşteriye **Giden** işlem (TL ya da 22 ayar gram;
+  22 ayar karşılığı = net × (milyem + işçilik) / 22 ayar milyemi); defterin **mükerrer kontrolü ve onay penceresi**
+  aynen uygulanır. İadede bu işlem isteğe bağlı silinir.
+- **Cihaza özel:** `LabelPrinterSettings` geri yüklemede bu bilgisayarınki korunur.
+- **Android:** stok sadece görüntülenir; etiket basma ve stok değiştirme yok (`IsReadOnlyClient`).
+- **Lisans:** modül normal lisansın parçası; ayrı özellik bayrağı yok (imzalı lisans, bölüm 5;
+  stok modülü `LicenseService`'e dokunmaz).
+
+### 9. Android uygulaması sıfırdan (24.11.2026)
 Kullanıcı kararları: .NET MAUI (Core paylaşılsın), aynı depo, paket `com.kuyumcudefteri.app`, Drive'a Google ile
 otomatik erişim (+ dosya seçici yedek yol).
 - Eski `src/Kuyumcu.Mobile` → `src/Kuyumcu.Android` (git mv; MudBlazor ve Kuyumcu.UI bağımlılığı yok, telefona özel
@@ -139,7 +208,8 @@ otomatik erişim (+ dosya seçici yedek yol).
   Ekranlar: Özet (`/`: müşteri sayıları, para birimi başına toplam Giden/Gelen, son işlemler), Müşteriler
   (`/musteriler`: Türkçe harf/şapka duyarsız arama, telefonla arama, Borçlu/Alacaklı filtresi, sanal liste),
   Müşteri detayı (`/musteriler/{id}`: bakiye kutucukları, emanetler ayrı, cins başına hareketler yeniden eskiye +
-  "Kalan", isme dokununca gizli işlemler, özet görselini paylaş), Fiyatlar (`/fiyatlar`: fiyatlar + görsel paylaş),
+  "Kalan", isme dokununca gizli işlemler, özet görselini paylaş), Fiyatlar (`/fiyatlar`: elazigaltinfiyatlari.com
+  fiyatları şifresiz + görsel paylaş; şablon ve işletme adı yedekteki ayarlardan),
   Yedek (`/yedek`: Drive bağlantısı, telefondaki yedeğin bilgileri, dosyadan aç, telefondan sil, gizlilik notu).
   İlk açılışta `Welcome`: Google ile bağlan / Yedek dosyasını seç / Örnek verilerle dene.
 - Core'a eklenenler (masaüstü kullanmıyor, davranışı değişmedi):
@@ -171,8 +241,11 @@ otomatik erişim (+ dosya seçici yedek yol).
   dosya adından okundu), koyu tema, Google izin akışının başlaması (hesap seçici açıldı) ve iptal mesajı.
   Core okuyucu gerçek veritabanının kopyasıyla (872 müşteri / 14.309 işlem) bilgisayarda denendi: 0,4 sn, bakiye ve
   Kalan hesaplarında uyuşmazlık yok.
+- **25.11.2026:** `kuyumcudefteri` (barkodlu stok + şifresiz fiyat kaynağı) bu dala birleştirildi; Android Fiyatlar
+  ekranı `IGoldPriceSource`a uyarlandı. **Release APK** (R8 + kırpma) emülatörde denendi: örnek veriler, canlı fiyatlar
+  (elazigaltinfiyatlari.com) ve fiyat görseli paylaşma çalışıyor. Release AAB derleniyor (0 uyarı). 72 birim testi geçiyor.
 - **Denenmedi:** Drive'dan gerçek indirme (Cloud projesinde Android OAuth istemcisi henüz yok; emülatördeki Google
-  hesabının oturumu da yenilenmeyi bekliyordu), fiyat çekme (örnek verilerde fiyat sitesi bilgisi yok), gerçek cihaz,
+  hesabının oturumu da yenilenmeyi bekliyordu), gerçek cihaz,
   imzalı AAB'nin Play'e yüklenmesi.
 
 ## Kullanıcıya sunulan öneriler (karar bekleyen sıra)
@@ -194,17 +267,35 @@ otomatik erişim (+ dosya seçici yedek yol).
   birkaç dosya oluşur; 30 gün saklama). İstenirse "o gün yedek varsa atla" yapılabilir.
 - Yeni işlemde varsayılan cins artık **son kullanılan cins** (eskiden TL). Kullanıcı istemezse geri alınacak.
 - Tutar girişinde Türkçe biçim: "12.5" → 125 okunur (nokta binlik). Eski sürümde de böyleydi.
+  (Gram girişinde ise nokta ondalıktır: "12.5" → 12,5 gr; gramda binlik ayıracı kullanılmaz.)
+
+**Barkod/stok — doğrulanmadı**
+- **İlk baskılar yapıldı (25.11.2026, TE210, USB, winspool RAW):** yazıcı etiketi **kuyruk solda** besliyor
+  (X = 0 kuyruğun ucu). Cetvelle ölçülen: kuyruk 0–30 mm, kanatlar 30–70 mm (her biri 20 mm, katlama 50 mm).
+  Varsayılan yerleşim buna göre: kod X 31,5 / rakamlar X 38 / gram-ayar X 51,5 mm. Türkçe harfler (CODEPAGE 1254)
+  doğru çıkıyor. Bu yerleşimle basılan test etiketi kanatlara doğru oturdu (kullanıcı onayı). TCP 9100 gönderimi
+  henüz denenmedi.
+- DataMatrix 3 nokta/kare (≈ 5,3 mm) RH10 ile okunabilirliği denenmedi; okunmazsa kare boyu 4 yapılır.
+- Sunlux RH10 gerçek cihazla denenmedi. Önizlemede tuş basışlarıyla (rakam + Enter) okutma, odak kaçırma yönlendirmesi,
+  çift okutma ve hatalı kod uyarıları denendi.
+- Eski Android `ImportData` → Vitrin Stoku sekmesi denenmedi; eski `Kuyumcu.Mobile` projesi bölüm 9 ile kaldırıldı
+  (yeni uygulamaya stok görünümü eklenmedi).
+- Canlı fiyat sitesi HTML'i değişirse `ElazigAltinFiyatlariSource.Parse` boş döner (test örneği 24.11.2026 sayfasından).
 
 ## Sıradaki işler
 1. ~~Windows'ta çalıştırıp test et~~ (yapıldı, bkz. bölüm 3). Kullanıcının elle testi sürüyor.
 2. ~~Ayarlar, Kurulum ve Lisans ekranları~~ (bölüm 5), ~~otomatik Drive yedeği~~ (bölüm 6).
-   Sıradaki: Android'in Drive'daki `KuyumcuDefteri_son_yedek.db3`'ü okuması + Play kapalı testi.
-3. ~~Android veri görüntüleme ekranı~~ ve ~~Drive'dan otomatik indirme~~ (bölüm 7). Eski `Kuyumcu.UI/Components/Pages/ImportData.razor`
+   ~~Android'in Drive'daki son yedeği okuması~~ (bölüm 9). Sıradaki: Play kapalı testi.
+3. ~~Android veri görüntüleme ekranı~~ ve ~~Drive'dan otomatik indirme~~ (bölüm 9). Yeni uygulamaya vitrin stoğu görünümü eklenebilir. Eski `Kuyumcu.UI/Components/Pages/ImportData.razor`
    ve UI'daki `IsReadOnlyClient` dalları artık Android'de kullanılmıyor; masaüstünde de gerek yoksa temizlenebilir.
 4. Google Cloud: Android OAuth istemcisi (masaüstüyle AYNI proje) → telefonda gerçek Drive indirmesini dene.
 5. Mağaza hazırlığı: gizlilik politikasını (`docs/GIZLILIK.md`) yayınla, GitHub Secrets/Variables, Play kaydı ve
    kapalı test (bkz. `docs/YAYIN.md` bölüm 2).
 6. Eski `ccr-325b955a-m9osww` uzak dalı silinecek (bulut oturumu silemedi).
+7. Barkod: TE210 ve RH10 ile `docs/ETIKET_VE_OKUYUCU_TESTI.md` adımları; çıkan kanat ölçüleri varsayılan yerleşime
+   işlenebilir. Sonra ZPL dili (başka dükkânlar için), kasa ürünlerinin satışta veresiyeye bağlanması, kullanıcı (kim
+   sattı) alanının doldurulması düşünülebilir. Fiş yazıcısındaki dükkâna özel metinler ("KUYUMCU MEHMET",
+   Instagram adı) hâlâ `WindowsReceiptPrinter`'da gömülü; ayarlara taşınmalı.
 
 ## Geliştirme komutları
 
@@ -214,6 +305,10 @@ dotnet run --project src/Kuyumcu.Preview     # tarayıcı önizlemesi → http:/
 dotnet build src/Kuyumcu.Android -f net10.0-android          # 'maui-android' iş yükü + Android API 36 gerekir
 dotnet build src/Kuyumcu.Android -f net10.0-android -t:Run   # açık emülatöre/cihaza kurup çalıştırır
 # Bu bilgisayarda: -p:AndroidSdkDirectory="C:\Program Files (x86)\Android\android-sdk", emülatör AVD: pixel_7_-_api_34
+dotnet test tests/Kuyumcu.Core.Tests          # birim testleri (CI'da da çalışır)
 ```
+
+Önizlemede etiket yazıcısı yerine `src/Kuyumcu.Preview/.preview-data/labels/*.tspl` dosyaları oluşur; örnek stok
+verisi ilk açılışta eklenir (`.preview-data` silinirse yeniden oluşur).
 
 Dil: kullanıcı ile Türkçe konuşulur; kod yorumları ve arayüz metinleri Türkçe.

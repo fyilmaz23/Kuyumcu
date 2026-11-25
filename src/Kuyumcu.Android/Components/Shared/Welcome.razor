@@ -15,9 +15,9 @@
             <li><strong>Bu telefonda</strong> aynı Google hesabıyla bağlanın. Son yedek otomatik indirilir.</li>
         </ol>
 
-        @if (Sync.LastResult is { } result && result.Outcome != SyncOutcome.Updated)
+        @if (Sync.LastResult is { } result && result.Outcome is not (SyncOutcome.Updated or SyncOutcome.Cancelled))
         {
-            <div class="kd-alert @(result.Outcome == SyncOutcome.Cancelled ? "" : "is-error")">
+            <div class="kd-alert is-error">
                 <Icon Name="@(result.Outcome == SyncOutcome.Offline ? "cloud-off" : "warning")" />
                 <span>@result.Message</span>
             </div>

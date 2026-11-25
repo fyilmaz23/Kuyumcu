@@ -1,0 +1,21 @@
+@* Etiketli ürün durumu: Vitrinde / Satıldı / Kayıp / Silindi *@
+@if (Item.IsDeleted)
+{
+    <span class="kd-badge notr"><MudIcon Icon="@Icons.Material.Filled.DeleteOutline" Style="font-size:.85rem" />Silindi</span>
+}
+else if (Item.Status == StockItemStatus.Sold)
+{
+    <span class="kd-badge emanet"><MudIcon Icon="@Icons.Material.Filled.Sell" Style="font-size:.85rem" />Satıldı</span>
+}
+else if (Item.Status == StockItemStatus.Lost)
+{
+    <span class="kd-badge giden"><MudIcon Icon="@Icons.Material.Filled.ReportProblem" Style="font-size:.85rem" />Kayıp</span>
+}
+else
+{
+    <span class="kd-badge gelen"><MudIcon Icon="@Icons.Material.Filled.Storefront" Style="font-size:.85rem" />Vitrinde</span>
+}
+
+@code {
+    [Parameter, EditorRequired] public StockItem Item { get; set; } = default!;
+}

@@ -1,0 +1,304 @@
+@page "/stock/entry"
+@using Kuyumcu.Stock
+@using System.Text.Json
+@inject StockService Stock
+@inject LabelPrintService Labels
+@inject ISnackbar Snackbar
+@inject IJSRuntime JS
+@inject IAppEnvironment AppEnvironment
+
+<div class="kd-page">
+    <PageHeader Title="Ürün Girişi" Subtitle="Seri giriş: kategori, ayar ve model sabit kalır; sadece gramı yazıp Enter'a basın.">
+        <Actions>
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Replay"
+                       Disabled="@(lastEntry == null || printing || !CanPrint)" OnClick="ReprintLast">
+                Son etiketi tekrar bas
+            </MudButton>
+            <MudButton Variant="Variant.Text" Color="Color.Primary" Href="/stock">Vitrin Stoku</MudButton>
+        </Actions>
+    </PageHeader>
+
+    @if (AppEnvironment.IsReadOnlyClient)
+    {
+        <MudAlert Severity="Severity.Info">Bu cihazda stok salt okunurdur.</MudAlert>
+    }
+    else if (lookup == null)
+    {
+        <MudProgressLinear Color="Color.Primary" Indeterminate="true" Class="my-6" />
+    }
+    else
+    {
+        <MudGrid Spacing="3">
+            <MudItem xs="12" md="5">
+                <div class="kd-card kd-card-pad">
+                    <MudText Typo="Typo.subtitle1" Class="kd-strong mb-3">Sabit bilgiler</MudText>
+                    <MudStack Spacing="3">
+                        <MudSelect T="int" Value="categoryId" ValueChanged="OnCategoryChanged" Label="Kategori" Variant="Variant.Outlined" Margin="Margin.Dense">
+                            @foreach (var c in lookup.Categories)
+                            {
+                                <MudSelectItem Value="c.Id">@c.Name</MudSelectItem>
+                            }
+                        </MudSelect>
+                        <MudSelect T="int" @bind-Value="karat" Label="Ayar" Variant="Variant.Outlined" Margin="Margin.Dense">
+                            @foreach (var k in lookup.Karats)
+                            {
+                                <MudSelectItem Value="k.Karat">@k.DisplayName (@WeightFormat.Milyem(k.Milyem))</MudSelectItem>
+                            }
+                        </MudSelect>
+                        <MudTextField @bind-Value="modelName" Label="Model (isteğe bağlı)" Placeholder="örn. Burgu, Hasır" Variant="Variant.Outlined" Margin="Margin.Dense" MaxLength="100" />
+                        <MudSelect T="int" @bind-Value="locationId" Label="Konum" Variant="Variant.Outlined" Margin="Margin.Dense">
+                            <MudSelectItem Value="0">Belirtilmemiş</MudSelectItem>
+                            @foreach (var l in lookup.Locations)
+                            {
+                                <MudSelectItem Value="l.Id">@l.Name</MudSelectItem>
+                            }
+                        </MudSelect>
+                        <MudExpansionPanels Elevation="0" Outlined="true" Dense="true">
+                            <MudExpansionPanel Text="Alış bilgisi (isteğe bağlı)" Expanded="@(!string.IsNullOrEmpty(supplier) || !string.IsNullOrEmpty(purchaseMilyem))">
+                                <MudStack Spacing="3">
+                                    <MudTextField @bind-Value="supplier" Label="Tedarikçi / toptancı" Variant="Variant.Outlined" Margin="Margin.Dense" MaxLength="100" />
+                                    <MudTextField @bind-Value="purchaseMilyem" Label="Alış milyemi" Placeholder="örn. 0,930" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                                </MudStack>
+                            </MudExpansionPanel>
+                        </MudExpansionPanels>
+                        <div class="d-flex align-center justify-space-between flex-wrap gap-2">
+                            <MudSwitch T="bool" @bind-Value="printLabel" Color="Color.Primary" Disabled="@(!CanPrint)" Label="Kaydedince etiket bas" />
+                            @if (!CanPrint)
+                            {
+                                <MudLink Href="/settings#etiket-yazicisi" Typo="Typo.caption">Etiket yazıcısı ayarlanmamış →</MudLink>
+                            }
+                        </div>
+                    </MudStack>
+                </div>
+            </MudItem>
+
+            <MudItem xs="12" md="7">
+                <div class="kd-card kd-card-pad">
+                    <div class="d-flex justify-space-between align-center mb-2 flex-wrap gap-2">
+                        <MudText Typo="Typo.subtitle1" Class="kd-strong">@lookup.CategoryName(categoryId) · @karat ayar @(string.IsNullOrWhiteSpace(modelName) ? "" : "· " + modelName)</MudText>
+                        <span class="kd-muted" style="font-size:.8rem">Sıradaki kod: <span class="kd-code">@nextCode</span></span>
+                    </div>
+                    <ScanInput @ref="gramInput" Mode="ScanInputMode.Decimal" Label="Gram (ürünü etiketsiz tartın)" Placeholder="örn. 12,45"
+                               OnSubmit="SaveAsync" />
+                    <div class="d-flex align-center gap-3 mt-3 flex-wrap">
+                        <div style="width:180px">
+                            <MudTextField @bind-Value="stoneGram" Label="Taş gramı (varsa)" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                          Placeholder="0" HelperText="Bir sonraki üründe sıfırlanır" />
+                        </div>
+                        <MudText Typo="Typo.caption" Class="kd-muted" Style="flex:1; min-width:200px">
+                            Gram yazıp <span class="kd-kbd">Enter</span>: ürün kaydedilir@(printLabel && CanPrint ? " ve etiketi basılır" : "").
+                            Virgül ya da nokta kullanılabilir, en çok 3 ondalık.
+                        </MudText>
+                    </div>
+                </div>
+
+                <div class="kd-section-title">
+                    <div>
+                        <MudText Typo="Typo.h6">Bu oturumda girilenler</MudText>
+                        <MudText Typo="Typo.caption" Class="kd-muted">
+                            @entries.Count adet · @WeightFormat.Gram2(entries.Sum(e => (long)e.Item.WeightMg)) gr
+                        </MudText>
+                    </div>
+                </div>
+                <div class="kd-card">
+                    @if (!entries.Any())
+                    {
+                        <EmptyState Icon="@Icons.Material.Outlined.Scale" Title="Henüz giriş yok" Text="İlk ürünün gramını yazıp Enter'a basın." />
+                    }
+                    @foreach (var e in entries)
+                    {
+                        <div class="kd-list-row kd-spread">
+                            <div class="d-flex align-center gap-3" style="min-width:0">
+                                <span class="kd-code">@e.Item.Code</span>
+                                <span class="kd-strong kd-num">@WeightFormat.Gram(e.Item.WeightMg) gr</span>
+                                <span class="kd-muted" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis">@lookup.Title(e.Item) · @e.Item.Karat ayar</span>
+                            </div>
+                            <div class="d-flex align-center gap-2">
+                                @if (e.Printed == true)
+                                {
+                                    <span class="kd-badge gelen"><MudIcon Icon="@Icons.Material.Filled.Check" Style="font-size:.85rem" />Etiket</span>
+                                }
+                                else if (e.Printed == false)
+                                {
+                                    <MudTooltip Text="@e.PrintError">
+                                        <span class="kd-badge giden"><MudIcon Icon="@Icons.Material.Filled.PrintDisabled" Style="font-size:.85rem" />Basılamadı</span>
+                                    </MudTooltip>
+                                }
+                                <MudTooltip Text="Etiketi tekrar bas">
+                                    <MudIconButton Icon="@Icons.Material.Outlined.Print" Size="Size.Small" Disabled="@(printing || !CanPrint)" OnClick="@(() => Print(e))" />
+                                </MudTooltip>
+                                <MudTooltip Text="Ürünü aç">
+                                    <MudIconButton Icon="@Icons.Material.Outlined.OpenInNew" Size="Size.Small" Href="@($"/stock/item/{e.Item.Id}")" />
+                                </MudTooltip>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </MudItem>
+        </MudGrid>
+    }
+</div>
+
+@code {
+    private sealed class Entry
+    {
+        public required StockItem Item { get; init; }
+        public bool? Printed { get; set; }
+        public string? PrintError { get; set; }
+    }
+
+    private sealed record Preset(int CategoryId, int Karat, int LocationId, bool PrintLabel);
+
+    private StockLookup? lookup;
+    private ScanInput? gramInput;
+    private int categoryId, karat = 22, locationId;
+    private string? modelName, supplier, purchaseMilyem, stoneGram;
+    private bool printLabel = true, printing, canPrint, presetLoaded;
+    private string nextCode = string.Empty;
+    private readonly List<Entry> entries = new();
+    private Entry? lastEntry => entries.FirstOrDefault();
+    private bool CanPrint => canPrint;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (AppEnvironment.IsReadOnlyClient)
+            return;
+        lookup = await StockLookup.LoadAsync(Stock);
+        var first = lookup.Categories.FirstOrDefault();
+        if (first != null)
+        {
+            categoryId = first.Id;
+            karat = first.DefaultKarat;
+        }
+        var settings = await Stock.GetLabelSettingsAsync();
+        canPrint = Labels.IsSupported && settings.IsConfigured;
+        printLabel = canPrint;
+        nextCode = await Stock.PeekNextCodeAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // lookup ilk çizimden sonra yüklenebilir; tercih bir kez, sözlük hazır olunca okunur
+        if (presetLoaded || lookup == null)
+            return;
+        presetLoaded = true;
+        // Son kullanılan kategori/ayar/konum hatırlanır
+        try
+        {
+            var json = await JS.InvokeAsync<string?>("kuyumcu.getPreference", "stockEntry");
+            var preset = string.IsNullOrEmpty(json) ? null : JsonSerializer.Deserialize<Preset>(json);
+            if (preset != null && lookup.Categories.Any(c => c.Id == preset.CategoryId))
+            {
+                categoryId = preset.CategoryId;
+                karat = lookup.Karats.Any(k => k.Karat == preset.Karat) ? preset.Karat : karat;
+                locationId = lookup.Locations.Any(l => l.Id == preset.LocationId) ? preset.LocationId : 0;
+                printLabel = canPrint && preset.PrintLabel;
+                StateHasChanged();
+            }
+        }
+        catch (JSDisconnectedException) { }
+        catch (JsonException) { }
+    }
+
+    private void OnCategoryChanged(int id)
+    {
+        categoryId = id;
+        var category = lookup?.Category(id);
+        if (category != null && lookup!.Karats.Any(k => k.Karat == category.DefaultKarat))
+            karat = category.DefaultKarat;
+    }
+
+    private async Task SaveAsync(ScanSubmitEventArgs e)
+    {
+        if (!WeightFormat.TryParseGram(e.Value, out var mg, out var error))
+        {
+            Snackbar.Add(error, Severity.Warning);
+            e.Accepted = false;
+            return;
+        }
+        if (!WeightFormat.TryParseOptionalGram(stoneGram, out var stoneMg, out var stoneError))
+        {
+            Snackbar.Add("Taş gramı: " + stoneError, Severity.Warning);
+            e.Accepted = false;
+            return;
+        }
+        if (!WeightFormat.TryParseMilyem(purchaseMilyem, out var milyem))
+        {
+            Snackbar.Add("Alış milyemi geçersiz (örn. 0,930).", Severity.Warning);
+            e.Accepted = false;
+            return;
+        }
+
+        try
+        {
+            var item = await Stock.CreateItemAsync(new StockItemDraft
+            {
+                CategoryId = categoryId,
+                Karat = karat,
+                ModelName = modelName,
+                WeightMg = mg,
+                StoneWeightMg = stoneMg,
+                LocationId = locationId,
+                SupplierName = supplier,
+                PurchaseMilyem = milyem
+            });
+
+            var entry = new Entry { Item = item };
+            entries.Insert(0, entry);
+            stoneGram = null;
+            nextCode = await Stock.PeekNextCodeAsync();
+            await SavePresetAsync();
+
+            if (printLabel && canPrint)
+                await Print(entry);
+            else
+                Snackbar.Add($"Kaydedildi: {item.Code} · {WeightFormat.Gram(item.WeightMg)} gr", Severity.Success);
+            return;
+        }
+        catch (StockException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Warning);
+            e.Accepted = false;
+            return;
+        }
+        finally
+        {
+            StateHasChanged();
+        }
+    }
+
+    private async Task Print(Entry entry)
+    {
+        printing = true;
+        StateHasChanged();
+        try
+        {
+            var result = await Labels.PrintItemAsync(entry.Item);
+            entry.Printed = result.Success;
+            entry.PrintError = result.Success ? null : result.Message;
+            if (result.Success)
+                Snackbar.Add($"{entry.Item.Code} · {WeightFormat.Gram(entry.Item.WeightMg)} gr — etiket basıldı", Severity.Success);
+            else
+                Snackbar.Add($"Ürün kaydedildi ama etiket basılamadı: {result.Message}", Severity.Error);
+        }
+        finally
+        {
+            printing = false;
+            StateHasChanged();
+        }
+        if (gramInput != null)
+            await gramInput.FocusAsync();
+    }
+
+    private Task ReprintLast() => lastEntry == null ? Task.CompletedTask : Print(lastEntry);
+
+    private async Task SavePresetAsync()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("kuyumcu.setPreference", "stockEntry",
+                JsonSerializer.Serialize(new Preset(categoryId, karat, locationId, printLabel)));
+        }
+        catch (JSDisconnectedException) { }
+    }
+}

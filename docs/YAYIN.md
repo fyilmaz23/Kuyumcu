@@ -131,9 +131,8 @@ Not / dikkat:
 - Google Drive'a erişim, kullanıcının **kendi** hesabındaki dosyaya kendi cihazından erişimdir; Google'ın tanımında
   bu, geliştiricinin veri toplaması sayılmaz. Paylaş düğmeleri (özet/fiyat görseli) kullanıcının başlattığı
   paylaşımdır ve beyan gerektirmez.
-- **Altın fiyatı:** fiyat sitesi üye kodu/şifresi bu sitede oturum açmak için o siteye gönderilir. Fiyat kaynağı
-  şifreli bir siteyse, forma *"Kişisel bilgiler → Diğer bilgiler: toplanır, paylaşılmaz, isteğe bağlı, amaç: uygulama
-  işlevselliği"* eklemek temkinli yoldur. Fiyat kaynağı şifresiz bir siteye geçerse bu satır gerekmez.
+- **Altın fiyatı:** fiyatlar herkese açık bir sayfadan (elazigaltinfiyatlari.com) şifresiz okunur; kullanıcı verisi
+  gönderilmez, beyan gerektirmez. (İleride üyelik/şifre isteyen bir fiyat kaynağı eklenirse form yeniden değerlendirilmeli.)
 - Uygulamaya analitik, reklam veya hata raporlama SDK'sı eklenirse form **güncellenmelidir**.
 
 ### 2.5 Kapalı test ve üretime çıkış
@@ -216,6 +215,7 @@ Eski uygulama (`com.companyname.kuyumcu`) ile yeni Store uygulaması farklı pak
    Ayarlar → Yedeği İçe Aktar.)
 3. Eski lisans anahtarı (`KUYM-...`) yeni sürümde geçmez; aktarımdan sonra **"Lisans yenilenmeli"** ekranı çıkar.
    Müşteri ekrandaki cihaz kimliğini iletir, `tools/Kuyumcu.LicenseTool` ile yeni anahtar üretilip verilir.
-4. Altın fiyatı özelliği için: Ayarlar → **Altın Fiyatı Görseli** bölümüne ekeo üye kodu/şifresi girilir ve
-   `musteri-varliklari/carsi_kuyumculuk_template.jpg` şablon olarak yüklenir.
+4. Altın fiyatı özelliği için: Ayarlar → **Altın Fiyatı Görseli** bölümünde
+   `musteri-varliklari/carsi_kuyumculuk_template.jpg` şablon olarak yüklenir (fiyatlar elazigaltinfiyatlari.com'dan
+   şifresiz alınır).
 5. Her şey doğrulandıktan sonra eski uygulama kaldırılabilir.

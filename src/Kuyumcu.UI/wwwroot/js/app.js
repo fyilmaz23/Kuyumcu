@@ -1,6 +1,7 @@
 // Kuyumcu Defteri – arayüz yardımcıları (klavye kısayolları, kaydırma, tema tercihi)
 window.kuyumcu = (function () {
     let shortcutHandler = null;
+    const scanInputs = {}; // id → { el, keydown, stray }
 
     return {
         // Genel kısayollar: Ctrl/Cmd+K → müşteri arama, F2 → Giden, F3 → Gelen (sayfa destekliyorsa)
@@ -14,8 +15,9 @@ window.kuyumcu = (function () {
                     if (input) { input.focus(); input.select(); }
                     return;
                 }
-                // Alt+1..9 → üst menüdeki n. sayfa (sıra: Ana Sayfa, Müşteriler, İşlemler, Ayarlar)
-                if (e.altKey && !e.ctrlKey && !e.metaKey && /^[1-9]$/.test(e.key)) {
+                // Alt+1..9 → üst menüdeki n. sayfa (menü sırası). Sadece üst sıradaki rakam tuşları:
+                // bazı barkod okuyucular karakterleri "Alt + numerik tuş takımı" ile gönderir; onlar sayfa değiştirmemeli.
+                if (e.altKey && !e.ctrlKey && !e.metaKey && /^[1-9]$/.test(e.key) && !(e.code || '').startsWith('Numpad')) {
                     if (document.querySelector('.mud-dialog-container')) return;
                     const items = document.querySelectorAll('.kd-topbar a.kd-topnav-item');
                     const target = items[parseInt(e.key, 10) - 1];
@@ -41,6 +43,93 @@ window.kuyumcu = (function () {
                 if (el) { el.focus(); el.select && el.select(); return; }
                 if (++tries < 20) setTimeout(attempt, 50);
             })();
+        },
+
+        // Barkod okutma / Enter ile gönderilen giriş alanı.
+        // Okuyucu (Sunlux RH10) klavye gibi rakamları yazıp sonuna Enter ekler; sadece Enter'la gelen giriş işlenir.
+        // .NET tarafı OnEnter(value) çağrılır; false dönerse (geçersiz giriş) metin geri yazılır. Sonra alan yeniden seçilir.
+        // captureStrayKeys: odak bir giriş alanında değilken gelen rakam tuşları bu alana yönlendirilir
+        // (odak kaybolsa da okutma boşa gitmez). Açık pencere varken ya da başka bir alana yazılırken karışmaz.
+        attachScanInput: function (id, dotnetRef, captureStrayKeys) {
+            const el = document.getElementById(id);
+            if (!el) return;
+            this.detachScanInput(id);
+
+            const keydown = function (e) {
+                if (e.key !== 'Enter' && e.code !== 'NumpadEnter') return;
+                e.preventDefault();
+                e.stopPropagation();
+                // Değer hemen alınıp alan temizlenir: .NET işlerken gelen bir sonraki okutma kaybolmaz
+                const value = el.value;
+                el.value = '';
+                dotnetRef.invokeMethodAsync('OnEnter', value)
+                    .then(function (accepted) {
+                        // Reddedilen giriş (ör. hatalı gram) düzeltilebilsin diye geri yazılır
+                        if (!accepted && el.value === '') el.value = value;
+                    })
+                    .catch(function () { if (el.value === '') el.value = value; })
+                    .finally(function () {
+                        if (!el.disabled && document.activeElement !== el && !document.querySelector('.mud-dialog-container')) el.focus();
+                        if (document.activeElement === el) el.select();
+                    });
+            };
+            el.addEventListener('keydown', keydown);
+            let stray = null;
+
+            if (captureStrayKeys) {
+                stray = function (e) {
+                    if (e.ctrlKey || e.altKey || e.metaKey || e.key.length !== 1 || e.key < '0' || e.key > '9') return;
+                    const a = document.activeElement;
+                    if (a === el || el.disabled) return;
+                    if (a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.tagName === 'SELECT' || a.isContentEditable)) return;
+                    if (document.querySelector('.mud-dialog-container')) return;
+                    el.value = '';
+                    el.focus(); // tuşun karakteri artık bu alana yazılır
+                };
+                document.addEventListener('keydown', stray, true);
+            }
+            scanInputs[id] = { el: el, keydown: keydown, stray: stray };
+
+            // Sayfa geçişinde Blazor odağı başlığa (h1) taşır; ondan sonra okutma alanını seç
+            const focusIfFree = function () {
+                const a = document.activeElement;
+                const busyElsewhere = a && a !== el && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.tagName === 'SELECT');
+                if (!busyElsewhere && !el.disabled && !document.querySelector('.mud-dialog-container')) { el.focus(); el.select(); }
+            };
+            setTimeout(focusIfFree, 0);
+            setTimeout(focusIfFree, 150);
+        },
+
+        detachScanInput: function (id) {
+            // Eleman sayfadan kalkmış olsa da belge dinleyicisi kaldırılır
+            const entry = scanInputs[id];
+            if (!entry) return;
+            entry.el.removeEventListener('keydown', entry.keydown);
+            if (entry.stray) document.removeEventListener('keydown', entry.stray, true);
+            delete scanInputs[id];
+        },
+
+        // Okutma sonucu için kısa ses: başarılı tek kısa bip, hata iki kalın bip (kasada ekrana bakmadan anlaşılsın)
+        beep: function (ok) {
+            try {
+                const Ctx = window.AudioContext || window.webkitAudioContext;
+                if (!Ctx) return;
+                const ctx = window.kuyumcu._audio || (window.kuyumcu._audio = new Ctx());
+                const play = function (freq, start, dur) {
+                    const o = ctx.createOscillator(), g = ctx.createGain();
+                    o.frequency.value = freq; o.type = 'square';
+                    g.gain.value = 0.05;
+                    o.connect(g); g.connect(ctx.destination);
+                    o.start(ctx.currentTime + start); o.stop(ctx.currentTime + start + dur);
+                };
+                if (ok) play(1400, 0, 0.07);
+                else { play(300, 0, 0.15); play(300, 0.22, 0.15); }
+            } catch { }
+        },
+
+        setInputValue: function (id, value) {
+            const el = document.getElementById(id);
+            if (el) el.value = value;
         },
 
         // Elemanı ortaya kaydırır ve kısa süre vurgular

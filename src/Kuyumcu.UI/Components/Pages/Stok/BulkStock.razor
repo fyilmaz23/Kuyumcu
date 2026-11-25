@@ -1,0 +1,111 @@
+@page "/stock/bulk"
+@using Kuyumcu.Stock
+@inject StockService Stock
+@inject IDialogService Dialogs
+@inject ISnackbar Snackbar
+@inject IAppEnvironment AppEnvironment
+
+<div class="kd-page">
+    <PageHeader Title="Kasa" Subtitle="Etiketlenmeyen, birbirinin aynısı mallar: çeyrek, yarım, tam, gram altın… Adet ya da gramla tutulur.">
+        <Actions>
+            <MudButton Variant="Variant.Text" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Settings" Href="/settings#stok-tanimlari">Ürünleri düzenle</MudButton>
+        </Actions>
+    </PageHeader>
+
+    @if (rows == null)
+    {
+        <MudProgressLinear Color="Color.Primary" Indeterminate="true" Class="my-6" />
+    }
+    else
+    {
+        <MudGrid Spacing="3" Class="mb-2">
+            <MudItem xs="12" sm="6" lg="3">
+                <StatCard Label="Kasa toplamı (has)" Value="@($"{WeightFormat.Gram2(rows.Sum(r => r.HasMg))} gr")" Icon="@Icons.Material.Outlined.Savings"
+                          Hint="@($"{WeightFormat.Gram2(rows.Sum(r => r.WeightMg))} gr brüt")" />
+            </MudItem>
+        </MudGrid>
+
+        <div class="kd-card mt-4">
+            @if (!rows.Any())
+            {
+                <EmptyState Icon="@Icons.Material.Outlined.Savings" Title="Kasa ürünü tanımlı değil" Text="Ayarlar → Stok tanımları bölümünden ekleyin." />
+            }
+            @foreach (var r in rows)
+            {
+                var p = r.Product;
+                <div class="kd-list-row kd-spread kd-bulk-row">
+                    <div style="min-width:0">
+                        <div class="kd-strong">@p.Name</div>
+                        <div class="kd-muted" style="font-size:.8rem">
+                            @p.Karat ayar@(p.Unit == BulkUnit.Piece ? $" · adedi {WeightFormat.Gram(p.PieceWeightMg)} gr" : " · gramla")
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        <div class="kd-num kd-strong" style="font-size:1.15rem">@StockService.FormatBulkAmount(p, p.Amount)</div>
+                        <div class="kd-muted kd-num" style="font-size:.8rem">@WeightFormat.Gram2(r.WeightMg) gr · has @WeightFormat.Gram2(r.HasMg) gr</div>
+                    </div>
+                    <div class="d-flex gap-1 align-center">
+                        @if (!AppEnvironment.IsReadOnlyClient)
+                        {
+                            <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Success" OnClick="@(() => Move(p, StockMovementType.BulkIn))">Giriş</MudButton>
+                            <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Error" OnClick="@(() => Move(p, StockMovementType.BulkOut))">Çıkış</MudButton>
+                            <MudButton Size="Size.Small" Variant="Variant.Text" OnClick="@(() => Move(p, StockMovementType.BulkAdjust))">Sayım</MudButton>
+                        }
+                        <MudIconButton Icon="@(expanded == p.Id ? Icons.Material.Filled.ExpandLess : Icons.Material.Filled.History)" Size="Size.Small"
+                                       OnClick="@(() => ToggleHistory(p.Id))" aria-label="Hareketler" />
+                    </div>
+                </div>
+                @if (expanded == p.Id)
+                {
+                    <div class="kd-bulk-history">
+                        @if (!history.Any())
+                        {
+                            <div class="kd-muted pa-3" style="font-size:.85rem">Hareket yok.</div>
+                        }
+                        @foreach (var m in history)
+                        {
+                            <div class="d-flex justify-space-between gap-3 py-1">
+                                <span class="kd-muted kd-num" style="font-size:.8rem; width:120px">@m.Date.ToString("dd.MM.yyyy HH:mm")</span>
+                                <span style="flex:1">@m.Description</span>
+                                <span class="kd-num kd-strong @(m.AmountDelta >= 0 ? "kd-gelen" : "kd-giden")">
+                                    @(m.AmountDelta >= 0 ? "+" : "−")@StockService.FormatBulkAmount(p, Math.Abs(m.AmountDelta))
+                                </span>
+                            </div>
+                        }
+                    </div>
+                }
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private List<BulkTotal>? rows;
+    private int? expanded;
+    private List<StockMovement> history = new();
+
+    protected override Task OnInitializedAsync() => Reload();
+
+    private async Task Reload()
+    {
+        var karats = await Stock.GetKaratsAsync(true);
+        rows = (await Stock.GetBulkProductsAsync()).Select(p => StockCalculator.CalculateBulk(p, karats)).ToList();
+        if (expanded.HasValue)
+            history = await Stock.GetBulkMovementsAsync(expanded.Value);
+    }
+
+    private async Task Move(BulkProduct product, StockMovementType type)
+    {
+        var saved = await BulkMovementDialog.ShowAsync(Dialogs, product, type);
+        if (saved == null)
+            return;
+        Snackbar.Add($"{saved.Name}: {StockService.FormatBulkAmount(saved, saved.Amount)}", Severity.Success);
+        await Reload();
+    }
+
+    private async Task ToggleHistory(int id)
+    {
+        expanded = expanded == id ? null : id;
+        history = expanded.HasValue ? await Stock.GetBulkMovementsAsync(id) : new();
+    }
+}
