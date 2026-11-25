@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+	<!--
+	  Yedekler müşteri verisi içerir: Android'in otomatik bulut yedeğine ve cihazdan cihaza aktarıma dahil edilmez.
+	  Uygulama simgesi/etiketi MAUI tarafından eklenir.
+	-->
+	<application android:allowBackup="false" android:dataExtractionRules="@xml/data_extraction_rules"
+	             android:icon="@mipmap/appicon" android:roundIcon="@mipmap/appicon_round" android:supportsRtl="true" android:label="Kuyumcu Defteri"></application>
+
+	<!-- Google Drive'dan yedek indirmek ve altın fiyatlarını çekmek için internet. Depolama izni gerekmez (dosya seçici SAF kullanır). -->
+	<uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+	<uses-permission android:name="android.permission.INTERNET" />
+
+	<!-- Telefon numarasına dokununca arama ekranını açabilmek için (Android 11+ paket görünürlüğü) -->
+	<queries>
+		<intent>
+			<action android:name="android.intent.action.DIAL" />
+		</intent>
+	</queries>
+</manifest>

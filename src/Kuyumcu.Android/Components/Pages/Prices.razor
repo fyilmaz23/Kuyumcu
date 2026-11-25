@@ -1,0 +1,154 @@
+@page "/fiyatlar"
+@inject BackupStore Store
+@inject GoldPriceExportService GoldPrices
+@inject IShareService Share
+
+@if (Store.Snapshot is not { } data)
+{
+    <Welcome />
+}
+else
+{
+    <TopBar Title="Altın fiyatları" Subtitle="@(_updatedAt == null ? "Fiyat görseli paylaşma" : $"Güncelleme {_updatedAt:HH:mm}")">
+        <button class="kd-icon-btn @(_loading ? "spinning" : "")" aria-label="Fiyatları yenile" disabled="@_loading" @onclick="LoadPrices"><Icon Name="refresh" /></button>
+    </TopBar>
+
+    <div class="kd-page">
+        @if (!data.Settings.HasGoldPriceSiteCredentials)
+        {
+            <div class="kd-card">
+                <EmptyState Icon="diamond" Title="Fiyat sitesi bilgisi yok"
+                            Text="Altın fiyatları, bilgisayardaki Kuyumcu Defteri'nde Ayarlar'a girilen fiyat sitesi üye bilgileriyle çekilir. Bilgileri girip yeni yedek alındığında burada görünür." />
+            </div>
+        }
+        else
+        {
+            @if (_error != null)
+            {
+                <div class="kd-alert is-error"><Icon Name="warning" /><span>@_error</span></div>
+            }
+
+            @if (_prices is { Count: > 0 })
+            {
+                <div class="kd-card kd-prices">
+                    <div class="kd-prices-head"><span>Cins</span><span>Alış</span><span>Satış</span></div>
+                    @foreach (var p in _prices)
+                    {
+                        <div class="kd-prices-row">
+                            <span class="kd-prices-name">@p.Type</span>
+                            <span class="kd-num">@p.BuyPrice.ToString("N2")</span>
+                            <span class="kd-num kd-strong">@p.SellPrice.ToString("N2")</span>
+                        </div>
+                    }
+                </div>
+
+                <button class="kd-btn kd-btn-primary kd-btn-block kd-btn-lg" disabled="@_sharing" @onclick="ShareImage">
+                    @if (_sharing)
+                    {
+                        <span class="kd-spinner"></span><span>Görsel hazırlanıyor…</span>
+                    }
+                    else
+                    {
+                        <Icon Name="share" /><span>Fiyat görselini paylaş</span>
+                    }
+                </button>
+
+                @if (_previewDataUrl != null)
+                {
+                    <h2 class="kd-section">Son hazırlanan görsel</h2>
+                    <img class="kd-preview" src="@_previewDataUrl" alt="Altın fiyatı görseli" />
+                }
+            }
+            else if (_loading)
+            {
+                <div class="kd-card"><EmptyState Icon="diamond" Title="Fiyatlar getiriliyor…" /></div>
+            }
+        }
+    </div>
+}
+
+@code {
+    [CascadingParameter(Name = "DataVersion")] public int DataVersion { get; set; }
+
+    private List<GoldPriceDto>? _prices;
+    private DateTime? _updatedAt;
+    private bool _loading;
+    private bool _sharing;
+    private string? _error;
+    private string? _previewDataUrl;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Store.Snapshot?.Settings.HasGoldPriceSiteCredentials == true)
+            await LoadPrices();
+    }
+
+    private async Task LoadPrices()
+    {
+        var settings = Store.Snapshot?.Settings;
+        if (settings == null)
+            return;
+
+        if (Connectivity.Current.NetworkAccess != NetworkAccess.Internet)
+        {
+            _error = "İnternet yok; fiyatlar getirilemedi.";
+            return;
+        }
+
+        _loading = true;
+        _error = null;
+        StateHasChanged();
+        try
+        {
+            var prices = await Task.Run(() => GoldPrices.GetGoldPricesAsync(settings));
+            if (prices is { Count: > 0 })
+            {
+                _prices = prices;
+                _updatedAt = DateTime.Now;
+            }
+            else
+            {
+                _error = "Fiyatlar alınamadı. Fiyat sitesi bilgileri doğru mu, site açık mı kontrol edin.";
+            }
+        }
+        catch (Exception ex)
+        {
+            _error = "Fiyatlar alınamadı: " + ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task ShareImage()
+    {
+        if (_prices == null || Store.Snapshot is not { } data)
+            return;
+
+        _sharing = true;
+        try
+        {
+            var path = await Task.Run(() => GoldPrices.CreateGoldPriceImageAsync(
+                _prices, data.Settings.GoldPriceTemplateImage, data.Settings.BusinessName, share: false));
+            if (string.IsNullOrEmpty(path))
+            {
+                _error = "Görsel oluşturulamadı.";
+                return;
+            }
+
+            _previewDataUrl = $"data:image/{(path.EndsWith(".png", StringComparison.OrdinalIgnoreCase) ? "png" : "jpeg")};base64," + Convert.ToBase64String(await File.ReadAllBytesAsync(path));
+            StateHasChanged();
+            if (!await Share.ShareFileAsync(path, "Altın Fiyatları"))
+                _error = "Paylaşım menüsü açılamadı.";
+        }
+        catch (Exception ex)
+        {
+            _error = "Görsel oluşturulamadı: " + ex.Message;
+        }
+        finally
+        {
+            _sharing = false;
+        }
+    }
+}

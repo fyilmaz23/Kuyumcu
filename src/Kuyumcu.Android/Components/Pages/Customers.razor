@@ -1,0 +1,124 @@
+@page "/musteriler"
+@inject BackupStore Store
+@inject UiState Ui
+
+@if (Store.Snapshot is not { } data)
+{
+    <Welcome />
+}
+else
+{
+    <TopBar Title="Müşteriler" Subtitle="@($"{_filtered.Count} / {data.Customers.Count} müşteri")" />
+
+    <div class="kd-searchbar">
+        <label class="kd-search">
+            <Icon Name="search" />
+            <input type="search" placeholder="İsim veya telefon ara" autocomplete="off" enterkeyhint="search"
+                   value="@Ui.CustomerSearch" @oninput="OnSearch" />
+            @if (!string.IsNullOrEmpty(Ui.CustomerSearch))
+            {
+                <button class="kd-icon-btn small" aria-label="Aramayı temizle" @onclick="ClearSearch"><Icon Name="close" /></button>
+            }
+        </label>
+        <div class="kd-chips" role="tablist">
+            <button class="kd-chip @(Ui.CustomerFilter == CustomerFilter.All ? "active" : "")" @onclick="() => SetFilter(CustomerFilter.All)">Tümü</button>
+            <button class="kd-chip giden @(Ui.CustomerFilter == CustomerFilter.Giden ? "active" : "")" @onclick="() => SetFilter(CustomerFilter.Giden)">Borçlu (Giden)</button>
+            <button class="kd-chip gelen @(Ui.CustomerFilter == CustomerFilter.Gelen ? "active" : "")" @onclick="() => SetFilter(CustomerFilter.Gelen)">Alacaklı (Gelen)</button>
+        </div>
+    </div>
+
+    <div class="kd-page kd-page-flush">
+        @if (_filtered.Count == 0)
+        {
+            <EmptyState Icon="search" Title="Müşteri bulunamadı"
+                        Text="@(string.IsNullOrWhiteSpace(Ui.CustomerSearch) ? "Bu filtrede müşteri yok." : $"\"{Ui.CustomerSearch}\" ile eşleşen müşteri yok.")" />
+        }
+        else
+        {
+            <div class="kd-list">
+                <Virtualize Items="_filtered" ItemSize="72" OverscanCount="8" Context="c">
+                    @{
+                        var balances = data.GetNetBalances(c.Id);
+                    }
+                    <a class="kd-row" href="@($"musteriler/{c.Id}")">
+                        <Avatar Name="@c.Name" />
+                        <div class="kd-row-main">
+                            <div class="kd-row-title">@c.Name</div>
+                            <div class="kd-row-sub">
+                                @if (balances.Count == 0)
+                                {
+                                    <span class="kd-muted">Hesap sıfır</span>
+                                }
+                                else
+                                {
+                                    @foreach (var b in balances.OrderByDescending(x => Math.Abs(x.Net)).Take(3))
+                                    {
+                                        <span class="kd-pill @(b.Net > 0 ? "giden" : "gelen")">@FormatHelper.FormatPrice(Math.Abs(b.Net)) @b.Currency.GetShortName()</span>
+                                    }
+                                    @if (balances.Count > 3)
+                                    {
+                                        <span class="kd-pill">+@(balances.Count - 3)</span>
+                                    }
+                                }
+                            </div>
+                        </div>
+                        <Icon Name="chevron" Class="kd-row-chevron" />
+                    </a>
+                </Virtualize>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    [CascadingParameter(Name = "DataVersion")] public int DataVersion { get; set; }
+
+    private static readonly CompareInfo TrCompare = new CultureInfo("tr-TR").CompareInfo;
+    private List<Customer> _filtered = new();
+
+    protected override void OnParametersSet() => Apply();
+
+    private void OnSearch(ChangeEventArgs e)
+    {
+        Ui.CustomerSearch = e.Value?.ToString() ?? string.Empty;
+        Apply();
+    }
+
+    private void ClearSearch()
+    {
+        Ui.CustomerSearch = string.Empty;
+        Apply();
+    }
+
+    private void SetFilter(CustomerFilter filter)
+    {
+        Ui.CustomerFilter = filter;
+        Apply();
+    }
+
+    private void Apply()
+    {
+        var data = Store.Snapshot;
+        if (data == null)
+        {
+            _filtered = new();
+            return;
+        }
+
+        var query = Ui.CustomerSearch.Trim();
+        var digits = new string(query.Where(char.IsDigit).ToArray());
+
+        _filtered = data.Customers.Where(c =>
+            {
+                if (Ui.CustomerFilter == CustomerFilter.Giden && !data.GetNetBalances(c.Id).Any(b => b.Net > 0)) return false;
+                if (Ui.CustomerFilter == CustomerFilter.Gelen && !data.GetNetBalances(c.Id).Any(b => b.Net < 0)) return false;
+                if (query.Length == 0) return true;
+
+                // Türkçe büyük/küçük harf ve şapka duyarsız (ı/İ, â/a)
+                if (TrCompare.IndexOf(c.Name ?? "", query, CompareOptions.IgnoreCase | CompareOptions.IgnoreNonSpace) >= 0)
+                    return true;
+                return digits.Length >= 3 && (c.PhoneNumber ?? "").Contains(digits, StringComparison.Ordinal);
+            })
+            .ToList();
+    }
+}

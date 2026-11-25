@@ -1,0 +1,120 @@
+@page "/"
+@inject BackupStore Store
+@inject NavigationManager Nav
+
+@if (Store.Snapshot is not { } data)
+{
+    <Welcome />
+}
+else
+{
+    <TopBar Title="@BusinessName(data)" Subtitle="Özet · salt okunur" />
+
+    <div class="kd-page">
+        <SyncStatus Compact="true" />
+
+        <div class="kd-stats">
+            <a class="kd-stat" href="musteriler" @onclick="() => SetFilter(CustomerFilter.All)">
+                <div class="kd-stat-value">@data.Customers.Count</div>
+                <div class="kd-stat-label">Müşteri</div>
+            </a>
+            <a class="kd-stat is-giden" href="musteriler" @onclick="() => SetFilter(CustomerFilter.Giden)">
+                <div class="kd-stat-value">@_gidenCustomers</div>
+                <div class="kd-stat-label">Borçlu</div>
+            </a>
+            <a class="kd-stat is-gelen" href="musteriler" @onclick="() => SetFilter(CustomerFilter.Gelen)">
+                <div class="kd-stat-value">@_gelenCustomers</div>
+                <div class="kd-stat-label">Alacaklı</div>
+            </a>
+        </div>
+
+        <h2 class="kd-section">Toplam bakiyeler</h2>
+        @if (_totals.Count == 0)
+        {
+            <div class="kd-card"><EmptyState Icon="check" Title="Açık hesap yok" Text="Tüm müşterilerin hesabı sıfır." /></div>
+        }
+        else
+        {
+            <div class="kd-card kd-totals">
+                <div class="kd-totals-head">
+                    <span></span>
+                    <span class="kd-giden">Giden</span>
+                    <span class="kd-gelen">Gelen</span>
+                </div>
+                @foreach (var t in _totals)
+                {
+                    <div class="kd-totals-row">
+                        <span class="kd-totals-name">@t.Currency.GetDisplayName()</span>
+                        <span class="kd-num kd-giden">
+                            @(t.Giden == 0 ? "–" : Fmt.Amount(t.Giden, t.Currency))
+                            @if (t.GidenCustomers > 0) { <small>@t.GidenCustomers kişi</small> }
+                        </span>
+                        <span class="kd-num kd-gelen">
+                            @(t.Gelen == 0 ? "–" : Fmt.Amount(t.Gelen, t.Currency))
+                            @if (t.GelenCustomers > 0) { <small>@t.GelenCustomers kişi</small> }
+                        </span>
+                    </div>
+                }
+                <div class="kd-totals-foot">Giden: müşteri borçlu · Gelen: müşteri alacaklı (emanetler hariç)</div>
+            </div>
+        }
+
+        <h2 class="kd-section">Son işlemler</h2>
+        <div class="kd-card kd-list">
+            @if (_recent.Count == 0)
+            {
+                <EmptyState Icon="receipt" Title="İşlem yok" />
+            }
+            @foreach (var t in _recent)
+            {
+                var customer = data.GetCustomer(t.CustomerId);
+                <a class="kd-row" href="@($"musteriler/{t.CustomerId}")">
+                    <Avatar Name="@customer?.Name" />
+                    <div class="kd-row-main">
+                        <div class="kd-row-title">@customer?.Name</div>
+                        <div class="kd-row-sub">@Fmt.DateTime(t.Date)</div>
+                    </div>
+                    <div class="kd-row-end">
+                        <div class="kd-num kd-strong @(t.IsDeposit ? "" : t.Type == TransactionType.CustomerDebt ? "kd-giden" : "kd-gelen")">@Fmt.Amount(t.Amount, t.CurrencyType)</div>
+                        <TypeBadge Type="t.Type" IsDeposit="t.IsDeposit" />
+                    </div>
+                </a>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    [CascadingParameter(Name = "DataVersion")] public int DataVersion { get; set; }
+    [Inject] private UiState Ui { get; set; } = default!;
+
+    private BackupSnapshot? _computedFor;
+    private List<CurrencyTotals> _totals = new();
+    private List<Transaction> _recent = new();
+    private int _gidenCustomers;
+    private int _gelenCustomers;
+
+    protected override void OnParametersSet()
+    {
+        var data = Store.Snapshot;
+        if (data == null || ReferenceEquals(data, _computedFor))
+            return;
+
+        _computedFor = data;
+        _totals = data.GetTotals();
+        _gidenCustomers = data.Customers.Count(c => data.GetNetBalances(c.Id).Any(b => b.Net > 0));
+        _gelenCustomers = data.Customers.Count(c => data.GetNetBalances(c.Id).Any(b => b.Net < 0));
+
+        // Masaüstü Ana Sayfa gibi: gizli işlemler son işlemlerde görünmez
+        _recent = data.Transactions.Where(t => !t.IsHidden).Take(8).ToList();
+    }
+
+    private void SetFilter(CustomerFilter filter)
+    {
+        Ui.CustomerFilter = filter;
+        Ui.CustomerSearch = string.Empty;
+    }
+
+    private static string BusinessName(BackupSnapshot data) =>
+        string.IsNullOrWhiteSpace(data.Settings.BusinessName) ? "Kuyumcu Defteri" : data.Settings.BusinessName;
+}

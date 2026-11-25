@@ -1,0 +1,18 @@
+@* Net bakiye: pozitif = Giden (müşteri borçlu, kırmızı), negatif = Gelen (müşteri alacaklı, yeşil). *@
+@if (Value == 0)
+{
+    <span class="kd-num kd-muted @Class">@ZeroText</span>
+}
+else
+{
+    <span class="kd-num @(Value > 0 ? "kd-giden" : "kd-gelen") @Class">@Fmt.Amount(Math.Abs(Value), Currency)@if (ShowDirection)
+        {<span class="kd-dir">&nbsp;@(Value > 0 ? "Giden" : "Gelen")</span>}</span>
+}
+
+@code {
+    [Parameter] public decimal Value { get; set; }
+    [Parameter] public CurrencyType Currency { get; set; }
+    [Parameter] public bool ShowDirection { get; set; }
+    [Parameter] public string ZeroText { get; set; } = "0";
+    [Parameter] public string? Class { get; set; }
+}

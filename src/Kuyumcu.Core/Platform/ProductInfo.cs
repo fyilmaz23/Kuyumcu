@@ -23,4 +23,13 @@ public static class ProductInfo
 
     /// <summary>Her yedekte güncellenen tek dosya (telefon bunu okur).</summary>
     public const string DriveLatestFileName = "KuyumcuDefteri_son_yedek.db3";
+
+    /// <summary>Drive dosyalarındaki uygulama özelliği (appProperties) anahtarı: dosyanın türünü ada bakmadan belirtir.</summary>
+    public const string DriveKindProperty = "kuyumcuKind";
+
+    /// <summary><see cref="DriveKindProperty"/> değeri: tarihli yedek.</summary>
+    public const string DriveKindSnapshot = "snapshot";
+
+    /// <summary><see cref="DriveKindProperty"/> değeri: her yedekte güncellenen "son yedek" (telefon bunu okur).</summary>
+    public const string DriveKindLatest = "latest";
 }

@@ -106,17 +106,14 @@ jobs:
 
       - name: Android SDK bağımlılıklarını tamamla (API 36)
         run: >
-          dotnet build src/Kuyumcu.Mobile/Kuyumcu.Mobile.csproj -t:InstallAndroidDependencies
+          dotnet build src/Kuyumcu.Android/Kuyumcu.Android.csproj -t:InstallAndroidDependencies
           -f net10.0-android
           -p:AndroidSdkDirectory="$ANDROID_SDK_ROOT"
           -p:AcceptAndroidSDKLicenses=True
 
-      - name: Gizli yapılandırma dosyalarını üret
-        shell: pwsh
-        env:
-          GOOGLE_DESKTOP_CLIENT_ID: ${{ secrets.GOOGLE_DESKTOP_CLIENT_ID }}
-          GOOGLE_DESKTOP_CLIENT_SECRET: ${{ secrets.GOOGLE_DESKTOP_CLIENT_SECRET }}
-        run: ./build/write-secrets.ps1
+      # Not: Android uygulaması masaüstünün OAuth istemci bilgilerine ihtiyaç duymaz (Google, Android istemcisini
+      # paket adı + imza SHA-1'i ile tanır). Bu yüzden write-secrets.ps1 burada BİLEREK çalıştırılmaz:
+      # masaüstü istemci sırrı APK/AAB içine girmesin.
 
       - name: Yükleme anahtarını (upload keystore) çöz
         env:
@@ -133,7 +130,7 @@ jobs:
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
         run: >
-          dotnet publish src/Kuyumcu.Mobile/Kuyumcu.Mobile.csproj
+          dotnet publish src/Kuyumcu.Android/Kuyumcu.Android.csproj
           -c Release -f net10.0-android
           -p:AndroidSdkDirectory="$ANDROID_SDK_ROOT"
           -p:ApplicationDisplayVersion=${{ needs.version.outputs.semver }}

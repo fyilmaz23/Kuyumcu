@@ -1,0 +1,224 @@
+@page "/musteriler/{CustomerId:int}"
+@inject BackupStore Store
+@inject CustomerSummaryImageService SummaryImages
+@inject IJSRuntime JS
+
+@if (Store.Snapshot is not { } data)
+{
+    <Welcome />
+}
+else if (_customer == null || _ledger == null)
+{
+    <TopBar Title="Müşteri" BackHref="/musteriler" />
+    <div class="kd-page"><EmptyState Icon="people" Title="Müşteri bulunamadı" Text="Bu müşteri son yedekte yok (silinmiş olabilir)." /></div>
+}
+else
+{
+    <TopBar Title="@_customer.Name" BackHref="/musteriler">
+        <button class="kd-icon-btn" aria-label="Özeti paylaş" disabled="@_sharing" @onclick="ShareSummary"><Icon Name="share" /></button>
+    </TopBar>
+
+    <div class="kd-page">
+        @* ---------- Başlık ---------- *@
+        <div class="kd-card kd-profile">
+            <Avatar Name="@_customer.Name" Large="true" />
+            <div class="kd-profile-main">
+                @* İsme dokunmak gizli işlemleri gösterir/gizler (masaüstündeki bilerek göze batmayan kısayol) *@
+                <div class="kd-profile-name @(_ledger.HasHiddenTransactions ? "has-hidden" : "")" @onclick="ToggleHidden">
+                    @_customer.Name
+                    @if (_showHidden || !_ledger.HasHiddenTransactions)
+                    {
+                        <Icon Name="check" Class="kd-profile-check" />
+                    }
+                </div>
+                <div class="kd-profile-meta">
+                    @if (!string.IsNullOrWhiteSpace(_customer.PhoneNumber))
+                    {
+                        <a class="kd-link" href="@($"tel:{Digits(_customer.PhoneNumber)}")"><Icon Name="phone" />@_customer.PhoneNumber.FormatPhoneNumber()</a>
+                    }
+                    <span><Icon Name="receipt" />@_ledger.VisibleCount işlem</span>
+                    @if (_ledger.Recent(1).FirstOrDefault() is { } last)
+                    {
+                        <span><Icon Name="schedule" />Son: @Fmt.Date(last.Date)</span>
+                    }
+                </div>
+            </div>
+        </div>
+
+        @* ---------- Güncel durum ---------- *@
+        <h2 class="kd-section">Güncel durum</h2>
+        @if (_ledger.Groups.Count == 0 && _ledger.Deposits.Count == 0)
+        {
+            <div class="kd-card"><EmptyState Icon="receipt" Title="Henüz işlem yok" /></div>
+        }
+        else
+        {
+            <div class="kd-tiles">
+                @foreach (var g in _ledger.Groups)
+                {
+                    <button class="kd-tile @(g.Balance > 0 ? "is-giden" : g.Balance < 0 ? "is-gelen" : "")" @onclick="() => ScrollTo(CardId(g.Key))">
+                        <span class="kd-tile-label">@g.Key.GetDisplayName()</span>
+                        <span class="kd-tile-value"><Money Value="g.Balance" Currency="g.Key" ZeroText="0" /></span>
+                        <span class="kd-tile-hint">@(g.Balance > 0 ? "Giden · müşteri borçlu" : g.Balance < 0 ? "Gelen · müşteri alacaklı" : "Hesap sıfır")</span>
+                    </button>
+                }
+                @foreach (var d in _ledger.DepositTotals)
+                {
+                    <button class="kd-tile is-emanet" @onclick="() => ScrollTo(DepositSectionId)">
+                        <span class="kd-tile-label">@d.Currency.GetDisplayName() · Emanet</span>
+                        <span class="kd-tile-value kd-num">@Fmt.Amount(d.Total, d.Currency)</span>
+                        <span class="kd-tile-hint">Müşterinin emaneti</span>
+                    </button>
+                }
+            </div>
+        }
+
+        @* ---------- Para birimi bazında hareketler ---------- *@
+        @foreach (var g in _ledger.Groups)
+        {
+            var shown = _shownCount.GetValueOrDefault(g.Key, PageSize);
+            var rows = Enumerable.Reverse(g.Transactions).Take(shown).ToList();
+            <section class="kd-card kd-ledger" id="@CardId(g.Key)">
+                <div class="kd-ledger-head">
+                    <div>
+                        <div class="kd-ledger-title">@g.Key.GetDisplayName() <span class="kd-muted">(@g.Key.GetSymbol())</span></div>
+                        <div class="kd-ledger-sub">Kalan: <Money Value="g.Balance" Currency="g.Key" ShowDirection="true" ZeroText="Hesap sıfır" Class="kd-strong" /></div>
+                    </div>
+                    <span class="kd-muted kd-small">@g.Transactions.Count işlem</span>
+                </div>
+                @foreach (var t in rows)
+                {
+                    <div class="kd-tx @(t.IsHidden ? "is-hidden" : "")">
+                        <div class="kd-tx-main">
+                            <TypeBadge Type="t.Type" />
+                            <div class="kd-tx-date">@Fmt.DateTime(t.Date)</div>
+                            @if (!string.IsNullOrWhiteSpace(t.Description))
+                            {
+                                <div class="kd-tx-desc">@t.Description</div>
+                            }
+                        </div>
+                        <div class="kd-tx-end">
+                            <div class="kd-num kd-strong @(t.Type == TransactionType.CustomerDebt ? "kd-giden" : "kd-gelen")">@Fmt.Amount(t.Amount, t.CurrencyType)</div>
+                            @if (g.RunningBalances.TryGetValue(t.Id, out var running))
+                            {
+                                <div class="kd-tx-running">Kalan <Money Value="running" Currency="g.Key" /></div>
+                            }
+                        </div>
+                    </div>
+                }
+                @if (g.Transactions.Count > shown)
+                {
+                    <button class="kd-btn kd-btn-text kd-btn-block" @onclick="() => ShowMore(g.Key)">
+                        Daha eski işlemler (@(g.Transactions.Count - shown))
+                    </button>
+                }
+            </section>
+        }
+
+        @* ---------- Emanetler ---------- *@
+        @if (_ledger.Deposits.Count > 0)
+        {
+            <h2 class="kd-section" id="@DepositSectionId">Emanetler</h2>
+            <section class="kd-card kd-ledger">
+                @foreach (var t in _ledger.Deposits)
+                {
+                    <div class="kd-tx">
+                        <div class="kd-tx-main">
+                            <TypeBadge IsDeposit="true" />
+                            <div class="kd-tx-date">@Fmt.DateTime(t.Date) · @t.CurrencyType.GetDisplayName()</div>
+                            @if (!string.IsNullOrWhiteSpace(t.Description))
+                            {
+                                <div class="kd-tx-desc">@t.Description</div>
+                            }
+                        </div>
+                        <div class="kd-tx-end">
+                            <div class="kd-num kd-strong">@Fmt.Amount(t.Amount, t.CurrencyType)</div>
+                        </div>
+                    </div>
+                }
+            </section>
+        }
+
+        <p class="kd-fineprint center">Bilgisayardaki son yedeğe göre. Telefonda değişiklik yapılamaz.</p>
+    </div>
+}
+
+@code {
+    [Parameter] public int CustomerId { get; set; }
+    [CascadingParameter(Name = "DataVersion")] public int DataVersion { get; set; }
+
+    private const int PageSize = 15;
+    private const string DepositSectionId = "emanetler";
+
+    private Customer? _customer;
+    private CustomerLedger? _ledger;
+    private bool _showHidden;
+    private bool _sharing;
+    private int _loadedCustomerId;
+    private BackupSnapshot? _loadedFrom;
+    private readonly Dictionary<CurrencyType, int> _shownCount = new();
+
+    protected override void OnParametersSet()
+    {
+        var data = Store.Snapshot;
+        if (CustomerId != _loadedCustomerId)
+        {
+            // Başka müşteriye geçişte gizli işlemler yine gizlenir (masaüstündeki gibi)
+            _showHidden = false;
+            _shownCount.Clear();
+            _loadedCustomerId = CustomerId;
+            _loadedFrom = null;
+        }
+
+        if (data != null && !ReferenceEquals(data, _loadedFrom))
+        {
+            _loadedFrom = data;
+            Load(data);
+        }
+    }
+
+    private void Load(BackupSnapshot data)
+    {
+        _customer = data.GetCustomer(CustomerId);
+        _ledger = _customer == null ? null : CustomerLedger.Build(data.GetTransactions(CustomerId), _showHidden);
+    }
+
+    private void ToggleHidden()
+    {
+        if (_ledger is not { HasHiddenTransactions: true } || Store.Snapshot is not { } data)
+            return;
+        _showHidden = !_showHidden;
+        Load(data);
+    }
+
+    private void ShowMore(CurrencyType currency) =>
+        _shownCount[currency] = _shownCount.GetValueOrDefault(currency, PageSize) + PageSize * 2;
+
+    private async Task ScrollTo(string id) => await JS.InvokeVoidAsync("kd.scrollIntoView", id);
+
+    private static string CardId(CurrencyType currency) => $"cins-{currency}";
+
+    private static string Digits(string s) => new(s.Where(char.IsDigit).ToArray());
+
+    private async Task ShareSummary()
+    {
+        if (_customer == null || _ledger == null)
+            return;
+
+        _sharing = true;
+        try
+        {
+            // Masaüstündeki "Özeti Kopyala" ile aynı görsel; telefonda paylaşım menüsü açılır.
+            // Gizli işlemler, ekranda o an görünüyorsa özete de girer (masaüstündeki gibi).
+            var result = await SummaryImages.CopySummaryAsync(_customer, _ledger.Groups, _ledger.Deposits, Store.Snapshot?.Settings.BusinessName);
+            if (result == CustomerSummaryCopyResult.TextCopied)
+                NativeDialogs.Toast("Özet metin olarak kopyalandı");
+            else if (result == CustomerSummaryCopyResult.Failed)
+                NativeDialogs.Toast("Özet paylaşılamadı");
+        }
+        finally
+        {
+            _sharing = false;
+        }
+    }
+}

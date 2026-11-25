@@ -1,7 +1,7 @@
 # Devir Notu — Kuyumcu Defteri
 
 Bu belge, projeyi başka bir oturumda / geliştiricide kaldığı yerden sürdürmek için gereken bağlamı içerir.
-Son güncelleme: dal `kuyumcudefteri`.
+Son güncelleme: dal `claude/android-yeniden-2ef27f` (üzerine kurulduğu dal: `kuyumcudefteri`).
 
 ## Amaç
 
@@ -10,7 +10,8 @@ dönüştürmek ve arayüzünü yenilemek.
 
 - **Windows** (tam sürüm): WPF + BlazorWebView, **Microsoft Store**'dan MSIX olarak dağıtılacak (kayıt ücretsiz,
   Store imzalar, lisans uygulama içinde satılır → komisyon yok).
-- **Android** (salt okunur): .NET MAUI + BlazorWebView, **Google Play**'e AAB (hedef API 36).
+- **Android** (salt okunur): .NET MAUI + BlazorWebView, telefona özel arayüz, Drive'daki son yedeği kendisi indirir;
+  **Google Play**'e AAB (hedef API 36). Paket `com.kuyumcudefteri.app` (kullanıcı kararı, 24.11.2026).
 - **.NET 10** (LTS). Teknoloji kararları ve gerekçeleri aşağıda.
 
 ## Proje yapısı
@@ -19,11 +20,13 @@ dönüştürmek ve arayüzünü yenilemek.
 src/Kuyumcu.Core      Modeller + servisler (SQLite, lisans, yedek, Drive, görsel üretimi). net10.0, platformdan bağımsız
 src/Kuyumcu.UI        Ortak Blazor arayüzü (Razor Class Library): sayfalar, tema, bileşenler, app.css, app.js
 src/Kuyumcu.Desktop   WPF kabuğu (net10.0-windows10.0.19041.0, self-contained, win-x64) + Packaging/AppxManifest.xml
-src/Kuyumcu.Mobile    MAUI Android kabuğu (net10.0-android), salt okunur
+src/Kuyumcu.Android   Android uygulaması (MAUI + BlazorWebView, net10.0-android), salt okunur; kendi telefon arayüzü
+                      (Components/), Kuyumcu.UI'yi KULLANMAZ. Kök ad alanı Kuyumcu.Droid, derleme adı KuyumcuDefteri
 src/Kuyumcu.Preview   Blazor Server tarayıcı önizlemesi (Mac/Linux'ta arayüz geliştirmek için, örnek verili) — dağıtılmaz
 build/                CI betikleri: write-secrets.ps1 (gizli dosyaları üretir), pack-msix.ps1 (makeappx ile MSIX)
 tools/Kuyumcu.LicenseTool  Lisans anahtarı üretme aracı (geliştirici bilgisayarında; bkz. docs/YAYIN.md "Lisans anahtarları")
-docs/YAYIN.md         Partner Center, Play Console, GitHub Secrets kurulumu
+docs/YAYIN.md         Partner Center, Play Console (OAuth Android istemcisi, Veri güvenliği, kapalı test), GitHub Secrets
+docs/GIZLILIK.md      Gizlilik politikası taslağı (yayınlanıp URL'si mağazalara girilecek)
 ```
 
 - Platforma özgü her şey `src/Kuyumcu.Core/Platform/IPlatformServices.cs` arayüzlerinin arkasında:
@@ -128,12 +131,57 @@ docs/YAYIN.md         Partner Center, Play Console, GitHub Secrets kurulumu
   yedekler ya da Ayarlar'a götürür). Ayarlar > Google Drive kartı: hesap, son yedek, Şimdi Yedekle, Drive'da Aç,
   Bağlantıyı Kes. Eski onaylı elle yedek düğmesi kaldırıldı.
 
+### 7. Android uygulaması sıfırdan (24.11.2026)
+Kullanıcı kararları: .NET MAUI (Core paylaşılsın), aynı depo, paket `com.kuyumcudefteri.app`, Drive'a Google ile
+otomatik erişim (+ dosya seçici yedek yol).
+- Eski `src/Kuyumcu.Mobile` → `src/Kuyumcu.Android` (git mv; MudBlazor ve Kuyumcu.UI bağımlılığı yok, telefona özel
+  Razor bileşenleri + `wwwroot/css/app.css`). Antrasit üst/alt çubuk + altın vurgu, açık/koyu tema telefonu izler.
+  Ekranlar: Özet (`/`: müşteri sayıları, para birimi başına toplam Giden/Gelen, son işlemler), Müşteriler
+  (`/musteriler`: Türkçe harf/şapka duyarsız arama, telefonla arama, Borçlu/Alacaklı filtresi, sanal liste),
+  Müşteri detayı (`/musteriler/{id}`: bakiye kutucukları, emanetler ayrı, cins başına hareketler yeniden eskiye +
+  "Kalan", isme dokununca gizli işlemler, özet görselini paylaş), Fiyatlar (`/fiyatlar`: fiyatlar + görsel paylaş),
+  Yedek (`/yedek`: Drive bağlantısı, telefondaki yedeğin bilgileri, dosyadan aç, telefondan sil, gizlilik notu).
+  İlk açılışta `Welcome`: Google ile bağlan / Yedek dosyasını seç / Örnek verilerle dene.
+- Core'a eklenenler (masaüstü kullanmıyor, davranışı değişmedi):
+  - `CustomerLedger`: müşteri detayındaki bakiye/kalan/emanet/gizli kurallarının platformdan bağımsız kopyası
+    (masaüstü `CustomerDetail.razor` ile AYNI kural; ileride masaüstü de bunu kullanırsa kural tek yerde kalır).
+    `NetBalances`: liste/özet için (emanet hariç, **gizli dahil** — masaüstü `GetCurrencyBalanceSummaryAsync` gibi).
+  - `BackupSnapshot`: .db3'ü salt okunur açıp belleğe alır; bu uygulamanın yedeği değilse `InvalidDataException`.
+  - `DriveLatestBackupClient`: düz REST (Google API kütüphanesi değil), `appProperties.kuyumcuKind='latest'` ile, yoksa
+    ada göre arar; en yeni `modifiedTime`'lıyı alır. JSON kaynak üretici ile (kırpmaya dayanıklı).
+  - `DemoBackup`: örnek verili .db3 üretir ("Örnek verilerle dene", Play incelemesi için).
+  - `ProductInfo.DriveKind*` sabitleri (masaüstü `GoogleDriveService` de bunları kullanıyor, değerler aynı).
+- Google girişi: `Platform/GoogleDriveAuthorizer.cs` — Google Identity Services **Authorization API**
+  (`Xamarin.GooglePlayServices.Auth` 122.0.0). Uygulamada istemci kimliği yok; Cloud projesindeki Android istemcisi
+  paket adı + SHA-1 ile eşlenir (bkz. YAYIN.md 2.2). İzin ekranı `StartIntentSenderForResult` + `MainActivity.OnActivityResult`.
+  Bu paket daha yeni AndroidX çektiği için 5 adet `-ktx`/lifecycle paketi `Directory.Packages.props`'ta hizalandı
+  (yoksa "Type ... is defined multiple times" dex hatası).
+- Eşitleme: `Services/BackupSyncService.cs` — açılışta ve uygulamaya dönüşte (en sık 2 dk) sessiz kontrol, MD5 aynıysa
+  indirmez; yeni dosya önce doğrulanır, sonra eskisinin yerine konur (bozuk indirme eldeki yedeği silmez).
+  `Services/BackupStore.cs` — `AppDataDirectory/yedek/son_yedek.db3` + `son_yedek.json` (kaynak, bilgisayardaki yedek
+  zamanı = Drive `modifiedTime`, indirilme, son kontrol, MD5). İnternet yoksa son indirilen gösterilir, ekranda
+  "Bilgisayardaki yedek: 12 dk önce" + tarih yazar.
+- Android: `allowBackup=false` + `data_extraction_rules.xml` (Android 12+ cihaz aktarımı da kapalı), izinler sadece
+  INTERNET + ACCESS_NETWORK_STATE; `tel:` için DIAL sorgusu.
+- CI: `ci.yml`'e Android derleme işi; `release.yml` yeni projeye göre, Android işinde `write-secrets.ps1` **bilerek yok**.
+- `MainPage.xaml`: `SafeAreaEdges="Container"` — olmadan içerik durum/gezinme çubuklarının altına giriyordu (kenardan kenara).
+- **Denendi (24.11.2026, Pixel 7 API 34 emülatörü, Debug APK):** karşılama ekranı, "Örnek verilerle dene", Özet,
+  Müşteriler (liste/filtre), Müşteri detayı (kutucuklar, hareketler + Kalan, emanetler), özet görselini paylaşma
+  (paylaşım menüsü açıldı), Android geri tuşu, Yedek sayfası, "Dosyadan aç" (SAF ile .db3 seçildi, yedek zamanı
+  dosya adından okundu), koyu tema, Google izin akışının başlaması (hesap seçici açıldı) ve iptal mesajı.
+  Core okuyucu gerçek veritabanının kopyasıyla (872 müşteri / 14.309 işlem) bilgisayarda denendi: 0,4 sn, bakiye ve
+  Kalan hesaplarında uyuşmazlık yok.
+- **Denenmedi:** Drive'dan gerçek indirme (Cloud projesinde Android OAuth istemcisi henüz yok; emülatördeki Google
+  hesabının oturumu da yenilenmeyi bekliyordu), fiyat çekme (örnek verilerde fiyat sitesi bilgisi yok), gerçek cihaz,
+  imzalı AAB'nin Play'e yüklenmesi.
+
 ## Kullanıcıya sunulan öneriler (karar bekleyen sıra)
 1. ~~Lisans~~ (yapıldı, bölüm 5). Kalan: Obfuscar ile kod karıştırma (yamalamayı zorlaştırır), istenirse çevrimiçi aktivasyon.
 2. ~~Otomatik Drive yedeği~~ (yapıldı, bölüm 6). Kalan: ürünün OAuth istemcisi oluşturulup izin ekranı "Üretim"e
    alınmalı ("Test"te yenileme jetonları 7 günde düşer → yedek durur ve "Yeniden bağlanın" çıkar).
-3. Android: aynı Play hesabı kullanılacak (kullanıcı daha önce 12 kişi/14 gün testten geçti; yeni uygulama için
-   büyük olasılıkla tekrar gerekecek — kapalı testi erken başlat). Drive'dan son yedeği otomatik okuma.
+3. Android: ~~Drive'dan son yedeği otomatik okuma~~ (yapıldı, bölüm 7). Kalan: Cloud projesinde Android OAuth
+   istemcileri (debug + Play imzalama SHA-1), Play kaydı, kapalı test (12 kişi / 14 gün; aynı Play hesabı — kullanıcı
+   daha önce başka uygulamada geçti, yeni uygulama için yine gerekir). Adımlar: `docs/YAYIN.md` bölüm 2.
 
 ## Doğrulanmadı / dikkat
 - `build/pack-msix.ps1` ve Android AAB üretimi CI'da henüz denenmedi (ilk etikette görülecek).
@@ -151,10 +199,11 @@ docs/YAYIN.md         Partner Center, Play Console, GitHub Secrets kurulumu
 1. ~~Windows'ta çalıştırıp test et~~ (yapıldı, bkz. bölüm 3). Kullanıcının elle testi sürüyor.
 2. ~~Ayarlar, Kurulum ve Lisans ekranları~~ (bölüm 5), ~~otomatik Drive yedeği~~ (bölüm 6).
    Sıradaki: Android'in Drive'daki `KuyumcuDefteri_son_yedek.db3`'ü okuması + Play kapalı testi.
-3. Android veri görüntüleme ekranını (`ImportData.razor`) yeni tasarıma getir.
-4. Android'in Google Drive'dan son yedeği kendisi indirmesi (Android OAuth istemcisi gerekir).
-5. Mağaza hazırlığı: ürün adı ve Android paket adı kesinleşmeli (Play'e ilk yüklemeden sonra değişmez),
-   gizlilik politikası sayfası, GitHub Secrets/Variables (bkz. `docs/YAYIN.md`).
+3. ~~Android veri görüntüleme ekranı~~ ve ~~Drive'dan otomatik indirme~~ (bölüm 7). Eski `Kuyumcu.UI/Components/Pages/ImportData.razor`
+   ve UI'daki `IsReadOnlyClient` dalları artık Android'de kullanılmıyor; masaüstünde de gerek yoksa temizlenebilir.
+4. Google Cloud: Android OAuth istemcisi (masaüstüyle AYNI proje) → telefonda gerçek Drive indirmesini dene.
+5. Mağaza hazırlığı: gizlilik politikasını (`docs/GIZLILIK.md`) yayınla, GitHub Secrets/Variables, Play kaydı ve
+   kapalı test (bkz. `docs/YAYIN.md` bölüm 2).
 6. Eski `ccr-325b955a-m9osww` uzak dalı silinecek (bulut oturumu silemedi).
 
 ## Geliştirme komutları
@@ -162,7 +211,9 @@ docs/YAYIN.md         Partner Center, Play Console, GitHub Secrets kurulumu
 ```powershell
 dotnet run --project src/Kuyumcu.Desktop     # Windows uygulaması
 dotnet run --project src/Kuyumcu.Preview     # tarayıcı önizlemesi → http://localhost:5080
-dotnet build src/Kuyumcu.Mobile -f net10.0-android   # 'dotnet workload install maui-android' gerekir
+dotnet build src/Kuyumcu.Android -f net10.0-android          # 'maui-android' iş yükü + Android API 36 gerekir
+dotnet build src/Kuyumcu.Android -f net10.0-android -t:Run   # açık emülatöre/cihaza kurup çalıştırır
+# Bu bilgisayarda: -p:AndroidSdkDirectory="C:\Program Files (x86)\Android\android-sdk", emülatör AVD: pixel_7_-_api_34
 ```
 
 Dil: kullanıcı ile Türkçe konuşulur; kod yorumları ve arayüz metinleri Türkçe.

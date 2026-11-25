@@ -1,0 +1,135 @@
+@page "/yedek"
+@inject BackupStore Store
+@inject BackupSyncService Sync
+
+<TopBar Title="Yedek ve hesap" Subtitle="Google Drive" />
+
+<div class="kd-page">
+    <SyncStatus />
+
+    @* ---------- Google Drive ---------- *@
+    <h2 class="kd-section">Google Drive</h2>
+    <div class="kd-card kd-card-pad">
+        @if (Sync.IsConnected)
+        {
+            <div class="kd-kv">
+                <span>Durum</span><strong class="kd-gelen">Bağlı</strong>
+                @if (Sync.AccountEmail != null)
+                {
+                    <span>Hesap</span><strong>@Sync.AccountEmail</strong>
+                }
+                @if (Store.Meta?.LastCheckedAt is { } checkedAt)
+                {
+                    <span>Son kontrol</span><strong>@Fmt.Ago(checkedAt)</strong>
+                }
+            </div>
+            <p class="kd-fineprint">Uygulama her açıldığında ve uygulamaya döndüğünüzde yeni yedek var mı otomatik bakar.</p>
+            <div class="kd-actions">
+                <button class="kd-btn kd-btn-primary" disabled="@Sync.IsBusy" @onclick="Refresh"><Icon Name="refresh" /><span>Şimdi yenile</span></button>
+                <button class="kd-btn kd-btn-ghost" disabled="@Sync.IsBusy" @onclick="Disconnect"><Icon Name="logout" /><span>Bağlantıyı kes</span></button>
+            </div>
+        }
+        else
+        {
+            <p class="kd-text">
+                Bilgisayardaki Kuyumcu Defteri'nin Drive'a aldığı son yedeği otomatik indirmek için,
+                bilgisayarda bağlı olan Google hesabıyla bağlanın.
+            </p>
+            <button class="kd-btn kd-btn-primary kd-btn-block" disabled="@Sync.IsBusy" @onclick="Connect">
+                <Icon Name="cloud" /><span>Google hesabıyla bağlan</span>
+            </button>
+        }
+    </div>
+
+    @* ---------- Telefondaki yedek ---------- *@
+    <h2 class="kd-section">Telefondaki yedek</h2>
+    <div class="kd-card kd-card-pad">
+        @if (Store.Meta is { } meta && Store.Snapshot is { } data)
+        {
+            <div class="kd-kv">
+                <span>Kaynak</span><strong>@(meta.IsFromDrive ? "Google Drive (otomatik)" : meta.IsDemo ? "Örnek veriler" : "Dosyadan açıldı")</strong>
+                @if (!meta.IsDemo && meta.BackupTime is { } backupTime)
+                {
+                    <span>Bilgisayardaki yedek</span><strong>@Fmt.LongDateTime(backupTime)</strong>
+                }
+                <span>Telefona alındı</span><strong>@Fmt.LongDateTime(meta.DownloadedAt)</strong>
+                <span>İçerik</span><strong>@data.Customers.Count müşteri · @data.Transactions.Count işlem</strong>
+                <span>Boyut</span><strong>@Fmt.Size(meta.Size)</strong>
+            </div>
+        }
+        else
+        {
+            <p class="kd-text">Telefonda henüz yedek yok.</p>
+        }
+        <div class="kd-actions">
+            <button class="kd-btn kd-btn-ghost" disabled="@Sync.IsBusy" @onclick="OpenFile"><Icon Name="folder" /><span>Dosyadan aç</span></button>
+            @if (Store.Meta != null)
+            {
+                <button class="kd-btn kd-btn-ghost danger" disabled="@Sync.IsBusy" @onclick="DeleteLocal"><Icon Name="delete" /><span>Telefondan sil</span></button>
+            }
+        </div>
+        <p class="kd-fineprint">
+            Drive'a bağlanamıyorsanız: bilgisayardaki yedek dosyasını (.db3) telefona gönderip buradan açabilirsiniz.
+            Dosyadan açılan yedek otomatik güncellenmez.
+        </p>
+    </div>
+
+    @* ---------- Hakkında ---------- *@
+    <h2 class="kd-section">Hakkında</h2>
+    <div class="kd-card kd-card-pad">
+        <div class="kd-kv">
+            <span>Uygulama</span><strong>Kuyumcu Defteri @AppInfo.Current.VersionString</strong>
+            <span>Mod</span><strong>Salt okunur</strong>
+        </div>
+        <div class="kd-privacy">
+            <Icon Name="shield" />
+            <p>
+                Verileriniz sizin Google Drive'ınızdan doğrudan bu telefona iner; başka bir sunucuya gönderilmez.
+                Uygulama Drive'da yalnızca Kuyumcu Defteri'nin oluşturduğu dosyaları görebilir.
+                Telefondaki kopya uygulamanın özel alanında durur ve uygulama silinince silinir.
+            </p>
+        </div>
+    </div>
+</div>
+
+@code {
+    [CascadingParameter(Name = "DataVersion")] public int DataVersion { get; set; }
+
+    private async Task Connect()
+    {
+        var result = await Sync.ConnectAsync();
+        if (result.Outcome == SyncOutcome.Updated)
+            NativeDialogs.Toast("Bağlandı, son yedek indirildi");
+    }
+
+    private async Task Refresh()
+    {
+        var result = await Sync.RefreshAsync(interactive: true);
+        if (result.Outcome == SyncOutcome.Updated)
+            NativeDialogs.Toast("Yeni yedek indirildi");
+        else if (result.Outcome == SyncOutcome.UpToDate)
+            NativeDialogs.Toast("Yedek güncel");
+    }
+
+    private async Task Disconnect()
+    {
+        if (await NativeDialogs.ConfirmAsync("Bağlantıyı kes",
+                "Telefon Drive'dan yeni yedek almayı bırakır ve Google izni geri alınır. Telefondaki son yedek silinmez.",
+                "Bağlantıyı kes"))
+            await Sync.DisconnectAsync();
+    }
+
+    private async Task OpenFile()
+    {
+        var result = await Sync.ImportFromFileAsync();
+        if (result.Outcome == SyncOutcome.Updated)
+            NativeDialogs.Toast("Yedek açıldı");
+    }
+
+    private async Task DeleteLocal()
+    {
+        if (await NativeDialogs.ConfirmAsync("Telefondan sil",
+                "Telefondaki yedek kopyası silinir. Bilgisayardaki ve Drive'daki veriler etkilenmez.", "Sil"))
+            await Store.ClearAsync();
+    }
+}

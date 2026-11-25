@@ -1,0 +1,24 @@
+@* Müşteri baş harfleri; ton isimden türetilir ki liste taranırken kişiler ayırt edilsin *@
+<span class="kd-avatar @(Large ? "lg" : "")" style="--hue:@Hue">@Initials</span>
+
+@code {
+    [Parameter] public string? Name { get; set; }
+    [Parameter] public bool Large { get; set; }
+
+    private static readonly CultureInfo Tr = new("tr-TR");
+
+    private string Initials
+    {
+        get
+        {
+            var parts = (Name ?? "?").Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length == 0) return "?";
+            var first = parts[0][0].ToString();
+            var last = parts.Length > 1 ? parts[^1][0].ToString() : string.Empty;
+            return (first + last).ToUpper(Tr);
+        }
+    }
+
+    // Altın/kahve aralığında sıcak tonlar (20-50 derece)
+    private int Hue => 20 + (int)((uint)(Name ?? "").Aggregate(17, (h, c) => unchecked(h * 31 + c)) % 30);
+}

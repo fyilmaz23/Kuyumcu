@@ -44,9 +44,10 @@ namespace Kuyumcu.Services
         private const string BackupMimeType = "application/octet-stream";
 
         // Drive dosyalarını ayırt etmek için uygulama özelliği (ada bakmadan, güvenle)
-        private const string KindProperty = "kuyumcuKind";
-        private const string KindSnapshot = "snapshot";
-        private const string KindLatest = "latest";
+        // (Değerler ProductInfo'da: Android uygulaması aynı işaretle arar.)
+        private const string KindProperty = ProductInfo.DriveKindProperty;
+        private const string KindSnapshot = ProductInfo.DriveKindSnapshot;
+        private const string KindLatest = ProductInfo.DriveKindLatest;
 
         private readonly DatabaseService _databaseService;
         private readonly IAppEnvironment _environment;

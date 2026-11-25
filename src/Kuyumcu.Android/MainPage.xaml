@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:components="clr-namespace:Kuyumcu.Droid.Components"
+             x:Class="Kuyumcu.Droid.MainPage"
+             BackgroundColor="#1F1A14"
+             SafeAreaEdges="Container">
+    <!-- Android 15+ uygulamayı kenardan kenara çizer: WebView sistem çubuklarının altına girmesin.
+         Çubukların arkası sayfa rengiyle (antrasit) dolar. -->
+
+    <BlazorWebView x:Name="blazorWebView" HostPage="wwwroot/index.html">
+        <BlazorWebView.RootComponents>
+            <RootComponent Selector="#app" ComponentType="{x:Type components:Routes}" />
+        </BlazorWebView.RootComponents>
+    </BlazorWebView>
+
+</ContentPage>

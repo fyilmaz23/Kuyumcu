@@ -1,0 +1,16 @@
+<div class="kd-empty">
+    <div class="kd-empty-icon"><Icon Name="@Icon" /></div>
+    <div class="kd-empty-title">@Title</div>
+    @if (!string.IsNullOrEmpty(Text))
+    {
+        <div class="kd-empty-text">@Text</div>
+    }
+    @ChildContent
+</div>
+
+@code {
+    [Parameter] public string Icon { get; set; } = "info";
+    [Parameter] public string Title { get; set; } = "";
+    [Parameter] public string? Text { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

@@ -1,0 +1,81 @@
+@* Telefondaki verinin ne zamana ait olduğu + Yenile. Her ekranda aynı dili konuşur: "Bilgisayardaki yedek: ..." *@
+@inject BackupStore Store
+@inject BackupSyncService Sync
+
+@{
+    var meta = Store.Meta;
+    var result = Sync.LastResult;
+}
+<div class="kd-sync @(Compact ? "compact" : "") @StateClass(result)">
+    <div class="kd-sync-icon"><Icon Name="@IconFor(result)" /></div>
+    <div class="kd-sync-body">
+        @if (meta?.IsDemo == true)
+        {
+            <div class="kd-sync-title"><strong>Örnek veriler</strong> gösteriliyor</div>
+            <div class="kd-sync-sub">Kendi defterinizi görmek için Yedek sekmesinden Google hesabınızla bağlanın.</div>
+        }
+        else if (meta?.BackupTime is { } backupTime)
+        {
+            <div class="kd-sync-title">Bilgisayardaki yedek: <strong>@Fmt.Ago(backupTime)</strong></div>
+            <div class="kd-sync-sub">@Fmt.LongDateTime(backupTime)@(meta.IsFromDrive ? "" : " · dosyadan açıldı")</div>
+        }
+        else if (meta != null)
+        {
+            <div class="kd-sync-title">Yedek dosyası: <strong>@meta.FileName</strong></div>
+            <div class="kd-sync-sub">Telefona alındı: @Fmt.LongDateTime(meta.DownloadedAt)</div>
+        }
+        else
+        {
+            <div class="kd-sync-title">Telefonda yedek yok</div>
+        }
+
+        @if (Sync.IsBusy)
+        {
+            <div class="kd-sync-msg">Drive kontrol ediliyor…</div>
+        }
+        else if (result != null && result.Outcome != SyncOutcome.Updated)
+        {
+            <div class="kd-sync-msg">@result.Message</div>
+        }
+        else if (!Compact && meta?.LastCheckedAt is { } checkedAt)
+        {
+            <div class="kd-sync-msg">Son kontrol: @Fmt.Ago(checkedAt)</div>
+        }
+    </div>
+    @if (Sync.IsConnected || meta?.IsFromDrive == true)
+    {
+        <button class="kd-icon-btn kd-sync-refresh @(Sync.IsBusy ? "spinning" : "")" aria-label="Yenile" disabled="@Sync.IsBusy" @onclick="Refresh">
+            <Icon Name="refresh" />
+        </button>
+    }
+</div>
+
+@code {
+    [CascadingParameter(Name = "DataVersion")] public int DataVersion { get; set; }
+
+    /// <summary>Özet ekranındaki kısa görünüm.</summary>
+    [Parameter] public bool Compact { get; set; }
+
+    private async Task Refresh()
+    {
+        var result = await Sync.RefreshAsync(interactive: true);
+        if (result.Outcome == SyncOutcome.Updated)
+            NativeDialogs.Toast("Yeni yedek indirildi");
+        else if (result.Outcome == SyncOutcome.UpToDate)
+            NativeDialogs.Toast("Yedek güncel");
+    }
+
+    private string StateClass(SyncResult? r) => Store.Meta?.IsDemo == true ? "is-offline" : r?.Outcome switch
+    {
+        SyncOutcome.Offline => "is-offline",
+        SyncOutcome.Failed or SyncOutcome.NoBackupOnDrive or SyncOutcome.NeedsConnection => "is-error",
+        _ => "",
+    };
+
+    private static string IconFor(SyncResult? r) => r?.Outcome switch
+    {
+        SyncOutcome.Offline => "cloud-off",
+        SyncOutcome.Failed or SyncOutcome.NoBackupOnDrive or SyncOutcome.NeedsConnection => "warning",
+        _ => "cloud-done",
+    };
+}

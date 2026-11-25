@@ -1,0 +1,36 @@
+@* Üst çubuk (antrasit). Geri düğmesi, başlık ve sağda işlemler. *@
+<header class="kd-topbar">
+    @if (BackHref != null)
+    {
+        <button class="kd-icon-btn" aria-label="Geri" @onclick="GoBack"><Icon Name="back" /></button>
+    }
+    <div class="kd-topbar-title">
+        <div class="kd-topbar-main">@Title</div>
+        @if (!string.IsNullOrEmpty(Subtitle))
+        {
+            <div class="kd-topbar-sub">@Subtitle</div>
+        }
+    </div>
+    @ChildContent
+</header>
+
+@code {
+    [Parameter] public string Title { get; set; } = "";
+    [Parameter] public string? Subtitle { get; set; }
+
+    /// <summary>Doluysa geri düğmesi gösterilir; uygulama içi geçmiş yoksa bu adrese gidilir.</summary>
+    [Parameter] public string? BackHref { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    [Inject] private NavigationManager Nav { get; set; } = default!;
+    [Inject] private IJSRuntime JS { get; set; } = default!;
+
+    private async Task GoBack()
+    {
+        // Uygulama içinden gelindiyse geçmişle geri dön (liste konumu ve arama korunur)
+        if (await JS.InvokeAsync<bool>("kd.canGoBack"))
+            await JS.InvokeVoidAsync("history.back");
+        else
+            Nav.NavigateTo(BackHref ?? "/");
+    }
+}

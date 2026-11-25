@@ -1,0 +1,55 @@
+@inherits LayoutComponentBase
+@implements IDisposable
+@inject BackupStore Store
+@inject BackupSyncService Sync
+
+<div class="kd-shell">
+    @if (!_loaded)
+    {
+        <div class="kd-splash"><div class="kd-splash-mark"></div></div>
+    }
+    else
+    {
+        <CascadingValue Value="_version" Name="DataVersion">
+            <main class="kd-main">@Body</main>
+        </CascadingValue>
+
+        @if (Store.HasData)
+        {
+            <nav class="kd-bottomnav" aria-label="Ana gezinme">
+                <NavLink class="kd-navitem" href="" Match="NavLinkMatch.All"><Icon Name="home" /><span>Özet</span></NavLink>
+                <NavLink class="kd-navitem" href="musteriler" Match="NavLinkMatch.Prefix"><Icon Name="people" /><span>Müşteriler</span></NavLink>
+                <NavLink class="kd-navitem" href="fiyatlar"><Icon Name="diamond" /><span>Fiyatlar</span></NavLink>
+                <NavLink class="@(Sync.LastResult?.IsError == true ? "kd-navitem has-alert" : "kd-navitem")" href="yedek"><Icon Name="cloud" /><span>Yedek</span></NavLink>
+            </nav>
+        }
+    }
+</div>
+
+@code {
+    private bool _loaded;
+    private int _version;
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        Store.Changed += OnDataChanged;
+        Sync.Changed += OnDataChanged;
+
+        await Store.EnsureLoadedAsync();
+        _loaded = true;
+    }
+
+    private void OnDataChanged() => InvokeAsync(() =>
+    {
+        _version++;
+        StateHasChanged();
+    });
+
+
+    public void Dispose()
+    {
+        Store.Changed -= OnDataChanged;
+        Sync.Changed -= OnDataChanged;
+    }
+}

@@ -1,0 +1,61 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+  <!--
+    Kuyumcu Defteri - Android (salt okunur).
+    Bilgisayardaki uygulamanın Google Drive'a yüklediği son yedeği kendisi indirir ve gösterir; veri girişi yoktur.
+    .NET MAUI + BlazorWebView. Arayüz telefona özel yazılmıştır (Components/), iş kuralları Kuyumcu.Core'dadır.
+    Google Play'e imzalı AAB olarak gönderilir (bkz. docs/YAYIN.md, .github/workflows/release.yml).
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0-android</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <!-- "Kuyumcu.Android" ad alanı Android.* ad alanlarını gölgeleyeceği için kök ad alanı Kuyumcu.Droid -->
+    <RootNamespace>Kuyumcu.Droid</RootNamespace>
+    <AssemblyName>KuyumcuDefteri</AssemblyName>
+    <UseMaui>true</UseMaui>
+    <SingleProject>true</SingleProject>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <EnableDefaultCssItems>false</EnableDefaultCssItems>
+
+    <!-- Uygulama adı ve kimliği. DİKKAT: ApplicationId Google Play'e ilk yüklemeden sonra DEĞİŞTİRİLEMEZ. -->
+    <ApplicationTitle>Kuyumcu Defteri</ApplicationTitle>
+    <ApplicationId>com.kuyumcudefteri.app</ApplicationId>
+
+    <!-- Sürüm: CI, etiketten (v2.1.0) ve çalıştırma numarasından doldurur -->
+    <ApplicationDisplayVersion>2.0.0</ApplicationDisplayVersion>
+    <ApplicationVersion>1</ApplicationVersion>
+
+    <!-- En düşük Android 7.0; hedef API 36 (Google Play şartı). -->
+    <SupportedOSPlatformVersion>24.0</SupportedOSPlatformVersion>
+    <TargetSdkVersion>36</TargetSdkVersion>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <!-- Google Play AAB ister -->
+    <AndroidPackageFormat>aab</AndroidPackageFormat>
+    <AndroidLinkTool>r8</AndroidLinkTool>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <MauiIcon Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\appiconfg.svg" Color="#1F1A14" />
+    <MauiSplashScreen Include="Resources\Splash\splash.svg" Color="#1F1A14" BaseSize="128,128" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Maui.Controls" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebView.Maui" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Debug" />
+    <!-- Google Identity Services: Authorization API (Drive "drive.file" izni ve erişim belirteci) -->
+    <PackageReference Include="Xamarin.GooglePlayServices.Auth" />
+    <!-- AndroidX hizalaması (bkz. Directory.Packages.props) -->
+    <PackageReference Include="Xamarin.AndroidX.Fragment.Ktx" />
+    <PackageReference Include="Xamarin.AndroidX.Collection.Ktx" />
+    <PackageReference Include="Xamarin.AndroidX.Lifecycle.LiveData" />
+    <PackageReference Include="Xamarin.AndroidX.Lifecycle.LiveData.Core.Ktx" />
+    <PackageReference Include="Xamarin.AndroidX.Lifecycle.Process" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Kuyumcu.Core\Kuyumcu.Core.csproj" />
+  </ItemGroup>
+</Project>

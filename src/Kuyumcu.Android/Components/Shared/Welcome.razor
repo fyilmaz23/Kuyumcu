@@ -1,0 +1,60 @@
+@* İlk açılış: telefonda henüz yedek yok. *@
+@inject BackupSyncService Sync
+@inject BackupStore Store
+
+<div class="kd-welcome">
+    <div class="kd-welcome-hero">
+        <div class="kd-brand-mark"></div>
+        <h1>Kuyumcu Defteri</h1>
+        <p>Bilgisayardaki defterinizi telefondan görüntüleyin. Telefonda kayıt eklenmez ve değiştirilmez.</p>
+    </div>
+
+    <div class="kd-welcome-body">
+        <ol class="kd-steps">
+            <li><strong>Bilgisayarda</strong> Kuyumcu Defteri'nde <em>Ayarlar › Google Drive Yedekleme</em> bölümünden Google hesabınızı bağlayın.</li>
+            <li><strong>Bu telefonda</strong> aynı Google hesabıyla bağlanın. Son yedek otomatik indirilir.</li>
+        </ol>
+
+        @if (Sync.LastResult is { } result && result.Outcome != SyncOutcome.Updated)
+        {
+            <div class="kd-alert @(result.Outcome == SyncOutcome.Cancelled ? "" : "is-error")">
+                <Icon Name="@(result.Outcome == SyncOutcome.Offline ? "cloud-off" : "warning")" />
+                <span>@result.Message</span>
+            </div>
+        }
+        @if (Store.LoadError != null)
+        {
+            <div class="kd-alert is-error"><Icon Name="warning" /><span>Telefondaki yedek okunamadı: @Store.LoadError</span></div>
+        }
+
+        <button class="kd-btn kd-btn-primary kd-btn-block" disabled="@Sync.IsBusy" @onclick="Connect">
+            @if (Sync.IsBusy)
+            {
+                <span class="kd-spinner"></span><span>Yedek indiriliyor…</span>
+            }
+            else
+            {
+                <Icon Name="cloud" /><span>Google hesabıyla bağlan</span>
+            }
+        </button>
+        <button class="kd-btn kd-btn-ghost kd-btn-block" disabled="@Sync.IsBusy" @onclick="OpenFile">
+            <Icon Name="folder" /><span>Yedek dosyasını seç</span>
+        </button>
+        <button class="kd-btn kd-btn-text kd-btn-block" disabled="@Sync.IsBusy" @onclick="OpenDemo">
+            <span>Örnek verilerle dene</span>
+        </button>
+        <p class="kd-fineprint">
+            Uygulama Drive'ınızda yalnızca Kuyumcu Defteri'nin oluşturduğu yedek dosyalarını görebilir; diğer dosyalarınıza erişemez.
+        </p>
+    </div>
+</div>
+
+@code {
+    [CascadingParameter(Name = "DataVersion")] public int DataVersion { get; set; }
+
+    private Task Connect() => Sync.ConnectAsync();
+
+    private Task OpenFile() => Sync.ImportFromFileAsync();
+
+    private Task OpenDemo() => Sync.LoadDemoAsync();
+}

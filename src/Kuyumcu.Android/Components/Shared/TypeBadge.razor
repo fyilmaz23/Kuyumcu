@@ -1,0 +1,18 @@
+@* İşlem türü rozeti: Giden / Gelen / Emanet *@
+@if (IsDeposit)
+{
+    <span class="kd-badge emanet"><Icon Name="lock" />Emanet</span>
+}
+else if (Type == TransactionType.CustomerDebt)
+{
+    <span class="kd-badge giden"><Icon Name="giden" />Giden</span>
+}
+else
+{
+    <span class="kd-badge gelen"><Icon Name="gelen" />Gelen</span>
+}
+
+@code {
+    [Parameter] public TransactionType Type { get; set; }
+    [Parameter] public bool IsDeposit { get; set; }
+}
