@@ -13,7 +13,6 @@ public sealed class AndroidAppEnvironment : IAppEnvironment
     // Görseller paylaşım menüsüyle gönderildiği için önbellek klasörü yeterlidir
     public string PicturesDirectory => FileSystem.CacheDirectory;
 
-    public bool IsReadOnlyClient => true;
     public bool IsMobile => true;
 
     public string GetDeviceFingerprint() =>

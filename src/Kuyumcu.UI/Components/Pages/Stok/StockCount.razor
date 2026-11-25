@@ -7,7 +7,6 @@
 @inject ISnackbar Snackbar
 @inject NavigationManager Nav
 @inject IJSRuntime JS
-@inject IAppEnvironment AppEnvironment
 
 <div class="kd-page">
     @if (lookup == null)
@@ -18,27 +17,24 @@
     {
         @* ───── Sayım başlat + geçmiş ───── *@
         <PageHeader Title="Sayım" Subtitle="Vitrini okutun; sayım bitince eksik ve fazla ürünler listelenir. Eksik ürünü kayıp yapmak ayrı bir adımdır." />
-        @if (!AppEnvironment.IsReadOnlyClient)
-        {
-            <div class="kd-card kd-card-pad" style="max-width:640px">
-                <MudText Typo="Typo.subtitle1" Class="kd-strong mb-3">Yeni sayım</MudText>
-                <MudGrid Spacing="2">
-                    <MudItem xs="12" sm="6">
-                        <MudSelect T="int" @bind-Value="newLocationId" Label="Ne sayılacak?" Variant="Variant.Outlined" Margin="Margin.Dense">
-                            <MudSelectItem Value="0">Tüm vitrin stoğu</MudSelectItem>
-                            @foreach (var l in lookup.Locations)
-                            {
-                                <MudSelectItem Value="l.Id">@l.Name</MudSelectItem>
-                            }
-                        </MudSelect>
-                    </MudItem>
-                    <MudItem xs="12" sm="6">
-                        <MudTextField @bind-Value="newNote" Label="Not (isteğe bağlı)" Variant="Variant.Outlined" Margin="Margin.Dense" MaxLength="200" />
-                    </MudItem>
-                </MudGrid>
-                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.PlayArrow" Class="mt-3" OnClick="Start">Sayımı başlat</MudButton>
-            </div>
-        }
+        <div class="kd-card kd-card-pad" style="max-width:640px">
+            <MudText Typo="Typo.subtitle1" Class="kd-strong mb-3">Yeni sayım</MudText>
+            <MudGrid Spacing="2">
+                <MudItem xs="12" sm="6">
+                    <MudSelect T="int" @bind-Value="newLocationId" Label="Ne sayılacak?" Variant="Variant.Outlined" Margin="Margin.Dense">
+                        <MudSelectItem Value="0">Tüm vitrin stoğu</MudSelectItem>
+                        @foreach (var l in lookup.Locations)
+                        {
+                            <MudSelectItem Value="l.Id">@l.Name</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudTextField @bind-Value="newNote" Label="Not (isteğe bağlı)" Variant="Variant.Outlined" Margin="Margin.Dense" MaxLength="200" />
+                </MudItem>
+            </MudGrid>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.PlayArrow" Class="mt-3" OnClick="Start">Sayımı başlat</MudButton>
+        </div>
 
         <div class="kd-section-title"><MudText Typo="Typo.h6">Geçmiş sayımlar</MudText></div>
         <div class="kd-card">
@@ -169,7 +165,7 @@
                     <MudText Typo="Typo.h6">Eksik çıkanlar</MudText>
                     <MudText Typo="Typo.caption" Class="kd-muted">Sayımda okutulmadı. Bulunamazsa seçip kayıp olarak işaretleyin; bu işlem otomatik yapılmaz.</MudText>
                 </div>
-                @if (!AppEnvironment.IsReadOnlyClient && OpenMissing.Any())
+                @if (OpenMissing.Any())
                 {
                     <MudButton Variant="Variant.Filled" Color="Color.Error" StartIcon="@Icons.Material.Filled.ReportProblem"
                                Disabled="@(!selectedMissing.Any())" OnClick="MarkLost">
@@ -185,7 +181,7 @@
                     var open = IsOpenMissing(l);
                     <div class="kd-list-row kd-spread">
                         <div class="d-flex align-center gap-2" style="min-width:0">
-                            @if (open && !AppEnvironment.IsReadOnlyClient)
+                            @if (open)
                             {
                                 <MudCheckBox T="bool" Value="selectedMissing.Contains(l.Id)" ValueChanged="@(v => ToggleMissing(l.Id, v))" Color="Color.Error" Dense="true" />
                             }
@@ -231,7 +227,7 @@
                             <span class="kd-muted">@(item != null ? $"{lookup.Title(item)} · {WeightFormat.Gram(item.WeightMg)} gr" : "Kayıtlı değil")</span>
                         </div>
                         <div class="d-flex align-center gap-2">
-                            @if (!AppEnvironment.IsReadOnlyClient && !l.IsResolved && CanResolve(l, item))
+                            @if (!l.IsResolved && CanResolve(l, item))
                             {
                                 <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary" OnClick="@(() => Resolve(l))">
                                     @(l.Result == StockCountResult.OtherLocation ? "Konumu buraya taşı" : "Vitrine geri al")

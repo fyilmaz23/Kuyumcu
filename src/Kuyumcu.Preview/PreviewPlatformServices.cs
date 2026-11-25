@@ -15,7 +15,6 @@ public sealed class PreviewAppEnvironment : IAppEnvironment
     public string BackupDirectory => Path.Combine(AppDataDirectory, "Backups");
     public string CacheDirectory => Directory.CreateDirectory(Path.Combine(AppDataDirectory, "cache")).FullName;
     public string PicturesDirectory => CacheDirectory;
-    public bool IsReadOnlyClient => false;
     public bool IsMobile => false;
     public string GetDeviceFingerprint() => "preview-" + Environment.MachineName;
 }

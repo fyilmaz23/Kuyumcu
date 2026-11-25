@@ -5,15 +5,11 @@
 @inject IDialogService Dialogs
 @inject ISnackbar Snackbar
 @inject IJSRuntime JS
-@inject IAppEnvironment AppEnvironment
 
 <div class="kd-page" style="max-width: 980px">
     <PageHeader Title="Okut / Satış" Subtitle="Etiketi okutun: ürün bilgisi gelir. Satış, iade ve kayıp işlemleri buradan yapılır.">
         <Actions>
-            @if (!AppEnvironment.IsReadOnlyClient)
-            {
-                <MudSwitch T="bool" @bind-Value="autoSell" Color="Color.Primary" Label="Okutunca satış penceresini aç" />
-            }
+            <MudSwitch T="bool" @bind-Value="autoSell" Color="Color.Primary" Label="Okutunca satış penceresini aç" />
         </Actions>
     </PageHeader>
 
@@ -48,7 +44,7 @@
             {
                 <MudAlert Severity="result.Severity" Dense="true" Class="mt-3">@result.Message</MudAlert>
             }
-            @if (result.Item is { IsDeleted: false } item && !AppEnvironment.IsReadOnlyClient)
+            @if (result.Item is { IsDeleted: false } item)
             {
                 <div class="d-flex gap-2 mt-3 flex-wrap">
                     @if (item.Status == StockItemStatus.InStock)

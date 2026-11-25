@@ -24,7 +24,6 @@ public sealed class WindowsAppEnvironment : IAppEnvironment
     public string BackupDirectory { get; }
     public string CacheDirectory { get; }
     public string PicturesDirectory => Environment.GetFolderPath(Environment.SpecialFolder.MyPictures);
-    public bool IsReadOnlyClient => false;
     public bool IsMobile => false;
 
     public string GetDeviceFingerprint()

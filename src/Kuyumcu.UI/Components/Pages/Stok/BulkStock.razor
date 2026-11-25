@@ -3,7 +3,6 @@
 @inject StockService Stock
 @inject IDialogService Dialogs
 @inject ISnackbar Snackbar
-@inject IAppEnvironment AppEnvironment
 
 <div class="kd-page">
     <PageHeader Title="Kasa" Subtitle="Etiketlenmeyen, birbirinin aynısı mallar: çeyrek, yarım, tam, gram altın… Adet ya da gramla tutulur.">
@@ -45,12 +44,9 @@
                         <div class="kd-muted kd-num" style="font-size:.8rem">@WeightFormat.Gram2(r.WeightMg) gr · has @WeightFormat.Gram2(r.HasMg) gr</div>
                     </div>
                     <div class="d-flex gap-1 align-center">
-                        @if (!AppEnvironment.IsReadOnlyClient)
-                        {
-                            <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Success" OnClick="@(() => Move(p, StockMovementType.BulkIn))">Giriş</MudButton>
-                            <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Error" OnClick="@(() => Move(p, StockMovementType.BulkOut))">Çıkış</MudButton>
-                            <MudButton Size="Size.Small" Variant="Variant.Text" OnClick="@(() => Move(p, StockMovementType.BulkAdjust))">Sayım</MudButton>
-                        }
+                        <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Success" OnClick="@(() => Move(p, StockMovementType.BulkIn))">Giriş</MudButton>
+                        <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Error" OnClick="@(() => Move(p, StockMovementType.BulkOut))">Çıkış</MudButton>
+                        <MudButton Size="Size.Small" Variant="Variant.Text" OnClick="@(() => Move(p, StockMovementType.BulkAdjust))">Sayım</MudButton>
                         <MudIconButton Icon="@(expanded == p.Id ? Icons.Material.Filled.ExpandLess : Icons.Material.Filled.History)" Size="Size.Small"
                                        OnClick="@(() => ToggleHistory(p.Id))" aria-label="Hareketler" />
                     </div>

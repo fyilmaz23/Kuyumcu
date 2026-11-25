@@ -21,11 +21,6 @@ public interface IAppEnvironment
     /// <summary>Kullanıcının resimler klasörü (dışa aktarılan görseller için).</summary>
     string PicturesDirectory { get; }
 
-    /// <summary>
-    /// Salt okunur istemci mi? (Android: sadece görüntüleme, veri girişi yok.)
-    /// </summary>
-    bool IsReadOnlyClient { get; }
-
     /// <summary>Mobil cihaz mı? (Font ve yerleşim seçimleri için.)</summary>
     bool IsMobile { get; }
 

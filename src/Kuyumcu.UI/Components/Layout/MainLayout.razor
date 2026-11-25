@@ -1,11 +1,10 @@
-@inherits LayoutComponentBase
+﻿@inherits LayoutComponentBase
 @implements IDisposable
 @inject DatabaseService DatabaseService
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
 @inject LicenseService LicenseService
 @inject NavigationManager NavigationManager
-@inject IAppEnvironment AppEnvironment
 @inject IJSRuntime JS
 @inject AppState AppState
 @inject ShortcutService Shortcuts
@@ -16,98 +15,84 @@
 <MudSnackbarProvider />
 
 <MudLayout>
-    @if (AppEnvironment.IsReadOnlyClient)
-    {
-        @* Mobil (salt okunur): sade üst bar *@
-        <MudAppBar Elevation="0" Class="kd-appbar" Dense="true">
+    @* Masaüstü: tek satır üst menü. Sayfalar ikonla gösterilir, başlıkları üzerine gelince çıkar;
+       sol menü yok, içerik ekranın tamamını kullanır. *@
+    <MudAppBar Elevation="0" Class="kd-appbar kd-topbar">
+        <a href="/" class="kd-topbar-brand" title="@businessName">
             <BrandLogo Class="kd-brand-logo" />
-            <MudText Typo="Typo.subtitle1" Class="ml-3">@ProductInfo.Name</MudText>
-        </MudAppBar>
-        <MudMainContent>
-            @Body
-        </MudMainContent>
-    }
-    else
-    {
-        @* Masaüstü: tek satır üst menü. Sayfalar ikonla gösterilir, başlıkları üzerine gelince çıkar;
-           sol menü yok, içerik ekranın tamamını kullanır. *@
-        <MudAppBar Elevation="0" Class="kd-appbar kd-topbar">
-            <a href="/" class="kd-topbar-brand" title="@businessName">
-                <BrandLogo Class="kd-brand-logo" />
-                <span class="kd-brand-name">@businessName</span>
-            </a>
+            <span class="kd-brand-name">@businessName</span>
+        </a>
 
-            <nav class="kd-topnav" aria-label="Ana menü">
-                @foreach (var item in MainNavItems)
-                {
-                    @NavItem(item)
-                }
-            </nav>
+        <nav class="kd-topnav" aria-label="Ana menü">
+            @foreach (var item in MainNavItems)
+            {
+                @NavItem(item)
+            }
+        </nav>
 
-            <div class="kd-search" id="global-search">
-                <MudAutocomplete @ref="searchAutocomplete" T="Customer" Placeholder="Müşteri ara…  (Ctrl+K)"
-                                 Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true"
-                                 SearchFunc="SearchCustomers" ToStringFunc="@(c => c?.Name)"
-                                 ValueChanged="OnCustomerSelected" Clearable="true" MaxItems="10" MinCharacters="1"
-                                 AdornmentIcon="@Icons.Material.Filled.Search" Adornment="Adornment.Start"
-                                 ShowProgressIndicator="false">
-                    <ItemTemplate Context="c">
-                        <div class="d-flex align-center gap-3">
-                            <Avatar Name="@c.Name" />
-                            <div>
-                                <div>@c.Name</div>
-                                <div class="kd-muted" style="font-size:.75rem">@c.PhoneNumber.FormatPhoneNumber()</div>
-                            </div>
+        <div class="kd-search" id="global-search">
+            <MudAutocomplete @ref="searchAutocomplete" T="Customer" Placeholder="Müşteri ara…  (Ctrl+K)"
+                             Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true"
+                             SearchFunc="SearchCustomers" ToStringFunc="@(c => c?.Name)"
+                             ValueChanged="OnCustomerSelected" Clearable="true" MaxItems="10" MinCharacters="1"
+                             AdornmentIcon="@Icons.Material.Filled.Search" Adornment="Adornment.Start"
+                             ShowProgressIndicator="false">
+                <ItemTemplate Context="c">
+                    <div class="d-flex align-center gap-3">
+                        <Avatar Name="@c.Name" />
+                        <div>
+                            <div>@c.Name</div>
+                            <div class="kd-muted" style="font-size:.75rem">@c.PhoneNumber.FormatPhoneNumber()</div>
                         </div>
-                    </ItemTemplate>
-                    <NoItemsTemplate>
-                        <div class="pa-3 kd-muted">Müşteri bulunamadı.</div>
-                    </NoItemsTemplate>
-                </MudAutocomplete>
-            </div>
+                    </div>
+                </ItemTemplate>
+                <NoItemsTemplate>
+                    <div class="pa-3 kd-muted">Müşteri bulunamadı.</div>
+                </NoItemsTemplate>
+            </MudAutocomplete>
+        </div>
 
-            <MudSpacer />
+        <MudSpacer />
 
-            <div class="kd-topbar-actions">
-                @if (licenseState?.Status == LicenseStatus.Trial)
-                {
-                    <MudTooltip Text="Deneme sürümü — lisans için Ayarlar" Placement="Placement.Bottom">
-                        <a class="kd-trial @(licenseState.RemainingTrialDays <= 7 ? "is-urgent" : null)" href="/settings">
-                            <MudIcon Icon="@Icons.Material.Filled.HourglassTop" Size="Size.Small" />
-                            <span>@licenseState.RemainingTrialDays gün</span>
-                        </a>
-                    </MudTooltip>
-                }
-                else if (licenseState is { Status: LicenseStatus.Licensed, IsLicenseExpiringSoon: true })
-                {
-                    <MudTooltip Text="@($"Lisans {licenseState.LicenseExpiresOn:dd.MM.yyyy} tarihinde bitiyor — yenilemek için Ayarlar")" Placement="Placement.Bottom">
-                        <a class="kd-trial is-urgent" href="/settings">
-                            <MudIcon Icon="@Icons.Material.Filled.EventBusy" Size="Size.Small" />
-                            <span>Lisans: @licenseState.DaysUntilLicenseExpiry gün</span>
-                        </a>
-                    </MudTooltip>
-                }
-
-                <CloudBackupIndicator />
-
-                <MudTooltip Text="@(isDarkMode ? "Açık tema" : "Koyu tema")" Placement="Placement.Bottom">
-                    <MudIconButton Icon="@(isDarkMode ? Icons.Material.Outlined.LightMode : Icons.Material.Outlined.DarkMode)"
-                                   Class="kd-topbar-icon" OnClick="ToggleDarkMode" aria-label="Temayı değiştir" />
+        <div class="kd-topbar-actions">
+            @if (licenseState?.Status == LicenseStatus.Trial)
+            {
+                <MudTooltip Text="Deneme sürümü — lisans için Ayarlar" Placement="Placement.Bottom">
+                    <a class="kd-trial @(licenseState.RemainingTrialDays <= 7 ? "is-urgent" : null)" href="/settings">
+                        <MudIcon Icon="@Icons.Material.Filled.HourglassTop" Size="Size.Small" />
+                        <span>@licenseState.RemainingTrialDays gün</span>
+                    </a>
                 </MudTooltip>
+            }
+            else if (licenseState is { Status: LicenseStatus.Licensed, IsLicenseExpiringSoon: true })
+            {
+                <MudTooltip Text="@($"Lisans {licenseState.LicenseExpiresOn:dd.MM.yyyy} tarihinde bitiyor — yenilemek için Ayarlar")" Placement="Placement.Bottom">
+                    <a class="kd-trial is-urgent" href="/settings">
+                        <MudIcon Icon="@Icons.Material.Filled.EventBusy" Size="Size.Small" />
+                        <span>Lisans: @licenseState.DaysUntilLicenseExpiry gün</span>
+                    </a>
+                </MudTooltip>
+            }
 
-                @NavItem(SettingsNavItem)
+            <CloudBackupIndicator />
 
-                <MudButton Variant="Variant.Filled" Class="kd-new-customer ml-2"
-                           StartIcon="@Icons.Material.Filled.PersonAdd" OnClick="NewCustomer">
-                    Yeni Müşteri
-                </MudButton>
-            </div>
-        </MudAppBar>
+            <MudTooltip Text="@(isDarkMode ? "Açık tema" : "Koyu tema")" Placement="Placement.Bottom">
+                <MudIconButton Icon="@(isDarkMode ? Icons.Material.Outlined.LightMode : Icons.Material.Outlined.DarkMode)"
+                               Class="kd-topbar-icon" OnClick="ToggleDarkMode" aria-label="Temayı değiştir" />
+            </MudTooltip>
 
-        <MudMainContent>
-            @Body
-        </MudMainContent>
-    }
+            @NavItem(SettingsNavItem)
+
+            <MudButton Variant="Variant.Filled" Class="kd-new-customer ml-2"
+                       StartIcon="@Icons.Material.Filled.PersonAdd" OnClick="NewCustomer">
+                Yeni Müşteri
+            </MudButton>
+        </div>
+    </MudAppBar>
+
+    <MudMainContent>
+        @Body
+    </MudMainContent>
 </MudLayout>
 
 <MudScrollToTop>

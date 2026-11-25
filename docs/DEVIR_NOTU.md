@@ -176,8 +176,8 @@ Vitrin Stoku sayfasının üst düğmelerinde)
   açılınca ve pencere kapanınca alan seçilir. Okutma ekranlarında odak bir giriş alanında değilken gelen rakamlar
   okutma alanına yönlendirilir (pencere açıkken ya da başka alana yazılırken karışmaz). Global kısayollar (Ctrl+K,
   F2/F3) rakam ve Enter'a dokunmaz.
-- Android: eski `ImportData` → "Vitrin Stoku" sekmesi (`Shared/ImportedStockView.razor`). **Yeni Android uygulamasında
-  (bölüm 9) vitrin stoğu henüz yok**; `DatabaseImportService.GetImportedStockAsync` ile eklenebilir.
+- Android: eski `ImportData` sayfası ve `Shared/ImportedStockView.razor` bölüm 12'de kaldırıldı. **Yeni Android
+  uygulamasında (bölüm 9) vitrin stoğu yok**; eklenirse `Core/Services/BackupSnapshot` üzerinden okunmalı.
 
 ### Barkod/stok iş kuralları (korunmalı)
 - **Ürün kodu:** 12 hane, sadece rakam = "2" + 10 hane sıra + 1 GS1 mod-10 kontrol hanesi. Kodda gram/fiyat yok.
@@ -196,7 +196,7 @@ Vitrin Stoku sayfasının üst düğmelerinde)
   22 ayar karşılığı = net × (milyem + işçilik) / 22 ayar milyemi); defterin **mükerrer kontrolü ve onay penceresi**
   aynen uygulanır. İadede bu işlem isteğe bağlı silinir.
 - **Cihaza özel:** `LabelPrinterSettings` geri yüklemede bu bilgisayarınki korunur.
-- **Android:** stok sadece görüntülenir; etiket basma ve stok değiştirme yok (`IsReadOnlyClient`).
+- **Android:** salt okunur ayrı uygulama (bölüm 9); stokta etiket basma ve stok değiştirme yok.
 - **Lisans:** modül normal lisansın parçası; ayrı özellik bayrağı yok (imzalı lisans, bölüm 5;
   stok modülü `LicenseService`'e dokunmaz).
 
@@ -327,6 +327,14 @@ otomatik erişim (+ dosya seçici yedek yol).
   sanallaştırmasına girer; geliştirme sırasında çalıştırılan uygulamanın veri klasörü aslında
   `%LOCALAPPDATA%\Packages\Claude_…\LocalCache\Local\KuyumcuDefteri`. Gerçek `%LOCALAPPDATA%\KuyumcuDefteri` başka veri içerir.
 
+### 12. Eski mobil kodunun temizliği (25.11.2026)
+- `Kuyumcu.UI` artık sadece masaüstü ve önizlemede çalışıyor (yeni Android uygulaması UI kütüphanesini kullanmıyor).
+  Kaldırılanlar: `Pages/ImportData.razor` (`/import-data`), `Shared/ImportedStockView.razor`,
+  `Core/Services/DatabaseImportService.cs` (DI'a kayıtlı bile değildi), `IAppEnvironment.IsReadOnlyClient` ve UI'daki
+  bütün dalları (Routes, MainLayout'taki mobil üst bar, stok sayfalarındaki "salt okunur" koşulları). Masaüstünde
+  davranış değişmedi: koşullar zaten hep "yazılabilir" yönündeydi. `IsMobile` duruyor (Android'de görsel üretimi kullanıyor).
+- Önizlemede bütün menü sayfaları hatasız açıldı; stok düğmeleri (Ürün Girişi, Yeni sayım, Kasa giriş/çıkış) yerinde.
+
 ## Kullanıcıya sunulan öneriler (karar bekleyen sıra)
 1. ~~Lisans~~ (yapıldı, bölüm 5). Kalan: Obfuscar ile kod karıştırma (yamalamayı zorlaştırır), istenirse çevrimiçi aktivasyon.
 2. ~~Otomatik Drive yedeği~~ (yapıldı, bölüm 6). Kalan: ürünün OAuth istemcisi oluşturulup izin ekranı "Üretim"e
@@ -366,8 +374,8 @@ otomatik erişim (+ dosya seçici yedek yol).
 1. ~~Windows'ta çalıştırıp test et~~ (yapıldı, bkz. bölüm 3). Kullanıcının elle testi sürüyor.
 2. ~~Ayarlar, Kurulum ve Lisans ekranları~~ (bölüm 5), ~~otomatik Drive yedeği~~ (bölüm 6).
    ~~Android'in Drive'daki son yedeği okuması~~ (bölüm 9). Sıradaki: Play kapalı testi.
-3. ~~Android veri görüntüleme ekranı~~ ve ~~Drive'dan otomatik indirme~~ (bölüm 9). Yeni uygulamaya vitrin stoğu görünümü eklenebilir. Eski `Kuyumcu.UI/Components/Pages/ImportData.razor`
-   ve UI'daki `IsReadOnlyClient` dalları artık Android'de kullanılmıyor; masaüstünde de gerek yoksa temizlenebilir.
+3. ~~Android veri görüntüleme ekranı~~ ve ~~Drive'dan otomatik indirme~~ (bölüm 9), ~~eski ImportData /
+   IsReadOnlyClient temizliği~~ (bölüm 12). Yeni Android uygulamasına vitrin stoğu görünümü eklenebilir.
 4. ~~Google Cloud: Android OAuth istemcileri (debug + Play imzalama)~~, ~~Play dahili test~~ (bölüm 9).
    ~~Kapalı test hazırlığı ve incelemeye gönderim~~. Sıradaki: inceleme onayı → 12+ test kullanıcısını katılım
    bağlantısıyla davet et → 14 gün → üretim başvurusu. Telefonda Play'den kurup Drive'ı dene.

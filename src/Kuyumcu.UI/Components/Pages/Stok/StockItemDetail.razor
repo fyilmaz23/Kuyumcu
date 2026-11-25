@@ -7,7 +7,6 @@
 @inject IDialogService Dialogs
 @inject ISnackbar Snackbar
 @inject NavigationManager Nav
-@inject IAppEnvironment AppEnvironment
 
 <div class="kd-page">
     @if (loaded && item == null)
@@ -150,7 +149,7 @@
     private StockActions? actions;
 
     private StockActions Actions => actions ??= new StockActions(Stock, Database, Dialogs, Snackbar);
-    private bool CanEdit => !AppEnvironment.IsReadOnlyClient && item is { IsDeleted: false };
+    private bool CanEdit => item is { IsDeleted: false };
 
     protected override async Task OnParametersSetAsync()
     {

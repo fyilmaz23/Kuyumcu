@@ -2,7 +2,6 @@
 @inject NavigationManager NavigationManager
 @inject Kuyumcu.Services.LicenseService LicenseService
 @inject Kuyumcu.Services.DatabaseService DatabaseService
-@inject IAppEnvironment AppEnvironment
 @inject AppState AppState
 
 @if (!AppState.IsLoaded)
@@ -15,16 +14,7 @@ else
 {
 <Router AppAssembly="@typeof(Routes).Assembly">
     <Found Context="routeData">
-        @if (AppEnvironment.IsReadOnlyClient)
-        {
-            // Mobil uygulama salt okunurdur: sadece veri görüntüleme ekranı açılır
-            if (routeData.PageType != typeof(Pages.ImportData))
-            {
-                NavigationManager.NavigateTo("import-data");
-                return;
-            }
-        }
-        else if (!AppState.IsSetupCompleted && routeData.PageType != typeof(Pages.Setup))
+        @if (!AppState.IsSetupCompleted && routeData.PageType != typeof(Pages.Setup))
         {
             NavigationManager.NavigateTo("setup");
             return;
@@ -45,11 +35,6 @@ else
     </Found>
     <NotFound>
         <LayoutView Layout="@typeof(Layout.MainLayout)">
-            @if (AppEnvironment.IsReadOnlyClient)
-            {
-                NavigationManager.NavigateTo("import-data");
-                return;
-            }
             <div class="kd-page">
                 <EmptyState Icon="@Icons.Material.Outlined.SearchOff" Title="Sayfa bulunamadı" Text="Aradığınız sayfa mevcut değil.">
                     <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="/">Ana Sayfaya Dön</MudButton>
@@ -68,12 +53,9 @@ else
 
         try
         {
-            if (!AppEnvironment.IsReadOnlyClient)
-            {
-                AppState.IsSetupCompleted = await DatabaseService.IsSetupCompletedAsync();
-                var status = await LicenseService.GetLicenseStatusAsync();
-                AppState.IsLicenseExpired = status == Models.LicenseStatus.Expired;
-            }
+            AppState.IsSetupCompleted = await DatabaseService.IsSetupCompletedAsync();
+            var status = await LicenseService.GetLicenseStatusAsync();
+            AppState.IsLicenseExpired = status == Models.LicenseStatus.Expired;
         }
         catch (Exception ex)
         {

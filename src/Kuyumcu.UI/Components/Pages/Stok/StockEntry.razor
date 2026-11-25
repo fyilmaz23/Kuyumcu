@@ -5,7 +5,6 @@
 @inject LabelPrintService Labels
 @inject ISnackbar Snackbar
 @inject IJSRuntime JS
-@inject IAppEnvironment AppEnvironment
 
 <div class="kd-page">
     <PageHeader Title="Ürün Girişi" Subtitle="Seri giriş: kategori, ayar ve model sabit kalır; sadece gramı yazıp Enter'a basın.">
@@ -18,11 +17,7 @@
         </Actions>
     </PageHeader>
 
-    @if (AppEnvironment.IsReadOnlyClient)
-    {
-        <MudAlert Severity="Severity.Info">Bu cihazda stok salt okunurdur.</MudAlert>
-    }
-    else if (lookup == null)
+    @if (lookup == null)
     {
         <MudProgressLinear Color="Color.Primary" Indeterminate="true" Class="my-6" />
     }
@@ -161,8 +156,6 @@
 
     protected override async Task OnInitializedAsync()
     {
-        if (AppEnvironment.IsReadOnlyClient)
-            return;
         lookup = await StockLookup.LoadAsync(Stock);
         var first = lookup.Categories.FirstOrDefault();
         if (first != null)

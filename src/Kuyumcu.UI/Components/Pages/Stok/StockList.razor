@@ -4,7 +4,6 @@
 @inject ReportExportService Reports
 @inject NavigationManager Nav
 @inject ISnackbar Snackbar
-@inject IAppEnvironment AppEnvironment
 
 <div class="kd-page">
     <PageHeader Title="Vitrin Stoku" Subtitle="@subtitle">
@@ -14,12 +13,9 @@
             <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.QrCodeScanner" Href="/stock/scan">
                 Okut / Satış
             </MudButton>
-            @if (!AppEnvironment.IsReadOnlyClient)
-            {
-                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.AddBox" Href="/stock/entry">
-                    Ürün Girişi
-                </MudButton>
-            }
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.AddBox" Href="/stock/entry">
+                Ürün Girişi
+            </MudButton>
         </Actions>
     </PageHeader>
 
@@ -102,10 +98,7 @@
                     @if (IsUnfiltered)
                     {
                         <EmptyState Icon="@Icons.Material.Outlined.Inventory2" Title="Vitrinde ürün yok" Text="Ürün girişi ekranından etiketleyerek ekleyin.">
-                            @if (!AppEnvironment.IsReadOnlyClient)
-                            {
-                                <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="/stock/entry">Ürün Girişi</MudButton>
-                            }
+                            <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="/stock/entry">Ürün Girişi</MudButton>
                         </EmptyState>
                     }
                     else

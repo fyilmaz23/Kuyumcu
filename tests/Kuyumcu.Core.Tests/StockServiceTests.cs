@@ -223,7 +223,6 @@ public sealed class StockServiceTests : IAsyncLifetime
         public string BackupDirectory => Path.Combine(AppDataDirectory, "backups");
         public string CacheDirectory => AppDataDirectory;
         public string PicturesDirectory => AppDataDirectory;
-        public bool IsReadOnlyClient => false;
         public bool IsMobile => false;
         public string GetDeviceFingerprint() => "test";
 
