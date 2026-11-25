@@ -1,0 +1,110 @@
+@page "/stok/{ItemId:int}"
+@inject BackupStore Store
+
+@if (Store.Snapshot is not { } data)
+{
+    <Welcome />
+}
+else if (data.Stock.GetItem(ItemId) is not { } item)
+{
+    <TopBar Title="Ürün" BackHref="/stok" />
+    <div class="kd-page"><EmptyState Icon="inventory" Title="Ürün bulunamadı" Text="Bu ürün son yedekte yok (silinmiş olabilir)." /></div>
+}
+else
+{
+    var stock = data.Stock;
+    var saleCustomer = item.SaleCustomerId is { } customerId ? data.GetCustomer(customerId) : null;
+
+    <TopBar Title="@stock.Title(item)" Subtitle="@item.Code" BackHref="/stok" />
+
+    <div class="kd-page">
+        <div class="kd-card kd-stock-head">
+            <div class="kd-karat lg">@item.Karat</div>
+            <div class="kd-stock-head-main">
+                <div class="kd-stock-gram kd-num">@WeightFormat.Gram(item.WeightMg) gr</div>
+                <div class="kd-muted kd-small">@item.Karat ayar · has @WeightFormat.Gram(stock.HasMg(item)) gr</div>
+            </div>
+            <StockStatusBadge Status="item.Status" />
+        </div>
+
+        <h2 class="kd-section">Bilgiler</h2>
+        <div class="kd-card kd-card-pad">
+            <div class="kd-kv">
+                <span>Kod</span><strong class="kd-code">@item.Code</strong>
+                <span>Kategori</span><strong>@stock.CategoryName(item.CategoryId)</strong>
+                <span>Model</span><strong>@(item.ModelName ?? "—")</strong>
+                <span>Ayar</span><strong>@item.Karat ayar (@WeightFormat.Milyem(stock.Milyem(item.Karat)))</strong>
+                <span>Gram (brüt)</span><strong class="kd-num">@WeightFormat.Gram(item.WeightMg) gr</strong>
+                @if (item.StoneWeightMg > 0)
+                {
+                    <span>Taş</span><strong class="kd-num">@WeightFormat.Gram(item.StoneWeightMg) gr</strong>
+                    <span>Net gram</span><strong class="kd-num">@WeightFormat.Gram(item.NetWeightMg) gr</strong>
+                }
+                <span>Has karşılığı</span><strong class="kd-num">@WeightFormat.Gram(stock.HasMg(item)) gr</strong>
+                <span>Konum</span><strong>@stock.LocationName(item.LocationId)</strong>
+                <span>Giriş</span><strong class="kd-num">@Fmt.DateTime(item.CreatedAt)</strong>
+                @if (item.Status == StockItemStatus.InStock)
+                {
+                    <span>Vitrinde</span><strong>@((DateTime.Now - item.CreatedAt).Days) gün</strong>
+                }
+                @if (!string.IsNullOrEmpty(item.SupplierName) || item.PurchaseMilyem.HasValue)
+                {
+                    <span>Tedarikçi</span><strong>@(item.SupplierName ?? "—")</strong>
+                    <span>Alış milyemi</span><strong>@(item.PurchaseMilyem is { } milyem ? WeightFormat.Milyem(milyem) : "—")</strong>
+                }
+                @if (item.Status == StockItemStatus.Sold)
+                {
+                    <span>Satış</span><strong class="kd-num">@(item.SoldAt is { } soldAt ? Fmt.DateTime(soldAt) : "—")</strong>
+                    <span>Satış fiyatı</span><strong class="kd-num">@(item.SalePrice is { } price ? Fmt.Amount(price, CurrencyType.TurkishLira) : "—")</strong>
+                    @if (saleCustomer != null)
+                    {
+                        <span>Müşteri</span>
+                        <strong><a class="kd-link" href="@($"musteriler/{saleCustomer.Id}")">@saleCustomer.Name</a>@(item.SaleTransactionId.HasValue ? " (hesabına yazıldı)" : "")</strong>
+                    }
+                }
+                @if (!string.IsNullOrEmpty(item.Note))
+                {
+                    <span>Not</span><strong>@item.Note</strong>
+                }
+            </div>
+        </div>
+
+        @{
+            var movements = stock.GetMovements(item.Id).ToList();
+        }
+        @if (movements.Count > 0)
+        {
+            <h2 class="kd-section">Hareket geçmişi</h2>
+            <div class="kd-card kd-list">
+                @foreach (var m in movements)
+                {
+                    <div class="kd-row kd-move">
+                        <div class="kd-row-main">
+                            <div class="kd-row-title">
+                                @StockText.MovementName(m.Type)
+                                @if (m.Price is { } movePrice)
+                                {
+                                    <span class="kd-muted kd-num"> · @Fmt.Amount(movePrice, CurrencyType.TurkishLira)</span>
+                                }
+                            </div>
+                            @if (!string.IsNullOrEmpty(m.Description))
+                            {
+                                <div class="kd-move-text">@m.Description</div>
+                            }
+                            @if (!string.IsNullOrEmpty(m.Details))
+                            {
+                                <div class="kd-move-text">@m.Details</div>
+                            }
+                        </div>
+                        <div class="kd-row-end kd-muted kd-small kd-num">@Fmt.DateTime(m.Date)</div>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public int ItemId { get; set; }
+    [CascadingParameter(Name = "DataVersion")] public int DataVersion { get; set; }
+}

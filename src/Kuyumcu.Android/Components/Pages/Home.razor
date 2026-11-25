@@ -28,6 +28,19 @@ else
             </a>
         </div>
 
+        @if (data.Stock.HasAny)
+        {
+            var vitrin = data.Stock.InStockTotals;
+            <a class="kd-card kd-row kd-stock-link" href="stok">
+                <div class="kd-karat"><Icon Name="inventory" /></div>
+                <div class="kd-row-main">
+                    <div class="kd-row-title">Vitrin: @vitrin.Count.ToString("N0") ürün</div>
+                    <div class="kd-row-sub"><span class="kd-num">@WeightFormat.Gram2(vitrin.WeightMg) gr · has @WeightFormat.Gram2(vitrin.HasMg) gr</span></div>
+                </div>
+                <Icon Name="chevron" Class="kd-row-chevron" />
+            </a>
+        }
+
         <h2 class="kd-section">Toplam bakiyeler</h2>
         @if (_totals.Count == 0)
         {

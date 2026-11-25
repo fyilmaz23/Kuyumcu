@@ -354,6 +354,25 @@ otomatik erişim (+ dosya seçici yedek yol).
   .NET kodu dnSpy gibi araçlarla hâlâ açılıp yamanabilir. Amaç caydırmak. Daha güçlüsü (çevrimiçi aktivasyon, birden çok
   yerde dağıtık kontrol) istenirse ayrıca konuşulmalı.
 
+### 14. Android: vitrin stoğu görünümü (25.11.2026)
+- Yedekteki stok tabloları telefonda **salt okunur** gösterilir. Çekirdek: `Stock/StockSnapshot.cs` (silinmemiş
+  ürünler, kasa ürünleri, kategori/konum/ayar adları, ürün hareketleri; vitrin toplamı masaüstüyle aynı
+  `StockCalculator` ile). `BackupSnapshot.Stock` olarak yüklenir; stok tablosu olmayan eski yedekte boştur.
+- Ekranlar: `Pages/StockList.razor` (`/stok`): ayar bazında adet/gram/has tablosu (satıra dokununca o ayar süzülür),
+  arama (kod, kategori, model, tedarikçi, konum), Vitrinde / Satılan / Kayıp (varsa) / Kasa sekmeleri.
+  **Sadece rakamla arama (≥3 hane) ürün kodu aramasıdır ve durumu ne olursa olsun bütün ürünlerde yapılır** (etiketteki
+  koda bakıp "satıldı mı?" sorusu için). `Pages/StockItemDetail.razor` (`/stok/{id}`): bilgiler + hareket geçmişi;
+  satışta müşteri adı müşteri sayfasına bağlanır.
+- Alt menüye "Stok" sekmesi ve Özet'e "Vitrin: N ürün · gram · has" kartı **sadece gösterilecek stok varsa** çıkar
+  (`StockSnapshot.HasAny`: en az bir etiketli ürün ya da miktarı 0 olmayan kasa ürünü; kurulumda eklenen varsayılan
+  kasa ürünleri sayılmaz).
+- Hareket ve durum adları ortak: `Stock/StockText.cs` (masaüstü `StockItemDetail` da bunu kullanıyor).
+- "Örnek verilerle dene" (`DemoBackup`) artık 36 etiketli ürün (6'sı satılmış) ve kasa miktarları içerir.
+- Testler: `BackupSnapshotStockTests` (masaüstü toplamlarıyla aynı sonuç, silinen ürün görünmez, kullanılmamış stok
+  gösterilmez, stok tablosuz eski yedek okunur, örnek veriler). 90 test geçiyor.
+- Emülatörde örnek verilerle denendi: Özet kartı, 5 sekmeli alt menü, ayar süzme, kod ve metin araması, ürün detayı,
+  Satılan ve Kasa sekmeleri. **Gerçek dükkân yedeğiyle denenmedi.**
+
 ## Kullanıcıya sunulan öneriler (karar bekleyen sıra)
 1. ~~Lisans~~ (yapıldı, bölüm 5), ~~Obfuscar ile kod karıştırma~~ (bölüm 13). Kalan (istenirse): çevrimiçi aktivasyon,
    dağıtık lisans kontrolü.
@@ -386,8 +405,8 @@ otomatik erişim (+ dosya seçici yedek yol).
 - DataMatrix 3 nokta/kare (≈ 5,3 mm) RH10 ile okunabilirliği denenmedi; okunmazsa kare boyu 4 yapılır.
 - Sunlux RH10 gerçek cihazla denenmedi. Önizlemede tuş basışlarıyla (rakam + Enter) okutma, odak kaçırma yönlendirmesi,
   çift okutma ve hatalı kod uyarıları denendi.
-- Eski Android `ImportData` → Vitrin Stoku sekmesi denenmedi; eski `Kuyumcu.Mobile` projesi bölüm 9 ile kaldırıldı
-  (yeni uygulamaya stok görünümü eklenmedi).
+- Eski Android `ImportData` → Vitrin Stoku sekmesi denenmedi; eski `Kuyumcu.Mobile` projesi bölüm 9 ile kaldırıldı.
+  Yeni uygulamadaki stok görünümü bölüm 14'te.
 - Canlı fiyat sitesi HTML'i değişirse `ElazigAltinFiyatlariSource.Parse` boş döner (test örneği 24.11.2026 sayfasından).
 
 ## Sıradaki işler
@@ -395,7 +414,7 @@ otomatik erişim (+ dosya seçici yedek yol).
 2. ~~Ayarlar, Kurulum ve Lisans ekranları~~ (bölüm 5), ~~otomatik Drive yedeği~~ (bölüm 6).
    ~~Android'in Drive'daki son yedeği okuması~~ (bölüm 9). Sıradaki: Play kapalı testi.
 3. ~~Android veri görüntüleme ekranı~~ ve ~~Drive'dan otomatik indirme~~ (bölüm 9), ~~eski ImportData /
-   IsReadOnlyClient temizliği~~ (bölüm 12). Yeni Android uygulamasına vitrin stoğu görünümü eklenebilir.
+   IsReadOnlyClient temizliği~~ (bölüm 12), ~~Android vitrin stoğu görünümü~~ (bölüm 14).
 4. ~~Google Cloud: Android OAuth istemcileri (debug + Play imzalama)~~, ~~Play dahili test~~ (bölüm 9).
    ~~Kapalı test hazırlığı ve incelemeye gönderim~~. Sıradaki: inceleme onayı → 12+ test kullanıcısını katılım
    bağlantısıyla davet et → 14 gün → üretim başvurusu. Telefonda Play'den kurup Drive'ı dene.

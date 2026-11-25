@@ -1,0 +1,6 @@
+@* Etiketli ürünün durumu: Vitrinde / Satıldı / Kayıp *@
+<span class="kd-badge @(Status switch { StockItemStatus.Sold => "sold", StockItemStatus.Lost => "lost", _ => "instock" })">@StockText.StatusName(Status)</span>
+
+@code {
+    [Parameter] public StockItemStatus Status { get; set; }
+}

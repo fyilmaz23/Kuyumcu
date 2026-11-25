@@ -1,4 +1,5 @@
 using Kuyumcu.Models;
+using Kuyumcu.Stock;
 using SQLite;
 
 namespace Kuyumcu.Services;
@@ -13,11 +14,12 @@ public sealed class BackupSnapshot
     private readonly Dictionary<int, Customer> _customersById;
     private readonly Dictionary<int, List<(CurrencyType Currency, decimal Net)>> _netBalances;
 
-    private BackupSnapshot(List<Customer> customers, List<Transaction> transactions, AppSettings settings)
+    private BackupSnapshot(List<Customer> customers, List<Transaction> transactions, AppSettings settings, StockSnapshot stock)
     {
         Customers = customers;
         Transactions = transactions;
         Settings = settings;
+        Stock = stock;
 
         _customersById = customers.ToDictionary(c => c.Id);
         _byCustomer = transactions.ToLookup(t => t.CustomerId);
@@ -32,6 +34,9 @@ public sealed class BackupSnapshot
 
     /// <summary>İşletme ayarları (işletme adı, altın fiyatı sitesi bilgileri, fiyat görseli şablonu).</summary>
     public AppSettings Settings { get; }
+
+    /// <summary>Vitrin stoğu ve kasa ürünleri (stok tabloları olmayan eski yedekte boş).</summary>
+    public StockSnapshot Stock { get; }
 
     public Customer? GetCustomer(int id) => _customersById.GetValueOrDefault(id);
 
@@ -99,7 +104,7 @@ public sealed class BackupSnapshot
                     ? db.Query<AppSettings>("SELECT * FROM AppSettings LIMIT 1").FirstOrDefault() ?? new AppSettings()
                     : new AppSettings();
 
-                return new BackupSnapshot(customers, transactions, settings);
+                return new BackupSnapshot(customers, transactions, settings, StockSnapshot.Load(db, tables));
             }
             catch (SQLiteException ex)
             {

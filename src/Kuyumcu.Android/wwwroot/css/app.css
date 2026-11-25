@@ -132,7 +132,7 @@ h1:focus { outline: none; }
 /* ---- Alt gezinme ---- */
 .kd-bottomnav {
     position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
-    display: grid; grid-template-columns: repeat(4, 1fr);
+    display: grid; grid-auto-flow: column; grid-auto-columns: 1fr;
     height: calc(var(--nav-h) + var(--safe-bottom));
     padding-bottom: var(--safe-bottom);
     background: var(--bar);
@@ -144,7 +144,7 @@ h1:focus { outline: none; }
     color: var(--bar-muted);
     font-size: .74rem; font-weight: 600;
 }
-.kd-navitem .kd-icon { width: 24px; height: 24px; padding: 2px 14px; box-sizing: content-box; border-radius: 14px; transition: background .15s; }
+.kd-navitem .kd-icon { width: 24px; height: 24px; padding: 2px 12px; box-sizing: content-box; border-radius: 14px; transition: background .15s; }
 .kd-navitem.active { color: var(--gold-bright); }
 .kd-navitem.active .kd-icon { background: rgba(217, 174, 74, .16); }
 .kd-navitem.has-alert::after {
@@ -466,3 +466,41 @@ h1:focus { outline: none; }
 .kd-bg-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
 .kd-bg-actions .kd-btn.danger { color: var(--giden); }
 .kd-btn-lg.kd-share-top { margin-top: 0; }
+
+/* ---- Stok ---- */
+.kd-karat {
+    width: 42px; height: 42px; flex: none;
+    display: inline-flex; align-items: center; justify-content: center;
+    border-radius: 12px;
+    background: rgba(217, 174, 74, .18); color: var(--gold);
+    font-weight: 750; font-size: .95rem; font-variant-numeric: tabular-nums;
+}
+.kd-karat.lg { width: 56px; height: 56px; font-size: 1.2rem; border-radius: 16px; }
+.kd-code { font-family: ui-monospace, "Roboto Mono", monospace; font-size: .85em; letter-spacing: .02em; }
+.kd-badge.instock { background: var(--gelen-bg); color: var(--gelen); padding-left: 8px; }
+.kd-badge.sold { background: var(--surface-2); color: var(--muted); padding-left: 8px; }
+.kd-badge.lost { background: var(--giden-bg); color: var(--giden); padding-left: 8px; }
+
+.kd-stock-totals-head, .kd-stock-totals-row {
+    display: grid; grid-template-columns: 1.1fr .7fr 1fr 1fr; gap: 8px; align-items: center;
+    padding: 10px 14px;
+}
+.kd-stock-totals-head { font-size: .75rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; background: var(--surface-2); color: var(--muted); }
+.kd-stock-totals-head span:not(:first-child), .kd-stock-totals-row span:not(:first-child) { text-align: right; }
+.kd-stock-totals-row {
+    width: 100%; min-height: 48px;
+    border: 0; border-top: 1px solid var(--line);
+    background: transparent; color: var(--text); font: inherit; text-align: left;
+}
+button.kd-stock-totals-row:active { background: var(--surface-2); }
+.kd-stock-totals-row.active { background: rgba(217, 174, 74, .14); box-shadow: inset 3px 0 0 var(--gold-bright); }
+.kd-stock-totals-row.is-total { font-weight: 700; background: var(--surface-2); }
+.kd-stock-foot { font-size: .78rem; color: var(--muted); margin: 8px 4px 12px; }
+
+.kd-stock-head { display: flex; gap: 14px; align-items: center; padding: 16px; }
+.kd-stock-head-main { flex: 1; min-width: 0; }
+.kd-stock-gram { font-size: 1.5rem; font-weight: 750; line-height: 1.15; }
+.kd-move { min-height: 60px; align-items: flex-start; }
+.kd-move-text { font-size: .82rem; color: var(--muted); margin-top: 2px; overflow-wrap: anywhere; }
+.kd-stock-link { margin-top: 12px; min-height: 64px; }
+.kd-stock-link .kd-karat .kd-icon { width: 22px; height: 22px; }

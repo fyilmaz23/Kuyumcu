@@ -1,4 +1,5 @@
 using Kuyumcu.Models;
+using Kuyumcu.Stock;
 using SQLite;
 
 namespace Kuyumcu.Services;
@@ -63,5 +64,75 @@ public static class DemoBackup
                 }
             }
         });
+
+        CreateStock(db, random);
+    }
+
+    /// <summary>Örnek vitrin stoğu (etiketli ürünler, birkaç satış) ve kasa miktarları.</summary>
+    private static void CreateStock(SQLiteConnection db, Random random)
+    {
+        db.CreateTable<StockItem>();
+        db.CreateTable<StockMovement>();
+        db.CreateTable<StockCategory>();
+        db.CreateTable<StockLocation>();
+        db.CreateTable<KaratDefinition>();
+        db.CreateTable<BulkProduct>();
+
+        long[] bulkAmounts = { 24, 9, 4, 2, 35_500 };
+        string[] models = { "Burgu", "Hasır", "Ajda", "Kelebek", "Tektaş", "Halka", "Yaprak", "Zincir" };
+
+        db.RunInTransaction(() =>
+        {
+            db.InsertAll(StockDefaults.Karats.Select(k => new KaratDefinition { Karat = k.Karat, Milyem = k.Milyem }));
+            db.InsertAll(StockDefaults.Categories.Select((c, i) => new StockCategory
+            {
+                Name = c.Name, ShortName = c.Short, DefaultKarat = c.Karat, SortOrder = i
+            }));
+            db.InsertAll(StockDefaults.Locations.Select((l, i) => new StockLocation { Name = l, SortOrder = i }));
+            db.InsertAll(StockDefaults.BulkProducts.Select((b, i) => new BulkProduct
+            {
+                Name = b.Name, Unit = b.Unit, Karat = b.Karat, PieceWeightMg = b.PieceMg, SortOrder = i,
+                Amount = bulkAmounts[i]
+            }));
+
+            var categoryCount = StockDefaults.Categories.Length;
+            for (var n = 1; n <= 36; n++)
+            {
+                var category = random.Next(categoryCount);
+                var karat = StockDefaults.Categories[category].Karat;
+                var weightMg = karat == 22 ? random.Next(5_000, 32_000) : random.Next(1_200, 9_000);
+                var created = DateTime.Now.AddDays(-random.Next(1, 200)).AddMinutes(-random.Next(0, 600));
+                var sold = n % 6 == 0;
+
+                var item = new StockItem
+                {
+                    Code = ProductCode.Format(n),
+                    CategoryId = category + 1,
+                    Karat = karat,
+                    ModelName = models[random.Next(models.Length)],
+                    WeightMg = weightMg / 10 * 10,
+                    StoneWeightMg = karat == 14 && random.NextDouble() < 0.3 ? random.Next(100, 600) / 10 * 10 : 0,
+                    LocationId = random.Next(1, StockDefaults.Locations.Length + 1),
+                    Status = sold ? StockItemStatus.Sold : StockItemStatus.InStock,
+                    CreatedAt = created,
+                    SoldAt = sold ? Min(created.AddDays(random.Next(1, 30)), DateTime.Now) : null,
+                };
+                db.Insert(item);
+
+                db.Insert(new StockMovement
+                {
+                    ItemId = item.Id, Code = item.Code, Type = StockMovementType.Entry, Date = item.CreatedAt,
+                    Description = "Ürün girişi", WeightMg = item.WeightMg
+                });
+                if (sold)
+                    db.Insert(new StockMovement
+                    {
+                        ItemId = item.Id, Code = item.Code, Type = StockMovementType.Sale, Date = item.SoldAt!.Value,
+                        Description = "Satış", WeightMg = item.WeightMg
+                    });
+            }
+        });
+
+        static DateTime Min(DateTime a, DateTime b) => a < b ? a : b;
     }
 }

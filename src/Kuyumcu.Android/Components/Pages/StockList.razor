@@ -1,0 +1,266 @@
+@page "/stok"
+@inject BackupStore Store
+@inject UiState Ui
+
+@if (Store.Snapshot is not { } data)
+{
+    <Welcome />
+}
+else
+{
+    var stock = data.Stock;
+    <TopBar Title="Stok" Subtitle="@Subtitle(stock)" />
+
+    <div class="kd-searchbar">
+        @if (Ui.StockView != StockView.Bulk)
+        {
+            <label class="kd-search">
+                <Icon Name="search" />
+                <input type="search" placeholder="Kod, kategori, model, tedarikçi" autocomplete="off" enterkeyhint="search"
+                       value="@Ui.StockSearch" @oninput="OnSearch" />
+                @if (!string.IsNullOrEmpty(Ui.StockSearch))
+                {
+                    <button class="kd-icon-btn small" aria-label="Aramayı temizle" @onclick="ClearSearch"><Icon Name="close" /></button>
+                }
+            </label>
+        }
+        <div class="kd-chips" role="tablist">
+            <button class="kd-chip @(Ui.StockView == StockView.InStock ? "active" : "")" @onclick="() => SetView(StockView.InStock)">Vitrinde</button>
+            <button class="kd-chip @(Ui.StockView == StockView.Sold ? "active" : "")" @onclick="() => SetView(StockView.Sold)">Satılan</button>
+            @if (_lostCount > 0)
+            {
+                <button class="kd-chip @(Ui.StockView == StockView.Lost ? "active" : "")" @onclick="() => SetView(StockView.Lost)">Kayıp (@_lostCount)</button>
+            }
+            <button class="kd-chip @(Ui.StockView == StockView.Bulk ? "active" : "")" @onclick="() => SetView(StockView.Bulk)">Kasa</button>
+        </div>
+    </div>
+
+    @if (!stock.HasAny)
+    {
+        <div class="kd-page">
+            <div class="kd-card">
+                <EmptyState Icon="inventory" Title="Stok kaydı yok"
+                            Text="Bilgisayardaki Vitrin Stoku ekranından ürün girildiğinde, bir sonraki yedekle burada görünür." />
+            </div>
+        </div>
+    }
+    else if (Ui.StockView == StockView.Bulk)
+    {
+        <div class="kd-page">
+            <div class="kd-card kd-list">
+                @foreach (var b in stock.BulkTotals)
+                {
+                    <div class="kd-row">
+                        <div class="kd-karat">@b.Product.Karat</div>
+                        <div class="kd-row-main">
+                            <div class="kd-row-title">@b.Product.Name</div>
+                            <div class="kd-row-sub">
+                                @if (b.WeightMg > 0 && b.Product.Unit == BulkUnit.Gram)
+                                {
+                                    <span>@b.Product.Karat ayar · has @WeightFormat.Gram2(b.HasMg) gr</span>
+                                }
+                                else if (b.WeightMg > 0)
+                                {
+                                    <span>@WeightFormat.Gram2(b.WeightMg) gr · has @WeightFormat.Gram2(b.HasMg) gr</span>
+                                }
+                                else
+                                {
+                                    <span>@b.Product.Karat ayar</span>
+                                }
+                            </div>
+                        </div>
+                        <div class="kd-row-end">
+                            <div class="kd-num kd-strong @(b.Product.Amount == 0 ? "kd-muted" : "")">@StockService.FormatBulkAmount(b.Product, b.Product.Amount)</div>
+                        </div>
+                    </div>
+                }
+            </div>
+            @if (_bulkHasMg > 0)
+            {
+                <div class="kd-stock-foot">Kasa toplamı: has @WeightFormat.Gram2(_bulkHasMg) gr</div>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="kd-page">
+            @* Toplam tablosu tüm vitrini gösterir; aramada sonuçlara yer açmak için gizlenir *@
+            @if (Ui.StockView == StockView.InStock && stock.InStockTotals.ByKarat.Count > 0 && string.IsNullOrWhiteSpace(Ui.StockSearch))
+            {
+                <div class="kd-card kd-stock-totals">
+                    <div class="kd-stock-totals-head">
+                        <span>Ayar</span><span>Adet</span><span>Gram</span><span>Has</span>
+                    </div>
+                    @foreach (var k in stock.InStockTotals.ByKarat)
+                    {
+                        <button class="kd-stock-totals-row @(Ui.StockKarat == k.Karat ? "active" : "")" @onclick="() => ToggleKarat(k.Karat)">
+                            <span class="kd-strong">@k.Karat ayar</span>
+                            <span class="kd-num">@k.Count</span>
+                            <span class="kd-num">@WeightFormat.Gram2(k.WeightMg)</span>
+                            <span class="kd-num">@WeightFormat.Gram2(k.HasMg)</span>
+                        </button>
+                    }
+                    @if (stock.InStockTotals.ByKarat.Count > 1)
+                    {
+                        <div class="kd-stock-totals-row is-total">
+                            <span>Toplam</span>
+                            <span class="kd-num">@stock.InStockTotals.Count</span>
+                            <span class="kd-num">@WeightFormat.Gram2(stock.InStockTotals.WeightMg)</span>
+                            <span class="kd-num">@WeightFormat.Gram2(stock.InStockTotals.HasMg)</span>
+                        </div>
+                    }
+                </div>
+                <div class="kd-stock-foot">
+                    @(Ui.StockKarat is { } karat ? $"Sadece {karat} ayar listeleniyor; tümü için satıra yeniden dokunun." : "Bir ayara dokunarak listeyi süzebilirsiniz.")
+                </div>
+            }
+            @if (_codeSearch)
+            {
+                <div class="kd-stock-foot">Kod araması tüm ürünlerde (satılan ve kayıp dahil) yapılır.</div>
+            }
+
+            @if (_filtered.Count == 0)
+            {
+                <div class="kd-card">
+                    <EmptyState Icon="search" Title="Ürün bulunamadı"
+                                Text="@(string.IsNullOrWhiteSpace(Ui.StockSearch) ? EmptyText() : $"\"{Ui.StockSearch}\" ile eşleşen ürün yok.")" />
+                </div>
+            }
+            else
+            {
+                <div class="kd-list">
+                    <Virtualize Items="_filtered" ItemSize="72" OverscanCount="8" Context="item">
+                        <a class="kd-row" href="@($"stok/{item.Id}")">
+                            <div class="kd-karat">@item.Karat</div>
+                            <div class="kd-row-main">
+                                <div class="kd-row-title">@stock.Title(item)</div>
+                                <div class="kd-row-sub">
+                                    <span class="kd-code">@item.Code</span>
+                                    <span>· @(item.Status == StockItemStatus.Sold && item.SoldAt is { } soldAt ? Fmt.Date(soldAt) : stock.LocationName(item.LocationId))</span>
+                                </div>
+                            </div>
+                            <div class="kd-row-end">
+                                <div class="kd-num kd-strong">@WeightFormat.Gram(item.WeightMg) gr</div>
+                                @if (item.Status != StockItemStatus.InStock)
+                                {
+                                    <StockStatusBadge Status="item.Status" />
+                                }
+                                else if (item.StoneWeightMg > 0)
+                                {
+                                    <span class="kd-muted kd-small">net @WeightFormat.Gram(item.NetWeightMg)</span>
+                                }
+                            </div>
+                        </a>
+                    </Virtualize>
+                </div>
+            }
+        </div>
+    }
+}
+
+@code {
+    [CascadingParameter(Name = "DataVersion")] public int DataVersion { get; set; }
+
+    private static readonly CompareInfo TrCompare = new CultureInfo("tr-TR").CompareInfo;
+    private List<StockItem> _filtered = new();
+    private int _lostCount;
+    private long _bulkHasMg;
+    private bool _codeSearch;
+
+    protected override void OnParametersSet() => Apply();
+
+    private void OnSearch(ChangeEventArgs e)
+    {
+        Ui.StockSearch = e.Value?.ToString() ?? string.Empty;
+        Apply();
+    }
+
+    private void ClearSearch()
+    {
+        Ui.StockSearch = string.Empty;
+        Apply();
+    }
+
+    private void SetView(StockView view)
+    {
+        Ui.StockView = view;
+        Apply();
+    }
+
+    private void ToggleKarat(int karat)
+    {
+        Ui.StockKarat = Ui.StockKarat == karat ? null : karat;
+        Apply();
+    }
+
+    private void Apply()
+    {
+        var stock = Store.Snapshot?.Stock;
+        if (stock == null)
+        {
+            _filtered = new();
+            return;
+        }
+
+        _lostCount = stock.Items.Count(i => i.Status == StockItemStatus.Lost);
+        _bulkHasMg = stock.BulkTotals.Sum(b => b.HasMg);
+        if (Ui.StockView == StockView.Lost && _lostCount == 0)
+            Ui.StockView = StockView.InStock;
+
+        var query = Ui.StockSearch.Trim();
+        // Sadece rakamsa ürün kodu aranıyor (etiketteki barkod): durumu ne olursa olsun bulunsun
+        _codeSearch = query.Length >= 3 && query.All(char.IsAsciiDigit);
+
+        IEnumerable<StockItem> items = stock.Items;
+        if (_codeSearch)
+        {
+            items = items.Where(i => i.Code.Contains(query, StringComparison.Ordinal));
+        }
+        else
+        {
+            var status = Ui.StockView switch
+            {
+                StockView.Sold => StockItemStatus.Sold,
+                StockView.Lost => StockItemStatus.Lost,
+                _ => StockItemStatus.InStock,
+            };
+            items = items.Where(i => i.Status == status);
+
+            if (Ui.StockView == StockView.InStock && Ui.StockKarat is { } karat)
+                items = items.Where(i => i.Karat == karat);
+
+            if (query.Length > 0)
+                items = items.Where(i =>
+                    i.Code.Contains(query, StringComparison.Ordinal) ||
+                    Matches(stock.CategoryName(i.CategoryId), query) ||
+                    Matches(i.ModelName, query) ||
+                    Matches(i.SupplierName, query) ||
+                    Matches(stock.LocationName(i.LocationId), query));
+
+            if (Ui.StockView == StockView.Sold)
+                items = items.OrderByDescending(i => i.SoldAt);
+        }
+
+        _filtered = items.ToList();
+    }
+
+    // Türkçe büyük/küçük harf ve şapka duyarsız (ı/İ, â/a)
+    private static bool Matches(string? text, string query) =>
+        !string.IsNullOrEmpty(text) && TrCompare.IndexOf(text, query, CompareOptions.IgnoreCase | CompareOptions.IgnoreNonSpace) >= 0;
+
+    private string EmptyText() => Ui.StockView switch
+    {
+        StockView.Sold => "Satılmış ürün yok.",
+        StockView.Lost => "Kayıp ürün yok.",
+        _ => Ui.StockKarat is { } karat ? $"Vitrinde {karat} ayar ürün yok." : "Vitrinde ürün yok.",
+    };
+
+    private string Subtitle(StockSnapshot stock) => Ui.StockView switch
+    {
+        StockView.Bulk => $"Kasa · {stock.BulkProducts.Count(b => b.Amount != 0)} çeşit",
+        _ when _codeSearch => $"{_filtered.Count} ürün bulundu",
+        StockView.InStock when Ui.StockKarat == null && Ui.StockSearch.Length == 0 =>
+            $"Vitrinde {stock.InStockTotals.Count:N0} ürün · {WeightFormat.Gram2(stock.InStockTotals.WeightMg)} gr",
+        _ => $"{_filtered.Count:N0} ürün listeleniyor",
+    };
+}
