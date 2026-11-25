@@ -251,16 +251,27 @@ otomatik erişim (+ dosya seçici yedek yol).
   Core `GoldPriceExportService.LoadTemplate/NormalizeTemplate`: telefon fotoğrafının EXIF yönü uygulanır, genişlik
   1080 px yapılır (yazı boyutu ve konumlar 1080 px şablona göre; 1080 px Çarşı şablonunun çıktısı değişmez). Birim
   testli (`GoldPriceTemplateTests`). Emülatörde Çarşı şablonu seçilip paylaşıldı, kapatıp açınca seçim korundu.
-- **Denenmedi:** Drive'dan gerçek indirme (Cloud projesinde Android OAuth istemcisi henüz yok; emülatördeki Google
-  hesabının oturumu da yenilenmeyi bekliyordu), gerçek cihaz, yan çekilmiş (EXIF yönlü) gerçek telefon fotoğrafıyla arka plan,
-  imzalı AAB'nin Play'e yüklenmesi.
+- **Drive bağlantısı (25.11.2026):** Cloud projesi **KuyumcuApp** (`kuyumcuapp-454423`, masaüstü istemcileriyle aynı;
+  izin ekranı zaten "Üretim"de). Android istemcisi "Kuyumcu Defteri Android (gelistirme)": paket
+  `com.kuyumcudefteri.app` + bu bilgisayarın debug SHA-1'i `1F:56:18:8F:5B:43:0A:7F:ED:DE:8E:0D:B0:43:86:C6:1C:D5:BF:03`.
+  Play imzalama SHA-1'i için ayrı istemci **henüz yok** (ilk AAB yüklenince açılacak, YAYIN.md 2.2).
+  Emülatörde masaüstünün yedek aldığı hesapla bağlanıldı: `KuyumcuDefteri_son_yedek.db3` indi (872 müşteri / 14.309
+  işlem), "Şimdi yenile" → "Yedek güncel" (MD5 aynı, tekrar indirmedi).
+  Bu sırada düzeltilenler (`GoogleDriveAuthorizer`, `BackupSyncService`):
+  - "Bağlan" düğmesi `AuthorizationRequest.Prompt.SelectAccount` ile **her zaman hesap seçici** açar (yanlış hesap
+    seçilince düzeltilemiyordu: Play Hizmetleri hesabı hatırlıyordu).
+  - "Bağlantıyı kes" artık REST revoke yerine `AuthorizationClient.RevokeAccess` + `ClearToken` kullanır.
+  - Drive 401 dönerse önbellekteki belirteç `ClearToken` ile silinip sessizce bir kez daha denenir; olmazsa
+    "Yeniden bağlanın" (Yedek sayfasında kırmızı durum + "Bağlan" düğmesi; önceden yanlışlıkla "Bağlı" görünüyordu).
+- **Denenmedi:** gerçek cihaz, Play'den kurulan sürümde Drive (Play imzalama SHA-1 istemcisi), yan çekilmiş (EXIF yönlü)
+  gerçek telefon fotoğrafıyla arka plan, imzalı AAB'nin Play'e yüklenmesi.
 
 ## Kullanıcıya sunulan öneriler (karar bekleyen sıra)
 1. ~~Lisans~~ (yapıldı, bölüm 5). Kalan: Obfuscar ile kod karıştırma (yamalamayı zorlaştırır), istenirse çevrimiçi aktivasyon.
 2. ~~Otomatik Drive yedeği~~ (yapıldı, bölüm 6). Kalan: ürünün OAuth istemcisi oluşturulup izin ekranı "Üretim"e
    alınmalı ("Test"te yenileme jetonları 7 günde düşer → yedek durur ve "Yeniden bağlanın" çıkar).
-3. Android: ~~Drive'dan son yedeği otomatik okuma~~ (yapıldı, bölüm 7). Kalan: Cloud projesinde Android OAuth
-   istemcileri (debug + Play imzalama SHA-1), Play kaydı, kapalı test (12 kişi / 14 gün; aynı Play hesabı — kullanıcı
+3. Android: ~~Drive'dan son yedeği otomatik okuma~~ (yapıldı, bölüm 7). Kalan: Play imzalama SHA-1'i için Android
+   OAuth istemcisi (debug istemcisi açıldı), Play kaydı, kapalı test (12 kişi / 14 gün; aynı Play hesabı — kullanıcı
    daha önce başka uygulamada geçti, yeni uygulama için yine gerekir). Adımlar: `docs/YAYIN.md` bölüm 2.
 
 ## Doğrulanmadı / dikkat
@@ -295,7 +306,8 @@ otomatik erişim (+ dosya seçici yedek yol).
    ~~Android'in Drive'daki son yedeği okuması~~ (bölüm 9). Sıradaki: Play kapalı testi.
 3. ~~Android veri görüntüleme ekranı~~ ve ~~Drive'dan otomatik indirme~~ (bölüm 9). Yeni uygulamaya vitrin stoğu görünümü eklenebilir. Eski `Kuyumcu.UI/Components/Pages/ImportData.razor`
    ve UI'daki `IsReadOnlyClient` dalları artık Android'de kullanılmıyor; masaüstünde de gerek yoksa temizlenebilir.
-4. Google Cloud: Android OAuth istemcisi (masaüstüyle AYNI proje) → telefonda gerçek Drive indirmesini dene.
+4. ~~Google Cloud: Android OAuth istemcisi (debug) + emülatörde gerçek Drive indirmesi~~ (bölüm 9). Kalan: Play
+   imzalama SHA-1'i için ikinci Android istemcisi (ilk AAB yüklendikten sonra).
 5. Mağaza hazırlığı: gizlilik politikasını (`docs/GIZLILIK.md`) yayınla, GitHub Secrets/Variables, Play kaydı ve
    kapalı test (bkz. `docs/YAYIN.md` bölüm 2).
 6. Eski `ccr-325b955a-m9osww` uzak dalı silinecek (bulut oturumu silemedi).

@@ -23,27 +23,22 @@ public sealed class GoogleDriveAuthorizer : IGoogleDriveAuthorizer
     private static TaskCompletionSource<AuthorizationResult>? _pendingConsent;
     private readonly SemaphoreSlim _lock = new(1, 1);
 
-    public async Task<string> GetAccessTokenAsync(bool interactive, CancellationToken cancellationToken = default)
+    public async Task<string> GetAccessTokenAsync(bool interactive, bool chooseAccount = false, CancellationToken cancellationToken = default)
     {
         await _lock.WaitAsync(cancellationToken);
         try
         {
-            var activity = Microsoft.Maui.ApplicationModel.Platform.CurrentActivity
-                           ?? throw new GoogleAuthorizationFailedException("Uygulama penceresi hazır değil, tekrar deneyin.");
+            var activity = CurrentActivity();
 
-            var request = AuthorizationRequest.InvokeBuilder()
-                .SetRequestedScopes(new List<Scope> { new(DriveLatestBackupClient.DriveFileScope) })
-                .Build();
+            var builder = AuthorizationRequest.InvokeBuilder()
+                .SetRequestedScopes(new List<Scope> { new(DriveLatestBackupClient.DriveFileScope) });
+            if (interactive && chooseAccount)
+            {
+                // İzin daha önce verilmiş olsa bile hesap seçici açılsın (yanlış hesap seçildiyse düzeltilebilsin)
+                builder.SetPrompt(AuthorizationRequest.Prompt.SelectAccount!);
+            }
 
-            AuthorizationResult result;
-            try
-            {
-                result = await AwaitGmsTask<AuthorizationResult>(Identity.GetAuthorizationClient(activity).Authorize(request));
-            }
-            catch (ApiException ex)
-            {
-                throw new GoogleAuthorizationFailedException(Describe(ex), ex);
-            }
+            var result = await AuthorizeAsync(activity, builder.Build());
 
             if (result.HasResolution)
             {
@@ -71,6 +66,62 @@ public sealed class GoogleDriveAuthorizer : IGoogleDriveAuthorizer
         finally
         {
             _lock.Release();
+        }
+    }
+
+    public async Task SignOutAsync(CancellationToken cancellationToken = default)
+    {
+        await _lock.WaitAsync(cancellationToken);
+        try
+        {
+            var activity = CurrentActivity();
+            var scopes = new List<Scope> { new(DriveLatestBackupClient.DriveFileScope) };
+            var client = Identity.GetAuthorizationClient(activity);
+
+            // Sessiz istek: izin varsa hangi hesaba verildiğini ve belirteci döndürür
+            var result = await AuthorizeAsync(activity, AuthorizationRequest.InvokeBuilder().SetRequestedScopes(scopes).Build());
+            if (result.HasResolution)
+                return; // izin zaten yok
+
+            var account = result.ToGoogleSignInAccount()?.Account;
+            if (account != null)
+            {
+                var revoke = RevokeAccessRequest.InvokeBuilder()
+                    .SetAccount(account)
+                    .SetScopes(scopes)
+                    .Build();
+                await AwaitGmsVoidTask(client.RevokeAccess(revoke));
+            }
+
+            if (!string.IsNullOrEmpty(result.AccessToken))
+                await AwaitGmsVoidTask(client.ClearToken(ClearTokenRequest.InvokeBuilder().SetToken(result.AccessToken).Build()));
+        }
+        finally
+        {
+            _lock.Release();
+        }
+    }
+
+    public async Task InvalidateTokenAsync(string accessToken)
+    {
+        var activity = CurrentActivity();
+        await AwaitGmsVoidTask(Identity.GetAuthorizationClient(activity)
+            .ClearToken(ClearTokenRequest.InvokeBuilder().SetToken(accessToken).Build()));
+    }
+
+    private static Activity CurrentActivity() =>
+        Microsoft.Maui.ApplicationModel.Platform.CurrentActivity
+        ?? throw new GoogleAuthorizationFailedException("Uygulama penceresi hazır değil, tekrar deneyin.");
+
+    private static async Task<AuthorizationResult> AuthorizeAsync(Activity activity, AuthorizationRequest request)
+    {
+        try
+        {
+            return await AwaitGmsTask<AuthorizationResult>(Identity.GetAuthorizationClient(activity).Authorize(request));
+        }
+        catch (ApiException ex)
+        {
+            throw new GoogleAuthorizationFailedException(Describe(ex), ex);
         }
     }
 
@@ -126,6 +177,15 @@ public sealed class GoogleDriveAuthorizer : IGoogleDriveAuthorizer
                     tcs.TrySetResult(typed);
             },
             error => tcs.TrySetException(error));
+        task.AddOnSuccessListener(listener);
+        task.AddOnFailureListener(listener);
+        return tcs.Task;
+    }
+
+    private static Task AwaitGmsVoidTask(Android.Gms.Tasks.Task task)
+    {
+        var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var listener = new GmsTaskListener(_ => tcs.TrySetResult(), error => tcs.TrySetException(error));
         task.AddOnSuccessListener(listener);
         task.AddOnFailureListener(listener);
         return tcs.Task;

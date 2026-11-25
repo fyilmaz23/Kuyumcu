@@ -58,6 +58,9 @@ public sealed class BackupSyncService
 
     public string? AccountEmail => Preferences.Default.Get<string?>(EmailKey, null);
 
+    /// <summary>Bağlıydı ama son denemede Google izni geçersiz çıktı: kullanıcı yeniden bağlanmalı.</summary>
+    public bool NeedsReconnect => IsConnected && LastResult?.Outcome == SyncOutcome.NeedsConnection;
+
     public bool IsBusy { get; private set; }
 
     /// <summary>Son eşitlemenin sonucu (ekranda bilgi/hata göstermek için).</summary>
@@ -66,7 +69,7 @@ public sealed class BackupSyncService
     public event Action? Changed;
 
     /// <summary>Google hesabı seçtirip izin alır ve son yedeği indirir.</summary>
-    public Task<SyncResult> ConnectAsync() => RefreshAsync(interactive: true);
+    public Task<SyncResult> ConnectAsync() => RefreshAsync(interactive: true, chooseAccount: true);
 
     /// <summary>
     /// Açılışta / uygulamaya dönüşte: bağlıysa ve son kontrolün üzerinden yeterince zaman geçtiyse sessizce bakar.
@@ -83,7 +86,8 @@ public sealed class BackupSyncService
 
     /// <summary>Drive'daki son yedeği kontrol eder; yeniyse indirir.</summary>
     /// <param name="interactive">Gerekirse Google hesap/izin ekranı açılsın mı?</param>
-    public async Task<SyncResult> RefreshAsync(bool interactive)
+    /// <param name="chooseAccount">Hesap seçici her durumda açılsın mı? (Bağlan düğmesi)</param>
+    public async Task<SyncResult> RefreshAsync(bool interactive, bool chooseAccount = false)
     {
         if (!await _syncLock.WaitAsync(0))
             return LastResult ?? Result(SyncOutcome.UpToDate, "Kontrol ediliyor…");
@@ -98,7 +102,7 @@ public sealed class BackupSyncService
             string token;
             try
             {
-                token = await _authorizer.GetAccessTokenAsync(interactive);
+                token = await _authorizer.GetAccessTokenAsync(interactive, chooseAccount);
             }
             catch (GoogleConsentRequiredException)
             {
@@ -106,11 +110,25 @@ public sealed class BackupSyncService
                 return Finish(SyncOutcome.NeedsConnection, "Google hesabıyla yeniden bağlanmanız gerekiyor.");
             }
 
+            DriveBackupInfo? latest;
+            try
+            {
+                latest = await _drive.FindLatestAsync(token);
+            }
+            catch (DriveAuthorizationException)
+            {
+                // Google Play Hizmetleri'nin önbelleğindeki belirteç geçersiz (ör. izin web'den geri alındı):
+                // belirteci sil, sessizce yenisini iste ve bir kez daha dene. Yine olmazsa yeniden bağlanmak gerekir.
+                await _authorizer.InvalidateTokenAsync(token);
+                token = await _authorizer.GetAccessTokenAsync(interactive);
+                latest = await _drive.FindLatestAsync(token);
+            }
+
             Preferences.Default.Set(ConnectedKey, true);
-            if (AccountEmail == null && await _drive.GetAccountEmailAsync(token) is { } email)
+            // Hesap seçildiyse farklı bir hesap olabilir: e-postayı yeniden al
+            if ((chooseAccount || AccountEmail == null) && await _drive.GetAccountEmailAsync(token) is { } email)
                 Preferences.Default.Set(EmailKey, email);
 
-            var latest = await _drive.FindLatestAsync(token);
             if (latest == null)
             {
                 return Finish(SyncOutcome.NoBackupOnDrive,
@@ -148,6 +166,10 @@ public sealed class BackupSyncService
         catch (OperationCanceledException)
         {
             return Finish(SyncOutcome.Cancelled, "Bağlantı iptal edildi.");
+        }
+        catch (GoogleConsentRequiredException)
+        {
+            return Finish(SyncOutcome.NeedsConnection, "Google hesabıyla yeniden bağlanmanız gerekiyor.");
         }
         catch (GoogleAuthorizationFailedException ex)
         {
@@ -283,8 +305,9 @@ public sealed class BackupSyncService
         {
             if (Connectivity.Current.NetworkAccess == NetworkAccess.Internet)
             {
-                var token = await _authorizer.GetAccessTokenAsync(interactive: false);
-                await _drive.RevokeAsync(token);
+                // İzni Google Play Hizmetleri üzerinden geri al: hem sunucudaki izin hem de cihazdaki hesap
+                // eşleşmesi silinir; sonraki bağlanmada hesap yeniden sorulur.
+                await _authorizer.SignOutAsync();
             }
         }
         catch (Exception ex)

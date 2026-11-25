@@ -13,7 +13,14 @@
         @if (Sync.IsConnected)
         {
             <div class="kd-kv">
-                <span>Durum</span><strong class="kd-gelen">Bağlı</strong>
+                @if (Sync.NeedsReconnect)
+                {
+                    <span>Durum</span><strong class="kd-giden">Yeniden bağlanın</strong>
+                }
+                else
+                {
+                    <span>Durum</span><strong class="kd-gelen">Bağlı</strong>
+                }
                 @if (Sync.AccountEmail != null)
                 {
                     <span>Hesap</span><strong>@Sync.AccountEmail</strong>
@@ -25,7 +32,14 @@
             </div>
             <p class="kd-fineprint">Uygulama her açıldığında ve uygulamaya döndüğünüzde yeni yedek var mı otomatik bakar.</p>
             <div class="kd-actions">
-                <button class="kd-btn kd-btn-primary" disabled="@Sync.IsBusy" @onclick="Refresh"><Icon Name="refresh" /><span>Şimdi yenile</span></button>
+                @if (Sync.NeedsReconnect)
+                {
+                    <button class="kd-btn kd-btn-primary" disabled="@Sync.IsBusy" @onclick="Connect"><Icon Name="cloud" /><span>Bağlan</span></button>
+                }
+                else
+                {
+                    <button class="kd-btn kd-btn-primary" disabled="@Sync.IsBusy" @onclick="Refresh"><Icon Name="refresh" /><span>Şimdi yenile</span></button>
+                }
                 <button class="kd-btn kd-btn-ghost" disabled="@Sync.IsBusy" @onclick="Disconnect"><Icon Name="logout" /><span>Bağlantıyı kes</span></button>
             </div>
         }
