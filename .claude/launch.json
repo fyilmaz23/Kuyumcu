@@ -6,6 +6,12 @@
       "runtimeExecutable": "dotnet",
       "runtimeArgs": ["run", "--project", "src/Kuyumcu.Preview", "--no-build"],
       "port": 5080
+    },
+    {
+      "name": "preview-bos",
+      "runtimeExecutable": "dotnet",
+      "runtimeArgs": ["run", "--project", "src/Kuyumcu.Preview", "--no-build", "--", "--bos", "true", "--urls", "http://localhost:5081"],
+      "port": 5081
     }
   ]
 }

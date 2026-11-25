@@ -5,6 +5,9 @@
 @inject AppState AppState
 @inject ILegacyDataLocator LegacyDataLocator
 @inject BackupService BackupService
+@inject CloudBackupService CloudBackupService
+@inject GoogleDriveService GoogleDriveService
+@inject IAppEnvironment Environment
 @inject IDialogService DialogService
 
 <div class="kd-card kd-gate">
@@ -32,7 +35,46 @@
                 @(isImporting ? "Aktarılıyor…" : "Eski Verileri Aktar")
             </MudButton>
         </div>
+    }
+    else if (previousBackupPath != null && previousBackup != null)
+    {
+        @* Uygulama kaldırılıp yeniden kurulduysa (Store sürümünde kaldırınca veriler silinir) Belgeler'deki yedek kalır *@
+        <div class="kd-gate-option is-recommended">
+            <div class="d-flex align-center gap-2 mb-1">
+                <MudIcon Icon="@Icons.Material.Outlined.Restore" Size="Size.Small" />
+                <b>Önceki yedeğiniz bulundu</b>
+                <span class="kd-badge emanet">Önerilen</span>
+            </div>
+            <MudText Typo="Typo.body2" Class="kd-muted mb-3">
+                @(previousBackup.BusinessName ?? "Kuyumcu Defteri") · @previousBackup.CustomerCount müşteri ·
+                @previousBackupTime.ToString("dd.MM.yyyy HH:mm") tarihli yedek. Müşteri, işlem ve ayarlarınız geri yüklenir.
+            </MudText>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Restore"
+                       OnClick="RestorePreviousBackup" Disabled="@isImporting">
+                @(isImporting ? "Geri yükleniyor…" : "Yedeği Geri Yükle")
+            </MudButton>
+        </div>
+    }
 
+    @if (driveAvailable)
+    {
+        <div class="kd-gate-option mt-3">
+            <div class="d-flex align-center gap-2 mb-1">
+                <MudIcon Icon="@Icons.Material.Outlined.CloudDownload" Size="Size.Small" />
+                <b>Google Drive'daki yedeğiniz</b>
+            </div>
+            <MudText Typo="Typo.body2" Class="kd-muted mb-3">
+                Daha önce Drive yedeği açtıysanız aynı Google hesabıyla bağlanın; son yedeğiniz indirilip geri yüklenir.
+            </MudText>
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.CloudDownload"
+                       OnClick="RestoreFromDrive" Disabled="@isImporting">
+                @(isDriveRestoring ? "Drive'dan indiriliyor…" : "Drive'dan Geri Yükle")
+            </MudButton>
+        </div>
+    }
+
+    @if (legacyDatabasePath != null || previousBackup != null || driveAvailable)
+    {
         <div class="kd-gate-divider"><span>veya yeni başlayın</span></div>
     }
 
@@ -45,7 +87,7 @@
                   HelperText="Google Drive yedeği ve altın fiyatı ayarlarını sonra Ayarlar'dan yapabilirsiniz."
                   Class="mb-4" />
 
-    <MudButton Variant="@(legacyDatabasePath != null ? Variant.Outlined : Variant.Filled)"
+    <MudButton Variant="@(legacyDatabasePath != null || previousBackup != null ? Variant.Outlined : Variant.Filled)"
                Color="Color.Primary"
                FullWidth="true"
                Size="Size.Large"
@@ -59,11 +101,24 @@
 @code {
     private AppSettings settings = new();
     private string? legacyDatabasePath;
+    private string? previousBackupPath;
+    private BackupSummary? previousBackup;
+    private DateTime previousBackupTime;
+    private bool driveAvailable;
     private bool isImporting;
+    private bool isDriveRestoring;
 
     protected override async Task OnInitializedAsync()
     {
         settings = await DatabaseService.GetSettingsAsync();
+
+        // Kurulum zaten tamamlanmışsa (ör. yedekten geri yüklenmiş veri) ana sayfaya yönlendir
+        if (settings.IsSetupCompleted)
+        {
+            AppState.IsSetupCompleted = true;
+            NavigationManager.NavigateTo("/");
+            return;
+        }
 
         try
         {
@@ -74,12 +129,132 @@
             Console.WriteLine($"Eski sürüm verisi aranırken hata: {ex.Message}");
         }
 
-        // Kurulum zaten tamamlanmışsa (ör. yedekten geri yüklenmiş veri) ana sayfaya yönlendir
-        if (settings.IsSetupCompleted)
+        if (legacyDatabasePath == null)
+            await FindPreviousBackupAsync();
+
+        try
         {
-            AppState.IsSetupCompleted = true;
-            NavigationManager.NavigateTo("/");
+            driveAvailable = await GoogleDriveService.IsConfiguredAsync();
         }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Drive yapılandırması okunamadı: {ex.Message}");
+        }
+    }
+
+    /// <summary>Belgeler'deki yerel yedeklerden içinde müşteri olan en yenisini bulur.</summary>
+    private async Task FindPreviousBackupAsync()
+    {
+        try
+        {
+            foreach (var path in BackupService.GetBackupsList().Take(15))
+            {
+                var summary = await DatabaseService.ReadBackupSummaryAsync(path);
+                if (summary is { CustomerCount: > 0 })
+                {
+                    previousBackupPath = path;
+                    previousBackup = summary;
+                    previousBackupTime = BackupService.GetBackupTime(path);
+                    return;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Önceki yedek aranırken hata: {ex.Message}");
+        }
+    }
+
+    private async Task RestorePreviousBackup()
+    {
+        if (previousBackupPath == null)
+            return;
+
+        isImporting = true;
+        try
+        {
+            var result = await DatabaseService.RestoreDatabaseAsync(previousBackupPath, keepCurrentSettingsAndLicense: false);
+            await FinishRestoreAsync(result.Success, result.Message);
+        }
+        finally
+        {
+            isImporting = false;
+        }
+    }
+
+    private async Task RestoreFromDrive()
+    {
+        isImporting = isDriveRestoring = true;
+        var tempPath = Path.Combine(Environment.CacheDirectory, $"drive-geri-yukle-{Guid.NewGuid():N}.db3");
+        try
+        {
+            using var cts = new CancellationTokenSource(TimeSpan.FromMinutes(5));
+            await CloudBackupService.ConnectAsync(cts.Token); // tarayıcıda Google girişi açılır
+
+            Directory.CreateDirectory(Environment.CacheDirectory);
+            var backupTime = await GoogleDriveService.DownloadLatestBackupAsync(tempPath, cts.Token);
+            if (backupTime == null)
+            {
+                await DialogService.ShowMessageBox("Yedek bulunamadı",
+                    "Bu Google hesabının Drive'ında Kuyumcu Defteri yedeği yok. Yedeği alan bilgisayarda bağlı olan hesabı seçtiğinizden emin olun.",
+                    yesText: "Tamam");
+                return;
+            }
+
+            var summary = await DatabaseService.ReadBackupSummaryAsync(tempPath);
+            if (summary == null)
+            {
+                await DialogService.ShowMessageBox("Hata", "Drive'dan inen dosya geçerli bir Kuyumcu Defteri yedeği değil.", yesText: "Tamam");
+                return;
+            }
+
+            var confirmed = await DialogService.ShowMessageBox("Drive yedeği bulundu",
+                $"{summary.BusinessName ?? "Kuyumcu Defteri"} · {summary.CustomerCount} müşteri · " +
+                $"{backupTime.Value.LocalDateTime:dd.MM.yyyy HH:mm} tarihli yedek geri yüklensin mi?",
+                yesText: "Geri Yükle", cancelText: "Vazgeç");
+            if (confirmed != true)
+                return;
+
+            var result = await DatabaseService.RestoreDatabaseAsync(tempPath, keepCurrentSettingsAndLicense: false);
+            await FinishRestoreAsync(result.Success, result.Message);
+        }
+        catch (OperationCanceledException)
+        {
+            await DialogService.ShowMessageBox("İptal edildi", "Google girişi tamamlanmadı.", yesText: "Tamam");
+        }
+        catch (Exception ex)
+        {
+            await DialogService.ShowMessageBox("Hata", $"Drive'dan geri yüklenemedi: {ex.Message}", yesText: "Tamam");
+        }
+        finally
+        {
+            try { if (File.Exists(tempPath)) File.Delete(tempPath); } catch { /* geçici dosya */ }
+            isImporting = isDriveRestoring = false;
+        }
+    }
+
+    /// <summary>Geri yükleme sonrası: ayarlar tamamsa ana sayfaya geç, iş yeri adı yoksa formu doldurtsun.</summary>
+    private async Task FinishRestoreAsync(bool success, string message)
+    {
+        if (!success)
+        {
+            await DialogService.ShowMessageBox("Hata", message, yesText: "Tamam");
+            return;
+        }
+
+        var restored = await DatabaseService.GetSettingsAsync();
+        if (!restored.IsSetupCompleted || string.IsNullOrWhiteSpace(restored.BusinessName))
+        {
+            settings = restored;
+            legacyDatabasePath = null;
+            previousBackup = null;
+            previousBackupPath = null;
+            return;
+        }
+
+        await DialogService.ShowMessageBox("Başarılı", message, yesText: "Tamam");
+        AppState.IsSetupCompleted = true;
+        NavigationManager.NavigateTo("/", forceLoad: true);
     }
 
     private async Task SaveAndContinue()

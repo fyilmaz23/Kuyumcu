@@ -10,6 +10,9 @@ namespace Kuyumcu.Services
     public class BackupService : IDisposable
     {
         public const int DaysToKeep = 30;
+
+        /// <summary>Yaşına bakılmaksızın saklanan en yeni yedek sayısı.</summary>
+        public const int MinimumToKeep = 10;
         private const string FilePrefix = "kuyumcu_backup_";
         private static readonly TimeSpan Interval = TimeSpan.FromHours(24);
 
@@ -56,6 +59,14 @@ namespace Kuyumcu.Services
                     return null;
                 }
 
+                // Kurulumu tamamlanmamış (boş) veritabanı yedeklenmez: yeniden kurulumda en yeni yedek boş olmasın ve
+                // "önceki yedeğiniz bulundu" seçeneği gerçek veriyi göstersin.
+                if (!await _databaseService.IsSetupCompletedAsync())
+                {
+                    _logger?.LogInformation("Kurulum tamamlanmadı, yerel yedek atlandı");
+                    return null;
+                }
+
                 Directory.CreateDirectory(_backupDirectory);
                 var backupFilePath = Path.Combine(_backupDirectory, $"{FilePrefix}{DateTime.Now:yyyyMMdd_HHmmss}.db3");
 
@@ -86,12 +97,30 @@ namespace Kuyumcu.Services
                 .ToList();
         }
 
+        /// <summary>
+        /// Yedeğin alındığı zaman: dosya adındaki tarih (kopyalanınca/OneDrive eşitleyince değişmez), okunamazsa dosya zamanı.
+        /// </summary>
+        public static DateTime GetBackupTime(string path)
+        {
+            var name = Path.GetFileNameWithoutExtension(path);
+            if (name.StartsWith(FilePrefix, StringComparison.Ordinal) &&
+                DateTime.TryParseExact(name[FilePrefix.Length..], "yyyyMMdd_HHmmss", System.Globalization.CultureInfo.InvariantCulture,
+                    System.Globalization.DateTimeStyles.None, out var time))
+                return time;
+            return File.GetLastWriteTime(path);
+        }
+
         private void CleanupOldBackups()
         {
             try
             {
+                // En yeni MinimumToKeep yedek, ne kadar eski olursa olsun silinmez (uygulama uzun süre açılmadıysa
+                // ya da yeniden kurulduysa elde hiç yedek kalmaması olmasın). Dosya adı tarih içerdiği için ada göre sıralanır.
                 var cutoff = DateTime.Now.AddDays(-DaysToKeep);
-                foreach (var file in Directory.GetFiles(_backupDirectory, $"{FilePrefix}*.db3"))
+                var candidates = Directory.GetFiles(_backupDirectory, $"{FilePrefix}*.db3")
+                    .OrderByDescending(f => Path.GetFileName(f), StringComparer.Ordinal)
+                    .Skip(MinimumToKeep);
+                foreach (var file in candidates)
                 {
                     if (File.GetCreationTime(file) < cutoff)
                         File.Delete(file);

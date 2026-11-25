@@ -7,6 +7,7 @@ using SQLite;
 namespace Kuyumcu.Tests;
 
 /// <summary>Geçici klasörde gerçek SQLite veritabanıyla stok servisi testleri.</summary>
+[Collection("Veritabanı")]
 public sealed class StockServiceTests : IAsyncLifetime
 {
     private readonly TestEnvironment _env = new();

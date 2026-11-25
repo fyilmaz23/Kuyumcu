@@ -8,20 +8,26 @@ namespace Kuyumcu.Desktop.Platform;
 
 /// <summary>
 /// Windows DPAPI ile (sadece bu Windows kullanıcısının çözebileceği şekilde) şifrelenmiş anahtar/değer deposu.
-/// Veri hem uygulama klasöründeki dosyada hem kayıt defterinde (HKCU) tutulur: veri klasörü silinse bile
-/// deneme başlangıcı gibi bilgiler kaybolmaz. (MSIX kurulumunda kayıt defteri de paket kaldırılınca silinir.)
+/// Veri üç yerde tutulur: uygulama klasöründeki dosya, kayıt defteri (HKCU) ve Belgeler'deki yedek klasöründe gizli
+/// bir dosya. Böylece veri klasörü silinse ya da uygulama kaldırılıp yeniden kurulsa bile deneme başlangıcı gibi
+/// bilgiler kaybolmaz.
+/// Neden Belgeler: Microsoft Store (MSIX) sürümünde AppData'ya ve HKCU'ya yapılan yeni yazımlar pakete özel bir yere
+/// yönlendirilir ve uygulama kaldırılınca silinir; Belgeler yönlendirilmez (bkz. docs/DEVIR_NOTU.md bölüm 11).
 /// </summary>
 public sealed class DpapiSecureStore : ISecureStore
 {
     private static readonly byte[] Entropy = Encoding.UTF8.GetBytes("KuyumcuDefteri.SecureStore.v1");
     private static readonly string RegistryKeyPath = $@"Software\{ProductInfo.DataFolderName}";
     private const string RegistryValueName = "SecureStore";
+    private const string DocumentsCopyName = ".kurulum.dat";
     private readonly string _filePath;
+    private readonly string _documentsCopyPath;
     private readonly SemaphoreSlim _lock = new(1, 1);
 
     public DpapiSecureStore(IAppEnvironment environment)
     {
         _filePath = Path.Combine(environment.AppDataDirectory, "secure.dat");
+        _documentsCopyPath = Path.Combine(environment.BackupDirectory, DocumentsCopyName);
     }
 
     public async Task<string?> GetAsync(string key)
@@ -48,6 +54,7 @@ public sealed class DpapiSecureStore : ISecureStore
             var encrypted = ProtectedData.Protect(json, Entropy, DataProtectionScope.CurrentUser);
             await File.WriteAllBytesAsync(_filePath, encrypted);
             WriteRegistry(encrypted);
+            WriteDocumentsCopy(encrypted);
         }
         finally
         {
@@ -57,9 +64,28 @@ public sealed class DpapiSecureStore : ISecureStore
 
     private Dictionary<string, string> Load()
     {
-        // Önce dosya; yoksa ya da okunamazsa kayıt defterindeki kopya
-        var data = Decrypt(File.Exists(_filePath) ? SafeRead(_filePath) : null) ?? Decrypt(ReadRegistry());
+        // Önce dosya; yoksa ya da okunamazsa kayıt defteri, o da yoksa Belgeler'deki kopya
+        var data = Decrypt(File.Exists(_filePath) ? SafeRead(_filePath) : null)
+                   ?? Decrypt(ReadRegistry())
+                   ?? Decrypt(File.Exists(_documentsCopyPath) ? SafeRead(_documentsCopyPath) : null);
         return data ?? new();
+    }
+
+    private void WriteDocumentsCopy(byte[] encrypted)
+    {
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(_documentsCopyPath)!);
+            // Gizli dosyanın üzerine yazmak için önce özniteliği kaldır (yoksa UnauthorizedAccessException)
+            if (File.Exists(_documentsCopyPath))
+                File.SetAttributes(_documentsCopyPath, FileAttributes.Normal);
+            File.WriteAllBytes(_documentsCopyPath, encrypted);
+            File.SetAttributes(_documentsCopyPath, FileAttributes.Hidden);
+        }
+        catch
+        {
+            // Belgeler yazılamazsa (izin, OneDrive kilidi) dosya ve kayıt defteri yeterli
+        }
     }
 
     private static Dictionary<string, string>? Decrypt(byte[]? encrypted)

@@ -190,6 +190,11 @@ namespace Kuyumcu.Services
                         ? "Google Drive bağlantısı bu derlemede tanımlı değil."
                         : "Google Drive hesabı bağlı değil. Ayarlar'dan bağlayın.");
 
+                // Kurulumu tamamlanmamış (boş) veritabanı Drive'a yüklenmez: yeniden kurulumda Drive'daki "son yedek"
+                // boş veriyle ezilmesin (telefon da onu indirirdi).
+                if (!await _databaseService.IsSetupCompletedAsync())
+                    return new(CloudBackupOutcome.Unchanged, "Kurulum tamamlanmadı; yedek alınmadı.");
+
                 Directory.CreateDirectory(_environment.CacheDirectory);
                 if (!await _databaseService.CreateBackupCopyAsync(snapshotPath))
                     throw new IOException("Veritabanının anlık kopyası alınamadı.");

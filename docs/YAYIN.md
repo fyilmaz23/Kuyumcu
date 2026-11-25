@@ -37,6 +37,20 @@ GitHub Actions (`.github/workflows/release.yml`) iki dosya üretir ve GitHub Rel
    - **Fiyat:** Ücretsiz. Lisans uygulama içinde satılır (oyun olmayan uygulamalarda Microsoft komisyon almaz).
    - `runFullTrust` yeteneği için açıklama: *"Masaüstü uygulamasıdır (WPF); yerel veritabanı, yazıcı ve dosya erişimi gerekir."*
 5. MSIX'i Microsoft imzalar; sizin sertifika almanıza gerek yoktur.
+6. **Yerelde deneme (isteğe bağlı):** Windows Ayarlar'da Geliştirici Modu açıkken, gönderimden önce paket kurulup
+   denenebilir (imzasız, deneme kimliğiyle; Windows SDK gerekmez, araçlar NuGet önbelleğinden bulunur):
+
+   ```powershell
+   dotnet publish src/Kuyumcu.Desktop/Kuyumcu.Desktop.csproj -c Release -r win-x64 --self-contained true -p:Version=2.0.0 -p:DebugType=none -o artifacts/desktop-publish
+   $env:STORE_PACKAGE_NAME = "KuyumcuDefteri.YerelDeneme"; $env:STORE_PUBLISHER = "CN=KuyumcuDefteriYerelDeneme"; $env:STORE_PUBLISHER_DISPLAY_NAME = "Yerel Deneme"
+   ./build/pack-msix.ps1 -PublishDir artifacts/desktop-publish -PackagingDir src/Kuyumcu.Desktop/Packaging -Version 2.0.0.0 -OutputPath artifacts/KuyumcuDefteri_test.msix -LayoutDir artifacts/msix-layout
+   Add-AppxPackage -Register artifacts/msix-layout/AppxManifest.xml     # Başlat menüsünde "Kuyumcu Defteri"
+   Get-AppxPackage KuyumcuDefteri.YerelDeneme | Remove-AppxPackage      # kaldırmak için
+   ```
+
+> **Store sürümünde veriler:** Windows, Store'dan kurulan uygulamanın AppData'ya yazdığı yeni dosyaları kaldırma
+> sırasında siler. Müşteri uygulamayı kaldırıp yeniden kurarsa ilk açılışta **"Önceki yedeğiniz bulundu"** (Belgeler'deki
+> yerel yedek) ya da **"Drive'dan Geri Yükle"** seçeneğiyle verisini geri alır. Deneme süresi yeniden kurulumda sıfırlanmaz.
 
 ## 2. Google Play (Android – salt okunur)
 

@@ -32,24 +32,36 @@ public partial class App : Application
 
         DispatcherUnhandledException += (_, args) =>
         {
+            AppLog.Error("Arayüz hatası", args.Exception);
             MessageBox.Show($"Beklenmeyen bir hata oluştu:\n{args.Exception.Message}", ProductInfo.Name, MessageBoxButton.OK, MessageBoxImage.Error);
             args.Handled = true;
         };
+        AppDomain.CurrentDomain.UnhandledException += (_, args) => AppLog.Error("Yakalanmayan hata", args.ExceptionObject as Exception);
+        TaskScheduler.UnobservedTaskException += (_, args) => AppLog.Error("Arka plan görevi hatası", args.Exception);
 
         Services = ConfigureServices();
 
         // WebView2 verileri yazılabilir bir klasörde tutulmalı (MSIX kurulum klasörü salt okunurdur)
         var environment = Services.GetRequiredService<IAppEnvironment>();
+        AppLog.Initialize(environment.AppDataDirectory);
+        AppLog.Info($"Açılış: sürüm {typeof(App).Assembly.GetName().Version}, paketli: {IsPackaged()}, klasör: {AppContext.BaseDirectory}");
         Environment.SetEnvironmentVariable("WEBVIEW2_USER_DATA_FOLDER", Path.Combine(environment.AppDataDirectory, "WebView2"));
         base.OnStartup(e);
 
         // Veritabanı şemasını güncelle, lisans denemesini başlat ve yerel yedeklemeyi çalıştır
         _ = Task.Run(async () =>
         {
-            await Services.GetRequiredService<DatabaseService>().UpdateDatabaseSchemaAsync();
-            await Services.GetRequiredService<LicenseService>().InitializeTrialAsync();
-            Services.GetRequiredService<BackupService>().Start();
-            Services.GetRequiredService<CloudBackupService>().Start();
+            try
+            {
+                await Services.GetRequiredService<DatabaseService>().UpdateDatabaseSchemaAsync();
+                await Services.GetRequiredService<LicenseService>().InitializeTrialAsync();
+                Services.GetRequiredService<BackupService>().Start();
+                Services.GetRequiredService<CloudBackupService>().Start();
+            }
+            catch (Exception ex)
+            {
+                AppLog.Error("Açılış görevleri", ex);
+            }
         });
 
         new MainWindow().Show();
@@ -71,6 +83,19 @@ public partial class App : Application
         (Services as IDisposable)?.Dispose();
         _singleInstanceMutex?.Dispose();
         base.OnExit(e);
+    }
+
+    /// <summary>MSIX paketinden mi çalışıyor? (Store sürümü)</summary>
+    private static bool IsPackaged()
+    {
+        try
+        {
+            return global::Windows.ApplicationModel.Package.Current != null;
+        }
+        catch
+        {
+            return false; // paketsiz çalışmada InvalidOperationException
+        }
     }
 
     private static IServiceProvider ConfigureServices()

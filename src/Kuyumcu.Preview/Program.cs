@@ -16,8 +16,10 @@ builder.WebHost.UseStaticWebAssets();
 builder.Services.AddRazorComponents().AddInteractiveServerComponents();
 builder.Services.AddMudServices();
 
-// Önizleme verileri: proje klasöründeki .preview-data (git'e girmez)
-var dataDir = Path.Combine(builder.Environment.ContentRootPath, ".preview-data");
+// Önizleme verileri: proje klasöründeki .preview-data (git'e girmez).
+// "--bos true": örnek veri yüklenmeden, ayrı klasörde (.preview-data-bos) yeni kurulum gibi başlar (kurulum ekranını denemek için).
+var startEmpty = string.Equals(builder.Configuration["bos"], "true", StringComparison.OrdinalIgnoreCase);
+var dataDir = Path.Combine(builder.Environment.ContentRootPath, startEmpty ? ".preview-data-bos" : ".preview-data");
 builder.Services.AddSingleton<IAppEnvironment>(new PreviewAppEnvironment(dataDir));
 builder.Services.AddSingleton<ISecureStore, InMemorySecureStore>();
 builder.Services.AddSingleton<IFilePickerService, NoFilePicker>();
@@ -32,8 +34,11 @@ builder.Services.AddScoped<ShortcutService>();
 
 var app = builder.Build();
 
-await SampleData.SeedAsync(app.Services.GetRequiredService<DatabaseService>(), app.Services.GetRequiredService<LicenseService>(),
-    app.Services.GetRequiredService<StockService>(), FileLabelPrinter.FakePrinterName);
+if (!startEmpty)
+{
+    await SampleData.SeedAsync(app.Services.GetRequiredService<DatabaseService>(), app.Services.GetRequiredService<LicenseService>(),
+        app.Services.GetRequiredService<StockService>(), FileLabelPrinter.FakePrinterName);
+}
 
 app.UseStaticFiles();
 app.UseAntiforgery();

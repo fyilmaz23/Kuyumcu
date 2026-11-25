@@ -292,6 +292,41 @@ otomatik erişim (+ dosya seçici yedek yol).
 - Fiş çizimi, yazıcıya göndermeden görüntüye alınarak denendi (kısa/uzun başlık, 3 satırlık ve boş alt yazı, Türkçe
   harfler). Ayarlar alanları önizlemede kaydedilip geri yüklendi. **Gerçek termal yazıcıda basılmadı.**
 
+### 11. Microsoft Store (MSIX) hazırlığı (25.11.2026)
+- **Yerelde MSIX denendi:** `build/pack-msix.ps1` artık Windows SDK kurulu değilse araçları NuGet önbelleğindeki
+  `microsoft.windows.sdk.buildtools`'tan bulur; `-LayoutDir` ile paket içeriği bırakılır ve Geliştirici Modu açıkken
+  `Add-AppxPackage -Register <LayoutDir>\AppxManifest.xml` ile imzasız kurulup denenebilir (bkz. YAYIN.md bölüm 1).
+  Düzeltilen: Windows PowerShell 5.1 bildirimi ANSI okuyup Türkçe harfleri bozuyordu (`-Encoding UTF8`, betik BOM'lu).
+  Deneme kimliğiyle (`KuyumcuDefteri.YerelDeneme`) paket 99,5 MB; kuruldu, açıldı, ana sayfa ve menü çalıştı.
+  İlk açılışta pencere bir süre boş kaldı, sonraki açılışlarda tekrarlanmadı.
+- **Hata günlüğü:** `Desktop/Platform/AppLog.cs` → `%LOCALAPPDATA%\KuyumcuDefteri\logs\uygulama.log` (1 MB'ta döner).
+  Açılış (sürüm, paketli mi), WebView2 sürümü, sayfa yüklendi/yüklenemedi, WebView2 süreç çökmesi, sayfadaki JS
+  hataları ve yakalanmayan .NET hataları. Müşteri verisi yazılmaz.
+- **MSIX sanallaştırması (önemli):** Store'dan kurulan uygulamanın AppData'ya ve HKCU'ya yaptığı **yeni** yazımlar pakete
+  özel yere gider ve **uygulama kaldırılınca silinir** (Belgeler yönlendirilmez). Yani yeni müşteride kaldırma →
+  yerel veritabanı, Drive oturumu ve deneme kaydı silinir. Kapatma ayarı (`unvirtualizedResources`) Windows 10'da
+  sadece Microsoft iş ortağı oyunlarına; yenisi Windows 11'e özel ve Store onayı belirsiz → kullanılmadı.
+  Kullanıcı kararıyla alınan önlemler:
+  - `DpapiSecureStore` (deneme başlangıcı, son kontrol, cihaz kimliği) üçüncü kopyayı **Belgeler\Kuyumcu Defteri
+    Yedekleri\.kurulum.dat** (gizli, DPAPI şifreli) dosyasına da yazar; okuma sırası dosya → kayıt defteri → Belgeler.
+    Böylece kaldır/yeniden kur ile deneme süresi sıfırlanmaz.
+  - Kurulum ekranı: eski sürüm verisi yoksa Belgeler'deki yerel yedeklerden içinde müşteri olan en yenisini bulur →
+    **"Önceki yedeğiniz bulundu"** (iş yeri adı, müşteri sayısı, tarih) → tek tıkla geri yükleme. Drive tanımlıysa
+    **"Drive'dan Geri Yükle"**: Google'a bağlanır, `kuyumcuKind=latest` dosyasını indirir, özeti onaylatıp geri yükler
+    (`GoogleDriveService.DownloadLatestBackupAsync`). Drive'dan geri yükleme gerçek hesapla **denenmedi**.
+  - Kurulumu tamamlanmamış (boş) veritabanı artık ne yerelde ne Drive'da yedeklenir: yeni kurulumun boş yedeği
+    "en yeni yedek" olmasın, Drive'daki "son yedek" (telefonun okuduğu) boşla ezilmesin.
+  - Yerel yedek temizliği en yeni 10 yedeği yaşına bakmadan saklar (önceden: uzun süre sonra açılan/yeniden kurulan
+    uygulama ilk yedekte 30 günden eski bütün yedekleri siliyordu).
+  - Birim testleri: `BackupServiceTests` (boş DB yedeklenmez, özet okunur, en az 10 yedek kalır). Veritabanı testleri
+    `[Collection("Veritabanı")]` ile sırayla koşar (`SQLiteAsyncConnection.ResetPool()` paralel testleri bozuyordu).
+- **Önizleme:** `dotnet run --project src/Kuyumcu.Preview -- --bos true --urls http://localhost:5081` örnek veri
+  yüklemeden `.preview-data-bos` klasöründe yeni kurulum gibi açılır (kurulum ekranını denemek için; launch.json
+  "preview-bos"). Bu yolla "Önceki yedeğiniz bulundu → Yedeği Geri Yükle" denendi: 12 müşteri ve bakiyeler geldi.
+- **Not (bu geliştirme bilgisayarı):** Claude masaüstü uygulamasından başlatılan süreçler Claude'un paket
+  sanallaştırmasına girer; geliştirme sırasında çalıştırılan uygulamanın veri klasörü aslında
+  `%LOCALAPPDATA%\Packages\Claude_…\LocalCache\Local\KuyumcuDefteri`. Gerçek `%LOCALAPPDATA%\KuyumcuDefteri` başka veri içerir.
+
 ## Kullanıcıya sunulan öneriler (karar bekleyen sıra)
 1. ~~Lisans~~ (yapıldı, bölüm 5). Kalan: Obfuscar ile kod karıştırma (yamalamayı zorlaştırır), istenirse çevrimiçi aktivasyon.
 2. ~~Otomatik Drive yedeği~~ (yapıldı, bölüm 6). Kalan: ürünün OAuth istemcisi oluşturulup izin ekranı "Üretim"e
@@ -300,7 +335,9 @@ otomatik erişim (+ dosya seçici yedek yol).
    daha önce başka uygulamada geçti, yeni uygulama için yine gerekir). Adımlar: `docs/YAYIN.md` bölüm 2.
 
 ## Doğrulanmadı / dikkat
-- `build/pack-msix.ps1` ve Android AAB üretimi CI'da henüz denenmedi (ilk etikette görülecek).
+- `build/pack-msix.ps1` yerelde denendi (bölüm 11); CI'da ve gerçek Store kimliğiyle henüz denenmedi (ilk etikette görülecek).
+- Store sürümünde uygulama kaldırılırsa yerel veritabanı silinir (bölüm 11); veri Belgeler'deki yedeklerden ve Drive'dan
+  kurulum ekranında geri yüklenir.
 - Hedef çerçeve değişti (`net10.0-windows10.0.19041.0`): CI'da Linux üzerinde Desktop derlemesi ilk push'ta kontrol edilmeli.
 - Özel lisans anahtarının yedeği kullanıcıda olmalı (kaybolursa yeni lisans üretilemez).
 - Süreli lisansta bilgisayar saati bir kez ileri (ör. 2030) ayarlanırsa "son kontrol" o tarihte kalır ve lisans bitmiş

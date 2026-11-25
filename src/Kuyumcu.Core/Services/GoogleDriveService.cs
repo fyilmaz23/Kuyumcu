@@ -304,6 +304,31 @@ namespace Kuyumcu.Services
             return trashed;
         }
 
+        /// <summary>
+        /// Drive'daki "son yedek" dosyasını indirir (yeniden kurulumda geri yüklemek için).
+        /// Yoksa null; varsa yedeğin Drive'daki son değişiklik zamanını döndürür.
+        /// </summary>
+        public async Task<DateTimeOffset?> DownloadLatestBackupAsync(string destinationPath, CancellationToken cancellationToken)
+        {
+            var service = await GetServiceAsync(cancellationToken);
+            var list = service.Files.List();
+            list.Q = $"trashed = false and appProperties has {{ key='{KindProperty}' and value='{KindLatest}' }}";
+            list.Fields = "files(id, modifiedTime)";
+            list.OrderBy = "modifiedTime desc";
+            list.Spaces = "drive";
+            var latest = (await list.ExecuteAsync(cancellationToken)).Files?.FirstOrDefault();
+            if (latest == null)
+                return null;
+
+            await using (var stream = new FileStream(destinationPath, FileMode.Create, FileAccess.Write, FileShare.None))
+            {
+                var progress = await service.Files.Get(latest.Id).DownloadAsync(stream, cancellationToken);
+                if (progress.Status != Google.Apis.Download.DownloadStatus.Completed)
+                    throw progress.Exception ?? new IOException("Drive'daki yedek indirilemedi.");
+            }
+            return latest.ModifiedTimeDateTimeOffset;
+        }
+
         /// <summary>Drive klasörünün tarayıcıda açılacak adresi.</summary>
         public static string FolderWebLink(string folderId) => $"https://drive.google.com/drive/folders/{folderId}";
 

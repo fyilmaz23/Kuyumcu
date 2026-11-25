@@ -370,3 +370,4 @@ FodyWeavers.xsd
 *.jks
 artifacts/
 .preview-data/
+.preview-data-bos/

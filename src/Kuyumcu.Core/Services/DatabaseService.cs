@@ -284,6 +284,48 @@ namespace Kuyumcu.Services
             public string Name { get; set; }
         }
 
+        /// <summary>
+        /// Yedek dosyasının özetini salt okunur açarak okur (iş yeri adı, silinmemiş müşteri sayısı).
+        /// Geçerli bir Kuyumcu Defteri yedeği değilse null.
+        /// </summary>
+        public async Task<BackupSummary?> ReadBackupSummaryAsync(string filePath)
+        {
+            SQLiteAsyncConnection? db = null;
+            try
+            {
+                db = new SQLiteAsyncConnection(filePath, SQLiteOpenFlags.ReadOnly);
+                var tables = await db.QueryAsync<TableInfoResult>(
+                    "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('Customer', 'AppSettings')");
+                if (!tables.Any(t => t.Name == "Customer"))
+                    return null;
+
+                int customers;
+                try
+                {
+                    customers = await db.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM Customer WHERE IsDeleted = 0");
+                }
+                catch (SQLiteException)
+                {
+                    // Eski şemada IsDeleted kolonu yok
+                    customers = await db.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM Customer");
+                }
+                string? businessName = null;
+                if (tables.Any(t => t.Name == "AppSettings"))
+                    businessName = await db.ExecuteScalarAsync<string?>("SELECT BusinessName FROM AppSettings LIMIT 1");
+
+                return new BackupSummary(string.IsNullOrWhiteSpace(businessName) ? null : businessName.Trim(), customers);
+            }
+            catch
+            {
+                return null;
+            }
+            finally
+            {
+                if (db != null)
+                    await db.CloseAsync();
+            }
+        }
+
         // Customer methods
         public async Task<List<Customer>> GetCustomersAsync()
         {
