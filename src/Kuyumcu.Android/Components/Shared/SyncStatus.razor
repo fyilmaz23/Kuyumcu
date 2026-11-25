@@ -58,7 +58,8 @@
 
     private async Task Refresh()
     {
-        var result = await Sync.RefreshAsync(interactive: true);
+        // İzin geçersizse hesap seçiciyle yeniden bağlan (yanlış hesap seçildiyse düzeltilebilsin)
+        var result = Sync.NeedsReconnect ? await Sync.ConnectAsync() : await Sync.RefreshAsync(interactive: true);
         if (result.Outcome == SyncOutcome.Updated)
             NativeDialogs.Toast("Yeni yedek indirildi");
         else if (result.Outcome == SyncOutcome.UpToDate)

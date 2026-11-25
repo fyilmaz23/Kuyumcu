@@ -84,7 +84,8 @@ projesinin istemcilerinin oluşturduğu dosyaları** gösterir; bu yüzden Andro
 (bkz. 3. bölüm) **AYNI projesinde** açılmalıdır. Uygulamada istemci kimliği/sırrı yoktur: Google, isteği
 paket adı + imza sertifikasının SHA-1'i ile eşler.
 
-1. [Google Cloud Console](https://console.cloud.google.com/) → masaüstü istemcisinin olduğu proje →
+1. [Google Cloud Console](https://console.cloud.google.com/) → masaüstü istemcisinin olduğu proje
+   (şu an **KuyumcuApp**, `kuyumcuapp-454423`; geliştirme/debug istemcisi açık) →
    **API'ler ve Hizmetler → Kimlik bilgileri → Kimlik bilgisi oluştur → OAuth istemci kimliği → Android**.
 2. Paket adı `com.kuyumcudefteri.app`, SHA-1 olarak aşağıdakilerin her biri için **ayrı birer** Android istemcisi açın:
 
