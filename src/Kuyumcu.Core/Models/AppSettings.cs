@@ -13,6 +13,16 @@ namespace Kuyumcu.Models
         public string BusinessName { get; set; } = string.Empty;
 
         /// <summary>
+        /// Müşteri fişinin başlığı. Boşsa <see cref="BusinessName"/> basılır (bkz. <see cref="ReceiptTexts"/>).
+        /// </summary>
+        public string? ReceiptTitle { get; set; }
+
+        /// <summary>
+        /// Müşteri fişinin alt yazısı (ör. Instagram adı, telefon, adres). Boşsa basılmaz.
+        /// </summary>
+        public string? ReceiptFooter { get; set; }
+
+        /// <summary>
         /// Google API OAuth Client ID (Google Cloud Console'dan alınır)
         /// </summary>
         public string GoogleClientId { get; set; } = string.Empty;

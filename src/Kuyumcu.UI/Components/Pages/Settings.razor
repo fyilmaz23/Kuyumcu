@@ -54,6 +54,13 @@
                         <MudTextField @bind-Value="settings.BusinessName" Label="İş yeri adı" Variant="Variant.Outlined"
                                       Required="true" RequiredError="İş yeri adı zorunludur"
                                       HelperText="Üst menüde ve müşteri özetlerinde görünür." />
+                        <MudTextField @bind-Value="settings.ReceiptTitle" Label="Fiş başlığı" Variant="Variant.Outlined" Class="mt-4"
+                                      Placeholder="@(string.IsNullOrWhiteSpace(settings.BusinessName) ? null : settings.BusinessName)"
+                                      HelperText="Yazdırılan müşteri fişinin en üstünde. Boş bırakılırsa iş yeri adı basılır." />
+                        <MudTextField @bind-Value="settings.ReceiptFooter" Label="Fiş alt yazısı" Variant="Variant.Outlined" Class="mt-4"
+                                      Lines="2" AutoGrow="true" MaxLines="@ReceiptTexts.MaxFooterLines"
+                                      Placeholder="ör. @@kuyumcuadiniz · 0555 555 55 55"
+                                      HelperText="@($"Fişin altına basılır (Instagram, telefon, adres…). En fazla {ReceiptTexts.MaxFooterLines} satır; boşsa basılmaz.")" />
                     </div>
                 </section>
 

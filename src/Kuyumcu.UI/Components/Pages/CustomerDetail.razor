@@ -604,13 +604,14 @@
         }
     }
 
-    private void PrintCustomerReceipt(string printer)
+    private async Task PrintCustomerReceipt(string printer)
     {
         try
         {
             selectedPrinter = printer;
+            var texts = ReceiptTexts.From(await DatabaseService.GetSettingsAsync());
             PrintService.SetPrinterName(printer);
-            PrintService.PrintCustomerReceipt(customer!, groupedTransactions);
+            PrintService.PrintCustomerReceipt(customer!, groupedTransactions, texts);
             Snackbar.Add($"Fiş yazıcıya gönderildi: {printer}", Severity.Success);
         }
         catch (Exception ex)

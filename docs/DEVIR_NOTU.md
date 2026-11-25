@@ -281,6 +281,17 @@ otomatik erişim (+ dosya seçici yedek yol).
   katıldıktan sonra işler (12+ kişi gerekli).
 - **Denenmedi:** Play'den kurulumla gerçek cihazda Drive, yan çekilmiş (EXIF yönlü) gerçek telefon fotoğrafıyla arka plan.
 
+### 10. Fiş metinleri ayarlarda (25.11.2026)
+- Müşteri fişindeki sabit "KUYUMCU MEHMET" ve "@kuyumcumehmetelazig" kaldırıldı. `AppSettings.ReceiptTitle` /
+  `ReceiptFooter` (yeni kolonlar, eski satırlarda NULL) → Ayarlar > İş Yeri'nde "Fiş başlığı" ve "Fiş alt yazısı".
+- Kural `Core/Models/ReceiptTexts.cs`: başlık boşsa iş yeri adı; alt yazı boşsa basılmaz; alt yazıda boş satırlar
+  atılır, en fazla 3 satır. Birim testli (`ReceiptTextsTests`).
+- `IReceiptPrinter.PrintCustomerReceipt(customer, groups, texts)`: metinleri çağıran (`CustomerDetail`) ayarlardan verir.
+  `WindowsReceiptPrinter` başlığı ve alt yazıyı ölçüp ortalar; uzun başlık alt satıra kayar.
+  Bakiye satırları ("Borcum"/"Alacak"/"Hesap Sıfır") ve bilgilendirme notu **değişmedi**.
+- Fiş çizimi, yazıcıya göndermeden görüntüye alınarak denendi (kısa/uzun başlık, 3 satırlık ve boş alt yazı, Türkçe
+  harfler). Ayarlar alanları önizlemede kaydedilip geri yüklendi. **Gerçek termal yazıcıda basılmadı.**
+
 ## Kullanıcıya sunulan öneriler (karar bekleyen sıra)
 1. ~~Lisans~~ (yapıldı, bölüm 5). Kalan: Obfuscar ile kod karıştırma (yamalamayı zorlaştırır), istenirse çevrimiçi aktivasyon.
 2. ~~Otomatik Drive yedeği~~ (yapıldı, bölüm 6). Kalan: ürünün OAuth istemcisi oluşturulup izin ekranı "Üretim"e
@@ -329,8 +340,8 @@ otomatik erişim (+ dosya seçici yedek yol).
 6. Eski `ccr-325b955a-m9osww` uzak dalı silinecek (bulut oturumu silemedi).
 7. Barkod: TE210 ve RH10 ile `docs/ETIKET_VE_OKUYUCU_TESTI.md` adımları; çıkan kanat ölçüleri varsayılan yerleşime
    işlenebilir. Sonra ZPL dili (başka dükkânlar için), kasa ürünlerinin satışta veresiyeye bağlanması, kullanıcı (kim
-   sattı) alanının doldurulması düşünülebilir. Fiş yazıcısındaki dükkâna özel metinler ("KUYUMCU MEHMET",
-   Instagram adı) hâlâ `WindowsReceiptPrinter`'da gömülü; ayarlara taşınmalı.
+   sattı) alanının doldurulması düşünülebilir.
+8. ~~Fiş yazıcısındaki dükkâna özel metinler~~ (bölüm 10). İlk müşteri geçişte bunları Ayarlar'a girmeli (YAYIN.md 4).
 
 ## Geliştirme komutları
 

@@ -78,7 +78,8 @@ public interface IReceiptPrinter
 {
     bool IsSupported { get; }
     void SetPrinterName(string printerName);
-    void PrintCustomerReceipt(Kuyumcu.Models.Customer customer, List<Kuyumcu.Models.TransactionGroup> transactions);
+    /// <param name="texts">İşletmeye özel başlık/alt yazı (ayarlardan: <see cref="Kuyumcu.Models.ReceiptTexts.From"/>).</param>
+    void PrintCustomerReceipt(Kuyumcu.Models.Customer customer, List<Kuyumcu.Models.TransactionGroup> transactions, Kuyumcu.Models.ReceiptTexts texts);
     List<string> GetAvailablePrinters();
 }
 

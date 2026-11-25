@@ -221,4 +221,7 @@ Eski uygulama (`com.companyname.kuyumcu`) ile yeni Store uygulaması farklı pak
 4. Altın fiyatı özelliği için: Ayarlar → **Altın Fiyatı Görseli** bölümünde
    `musteri-varliklari/carsi_kuyumculuk_template.jpg` şablon olarak yüklenir (fiyatlar elazigaltinfiyatlari.com'dan
    şifresiz alınır).
-5. Her şey doğrulandıktan sonra eski uygulama kaldırılabilir.
+5. Müşteri fişi için: Ayarlar → **İş Yeri** bölümünde **Fiş başlığı** `KUYUMCU MEHMET`, **Fiş alt yazısı**
+   `@kuyumcumehmetelazig` girilip kaydedilir (eski sürümde bu metinler sabitti; yeni sürümde girilmezse başlıkta iş
+   yeri adı basılır, alt yazı basılmaz).
+6. Her şey doğrulandıktan sonra eski uygulama kaldırılabilir.

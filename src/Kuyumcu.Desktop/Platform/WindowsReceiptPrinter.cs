@@ -24,7 +24,7 @@ namespace Kuyumcu.Desktop.Platform
             _printerName = printerName;
         }
         
-        public void PrintCustomerReceipt(Customer customer, List<TransactionGroup> transactions)
+        public void PrintCustomerReceipt(Customer customer, List<TransactionGroup> transactions, ReceiptTexts texts)
         {
             try
             {
@@ -43,7 +43,7 @@ namespace Kuyumcu.Desktop.Platform
                 printDoc.PrinterSettings.PrintToFile = false;
                 
                 // Sayfa içeriğini hazırla
-                printDoc.PrintPage += (sender, e) => PrintPage_CustomerReceipt(sender, e, customer, transactions);
+                printDoc.PrintPage += (sender, e) => PrintPage_CustomerReceipt(sender, e, customer, transactions, texts);
                 
                 // Doğrudan yazdır
                 printDoc.Print();
@@ -55,7 +55,7 @@ namespace Kuyumcu.Desktop.Platform
             }
         }
 
-        private void PrintPage_CustomerReceipt(object sender, PrintPageEventArgs e, Customer customer, List<TransactionGroup> transactions)
+        private void PrintPage_CustomerReceipt(object sender, PrintPageEventArgs e, Customer customer, List<TransactionGroup> transactions, ReceiptTexts texts)
         {
             // Setup
             Graphics graphics = e.Graphics;
@@ -67,11 +67,14 @@ namespace Kuyumcu.Desktop.Platform
             int rightMargin = 10; // New right margin to prevent text from being cut off
             StringFormat centerFormat = new StringFormat { Alignment = StringAlignment.Center };
             
-            // Title
-            float titleWidth = e.PageBounds.Width - (leftMargin * 2);
-            RectangleF titleRect = new RectangleF(leftMargin, yPos, titleWidth, 20);
-            graphics.DrawString("KUYUMCU MEHMET", titleFont, Brushes.Black, titleRect, centerFormat);
-            yPos += 25;
+            // Başlık (ayarlardaki fiş başlığı ya da iş yeri adı); uzunsa ortalanarak alt satıra kayar
+            float contentWidth = e.PageBounds.Width - (leftMargin * 2);
+            if (!string.IsNullOrEmpty(texts.Title))
+            {
+                SizeF titleSize = graphics.MeasureString(texts.Title, titleFont, (int)contentWidth, centerFormat);
+                graphics.DrawString(texts.Title, titleFont, Brushes.Black, new RectangleF(leftMargin, yPos, contentWidth, titleSize.Height), centerFormat);
+                yPos += (int)Math.Ceiling(titleSize.Height) + 7;
+            }
             
             // Date and Time
             string dateTime = DateTime.Now.ToString("dd/MM/yyyy HH:mm:ss");
@@ -139,13 +142,17 @@ namespace Kuyumcu.Desktop.Platform
             DrawSeparator(graphics, leftMargin, yPos, e.PageBounds.Width - (leftMargin * 2));
             yPos += 10;
             
-            string footerText = "@kuyumcumehmetelazig";
-            System.Drawing.SizeF footerSize = graphics.MeasureString(footerText, regularFont);
-            float footerX = (e.PageBounds.Width - footerSize.Width) / 2;
-            graphics.DrawString(footerText, regularFont, Brushes.Black, footerX, yPos);
-            
-            // Bilgilendirme notu ekle
-            yPos += 20;
+            // Alt yazı (ayarlardaki fiş alt yazısı: Instagram, telefon…); boşsa basılmaz
+            if (!string.IsNullOrEmpty(texts.Footer))
+            {
+                SizeF footerSize = graphics.MeasureString(texts.Footer, regularFont, (int)contentWidth, centerFormat);
+                graphics.DrawString(texts.Footer, regularFont, Brushes.Black, new RectangleF(leftMargin, yPos, contentWidth, footerSize.Height), centerFormat);
+                yPos += (int)Math.Ceiling(footerSize.Height) + 7;
+            }
+            else
+            {
+                yPos += 2;
+            }
             System.Drawing.Font disclaimerFont = new System.Drawing.Font("Arial", 6); // Daha küçük yazı boyutu
             
             // Bilgilendirme notunu iki satıra böl

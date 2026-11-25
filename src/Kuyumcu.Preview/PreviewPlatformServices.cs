@@ -48,7 +48,7 @@ public sealed class NoPrinter : IReceiptPrinter
 {
     public bool IsSupported => false;
     public void SetPrinterName(string printerName) { }
-    public void PrintCustomerReceipt(Customer customer, List<TransactionGroup> transactions) { }
+    public void PrintCustomerReceipt(Customer customer, List<TransactionGroup> transactions, ReceiptTexts texts) { }
     public List<string> GetAvailablePrinters() => new();
 }
 
