@@ -263,15 +263,29 @@ otomatik erişim (+ dosya seçici yedek yol).
   - "Bağlantıyı kes" artık REST revoke yerine `AuthorizationClient.RevokeAccess` + `ClearToken` kullanır.
   - Drive 401 dönerse önbellekteki belirteç `ClearToken` ile silinip sessizce bir kez daha denenir; olmazsa
     "Yeniden bağlanın" (Yedek sayfasında kırmızı durum + "Bağlan" düğmesi; önceden yanlışlıkla "Bağlı" görünüyordu).
-- **Denenmedi:** gerçek cihaz, Play'den kurulan sürümde Drive (Play imzalama SHA-1 istemcisi), yan çekilmiş (EXIF yönlü)
-  gerçek telefon fotoğrafıyla arka plan, imzalı AAB'nin Play'e yüklenmesi.
+- **Google Play dahili test (25.11.2026):** Play Console "Fatih Yılmaz Apps" (kişisel hesap) → **Kuyumcu Defteri**
+  (`com.kuyumcudefteri.app`, Türkçe, ücretsiz). Dahili test kanalında sürüm **100 (2.0.0)** yayında; test listesi
+  "Kuyumcu Defteri - dahili test" (fyilmaz2124, adamakillianlat). Katılım bağlantısı:
+  https://play.google.com/apps/internaltest/4701420845769712668
+  - Yükleme anahtarı: `%USERPROFILE%\.kuyumcu-imza\upload.keystore` (alias `upload`, şifre aynı klasördeki
+    `BENIOKU-sifre.txt`'de; **yedeklenmeli**). Yükleme SHA-1 `0C:88:9A:88:D0:2B:BE:5A:3F:1D:DD:F8:45:18:66:A8:6C:22:F8:9B`.
+  - Play uygulama imzalama (klasik) SHA-1 `2E:3A:A6:C7:1F:DA:B7:FB:AF:2E:9F:2C:C6:88:AC:9D:30:C0:AA:48` → Cloud'da
+    "Kuyumcu Defteri Android (Google Play)" istemcisi açıldı (Play'den kurulan sürüm Drive'a bağlanabilsin).
+  - AAB bu bilgisayarda derlendi (sürüm kodu 100). CI `100 + çalıştırma no` kullanır, yani sonraki CI sürümleri büyük
+    olur. GitHub Secrets (`ANDROID_*`) henüz girilmedi.
+  - 47 MB AAB, Chrome eklentisinin 10 MB dosya sınırını aştığı için Play'e kullanıcı elle yükledi.
+- **Google Play kapalı test (25.11.2026):** Kapalı test kanalı Türkiye için, mevcut test listesiyle, sürüm
+  **101 (2.0.1)** (Drive hesap seçimi düzeltmesi + fiyat görselinde 24 Ayar alış) ile başlatıldı. Mağaza girişi ve
+  tüm beyanlar (gizlilik politikası URL'si, veri güvenliği, içerik derecelendirmesi, hedef kitle, uygulama erişimi)
+  dahil 14 değişiklik **Google incelemesinde**; onay birkaç gün sürebilir. 14 günlük süre test kullanıcıları
+  katıldıktan sonra işler (12+ kişi gerekli).
+- **Denenmedi:** Play'den kurulumla gerçek cihazda Drive, yan çekilmiş (EXIF yönlü) gerçek telefon fotoğrafıyla arka plan.
 
 ## Kullanıcıya sunulan öneriler (karar bekleyen sıra)
 1. ~~Lisans~~ (yapıldı, bölüm 5). Kalan: Obfuscar ile kod karıştırma (yamalamayı zorlaştırır), istenirse çevrimiçi aktivasyon.
 2. ~~Otomatik Drive yedeği~~ (yapıldı, bölüm 6). Kalan: ürünün OAuth istemcisi oluşturulup izin ekranı "Üretim"e
    alınmalı ("Test"te yenileme jetonları 7 günde düşer → yedek durur ve "Yeniden bağlanın" çıkar).
-3. Android: ~~Drive'dan son yedeği otomatik okuma~~ (yapıldı, bölüm 7). Kalan: Play imzalama SHA-1'i için Android
-   OAuth istemcisi (debug istemcisi açıldı), Play kaydı, kapalı test (12 kişi / 14 gün; aynı Play hesabı — kullanıcı
+3. Android: ~~Drive'dan son yedeği otomatik okuma~~ (yapıldı, bölüm 9). Play kaydı ve dahili test yapıldı; kalan: kapalı test (12 kişi / 14 gün; aynı Play hesabı — kullanıcı
    daha önce başka uygulamada geçti, yeni uygulama için yine gerekir). Adımlar: `docs/YAYIN.md` bölüm 2.
 
 ## Doğrulanmadı / dikkat
@@ -306,10 +320,12 @@ otomatik erişim (+ dosya seçici yedek yol).
    ~~Android'in Drive'daki son yedeği okuması~~ (bölüm 9). Sıradaki: Play kapalı testi.
 3. ~~Android veri görüntüleme ekranı~~ ve ~~Drive'dan otomatik indirme~~ (bölüm 9). Yeni uygulamaya vitrin stoğu görünümü eklenebilir. Eski `Kuyumcu.UI/Components/Pages/ImportData.razor`
    ve UI'daki `IsReadOnlyClient` dalları artık Android'de kullanılmıyor; masaüstünde de gerek yoksa temizlenebilir.
-4. ~~Google Cloud: Android OAuth istemcisi (debug) + emülatörde gerçek Drive indirmesi~~ (bölüm 9). Kalan: Play
-   imzalama SHA-1'i için ikinci Android istemcisi (ilk AAB yüklendikten sonra).
-5. Mağaza hazırlığı: gizlilik politikasını (`docs/GIZLILIK.md`) yayınla, GitHub Secrets/Variables, Play kaydı ve
-   kapalı test (bkz. `docs/YAYIN.md` bölüm 2).
+4. ~~Google Cloud: Android OAuth istemcileri (debug + Play imzalama)~~, ~~Play dahili test~~ (bölüm 9).
+   ~~Kapalı test hazırlığı ve incelemeye gönderim~~. Sıradaki: inceleme onayı → 12+ test kullanıcısını katılım
+   bağlantısıyla davet et → 14 gün → üretim başvurusu. Telefonda Play'den kurup Drive'ı dene.
+5. Mağaza hazırlığı: ~~gizlilik politikası~~ (GitHub'daki `docs/GIZLILIK.md`), ~~Play kaydı~~. Kalan: GitHub
+   Secrets/Variables (`ANDROID_*`, `GOOGLE_DESKTOP_*`, `STORE_*`), Microsoft Store (Partner Center) kaydı ve ilk MSIX
+   (bkz. `docs/YAYIN.md` bölüm 1 ve 3).
 6. Eski `ccr-325b955a-m9osww` uzak dalı silinecek (bulut oturumu silemedi).
 7. Barkod: TE210 ve RH10 ile `docs/ETIKET_VE_OKUYUCU_TESTI.md` adımları; çıkan kanat ölçüleri varsayılan yerleşime
    işlenebilir. Sonra ZPL dili (başka dükkânlar için), kasa ürünlerinin satışta veresiyeye bağlanması, kullanıcı (kim
