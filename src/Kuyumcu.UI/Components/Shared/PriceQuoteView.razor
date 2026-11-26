@@ -1,0 +1,39 @@
+@using Kuyumcu.Stock
+@* Satış fiyatı hesabının dökümü: gram × gram fiyatı + işçilik = son fiyat (okutma ekranı ve satış penceresi). *@
+
+@if (Quote == null)
+{
+    <div class="kd-quote is-empty">
+        <MudIcon Icon="@Icons.Material.Outlined.PriceChange" />
+        <span>@(EmptyText ?? "Fiyat hesaplanamadı: canlı fiyat alınamadı.")</span>
+    </div>
+}
+else
+{
+    <div class="kd-quote @(Large ? "is-large" : null)">
+        <div class="kd-quote-line">
+            <span class="kd-num">@FormatHelper.FormatPrice(Quote.Gram) gr × @FormatHelper.FormatPrice(Quote.UnitPrice) ₺</span>
+            <span class="kd-quote-src @(Quote.FromList ? null : "is-warn")">@Quote.Source@(PriceTime is { } t ? $" · {t:HH:mm}" : "")</span>
+            <span class="kd-num kd-quote-sub">@FormatHelper.FormatPrice(Math.Round(Quote.GoldValue)) ₺</span>
+        </div>
+        @if (Quote.Labor > 0)
+        {
+            <div class="kd-quote-line">
+                <span class="kd-num">İşçilik @FormatHelper.FormatPrice(Quote.Gram) gr × @FormatHelper.FormatPrice(Quote.LaborPerGram) ₺</span>
+                <span></span>
+                <span class="kd-num kd-quote-sub">@FormatHelper.FormatPrice(Quote.Labor) ₺</span>
+            </div>
+        }
+        <div class="kd-quote-total">
+            <span>Son fiyat</span>
+            <span class="kd-num">@Quote.Total.ToString("N0") ₺</span>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public SalePrice.Quote? Quote { get; set; }
+    [Parameter] public DateTime? PriceTime { get; set; }
+    [Parameter] public bool Large { get; set; }
+    [Parameter] public string? EmptyText { get; set; }
+}

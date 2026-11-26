@@ -43,7 +43,9 @@ public enum StockMovementType
 public enum BulkUnit
 {
     Piece = 0,
-    Gram = 1
+    Gram = 1,
+    /// <summary>Nakit TL ya da döviz: miktar kuruş/sent cinsinden (× 100) tutulur, has ve grama girmez.</summary>
+    Money = 2
 }
 
 /// <summary>Tek tek etiketlenen vitrin ürünü (bilezik, kolye, yüzük…).</summary>
@@ -156,6 +158,12 @@ public class StockMovement
     /// <summary>İade hareketinde iade edilen satış hareketinin Id'si (aynı satış iki kez iade alınamaz).</summary>
     public int? RelatedMovementId { get; set; }
 
+    /// <summary>
+    /// Müşteri defterindeki bir işlemin kasaya otomatik yansıması (<see cref="TransactionId"/>). Defter işlemi
+    /// düzenlenince/silinince düzeltme hareketi yazılır; veresiye satış gibi iade alınamaz.
+    /// </summary>
+    public bool FromLedger { get; set; }
+
     /// <summary>İşlemi yapan kişi. Şimdilik tek kullanıcı; ileride doldurulacak.</summary>
     [MaxLength(50)]
     public string? UserName { get; set; }
@@ -178,8 +186,11 @@ public class StockCategory
     /// <summary>Seri girişte önerilen ayar.</summary>
     public int DefaultKarat { get; set; } = 22;
 
-    /// <summary>Satış fiyatı önerisinde kullanılan işçilik milyemi (binde). Örn. 50 = 0,050.</summary>
+    /// <summary>Eski işçilik milyemi (binde). 26.11.2026'dan beri kullanılmıyor (bkz. <see cref="LaborPerGram"/>); kolon uyum için duruyor.</summary>
     public int LaborMilyem { get; set; }
+
+    /// <summary>Satış fiyatına eklenen işçilik (TL / net gram). Fiyat = gram × listedeki ayar satışı + gram × bu değer.</summary>
+    public decimal LaborPerGram { get; set; }
 
     public int SortOrder { get; set; }
     public bool IsDeleted { get; set; }
@@ -243,6 +254,16 @@ public class BulkProduct
 
     public int SortOrder { get; set; }
     public bool IsDeleted { get; set; }
+
+    /// <summary>
+    /// Bağlı olduğu defter cinsi (<see cref="CurrencyType"/> sayısı; null = bağlı değil). Müşteri defterindeki bu
+    /// cinsten Gelen işlem kasaya girer, Giden çıkar (emanet hariç). Her cinse en fazla bir ürün bağlıdır; bağlı ürün
+    /// silinirse o cins kasaya işlenmez. Bağlantılar açılışta <c>StockDefaults.EnsureLedgerProducts</c> ile kurulur.
+    /// </summary>
+    public int? LedgerCurrency { get; set; }
+
+    [Ignore]
+    public CurrencyType? LedgerCurrencyType => LedgerCurrency is { } c ? (CurrencyType)c : null;
 
     public override string ToString() => Name;
 }

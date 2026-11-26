@@ -1,5 +1,9 @@
-@* İşlem türü rozeti: Giden / Gelen / Emanet *@
-@if (IsDeposit)
+@* İşlem türü rozeti: Giden / Gelen / Emanet / Emanet teslimi *@
+@if (IsDeposit && Type == TransactionType.CustomerDebt)
+{
+    <span class="kd-badge emanet"><MudIcon Icon="@Icons.Material.Filled.LockOpen" Style="font-size:.85rem" />Emanet teslimi</span>
+}
+else if (IsDeposit)
 {
     <span class="kd-badge emanet"><MudIcon Icon="@Icons.Material.Filled.Lock" Style="font-size:.85rem" />Emanet</span>
 }

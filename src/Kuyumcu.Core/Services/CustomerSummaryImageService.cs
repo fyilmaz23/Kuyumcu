@@ -238,11 +238,11 @@ public class CustomerSummaryImageService
                 g.Balance == 0 ? RowKind.Neutral : g.Balance > 0 ? RowKind.Debt : RowKind.Credit))
             .ToList();
 
-        var depositRows = deposits
-            .GroupBy(t => t.CurrencyType)
-            .Select(g => new SummaryRow(
-                $"{g.Key.GetDisplayName()}:",
-                $"{FormatHelper.FormatPrice(g.Sum(t => t.Amount))} {g.Key.GetSymbol()} (Emanet)",
+        // Dükkânda duran emanet: bırakılan − iade edilen (tamamen iade edilenler yazılmaz)
+        var depositRows = CustomerLedger.NetDeposits(deposits)
+            .Select(d => new SummaryRow(
+                $"{d.Currency.GetDisplayName()}:",
+                $"{FormatHelper.FormatPrice(d.Net)} {d.Currency.GetSymbol()} (Emanet)",
                 RowKind.Neutral))
             .ToList();
 

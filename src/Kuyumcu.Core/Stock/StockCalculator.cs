@@ -61,7 +61,8 @@ public static class StockCalculator
     public static BulkTotal CalculateBulk(BulkProduct product, IEnumerable<KaratDefinition> karats)
     {
         var milyem = karats.FirstOrDefault(k => k.Karat == product.Karat)?.Milyem ?? DefaultMilyem(product.Karat);
-        var weight = product.Unit == BulkUnit.Gram ? product.Amount : product.Amount * product.PieceWeightMg;
+        // Nakit/döviz has ve grama girmez
+        var weight = product.Unit switch { BulkUnit.Gram => product.Amount, BulkUnit.Piece => product.Amount * product.PieceWeightMg, _ => 0 };
         return new BulkTotal(product, milyem, weight, HasMg(weight, milyem));
     }
 

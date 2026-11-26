@@ -68,7 +68,11 @@ docs/ETIKET_VE_OKUYUCU_TESTI.md  Etiket yazıcısı (TSC TE210) ve barkod okuyuc
 ## Korunması gereken iş kuralları
 - **Giden** = `TransactionType.CustomerDebt` (müşteriye verildi, müşteri borçlu) → kırmızı.
   **Gelen** = `StoreDebt` (müşteriden alındı) → yeşil. Net bakiye > 0 ise Giden.
-- **Emanet** sadece Gelen işlemlerde olur, bakiyeye girmez, ayrı bölümde gösterilir.
+- **Emanet** bakiyeye girmez, ayrı defterde gösterilir. Gelen emanet = müşteri bıraktı, **Giden emanet = müşteriye
+  teslim edildi** (26.11.2026'dan beri; önceden emanet sadece Gelen olurdu ve teslimde kayıt silinirdi). Emanet bakiyesi
+  = Gelen − Giden. Kural tek yerde: `Core/Services/CustomerLedger.cs`.
+- **Hesap sıfırlama silmez:** bakiyenin tersi yönde işlem eklenir (`CustomerLedger.Settlement`; Giden bakiyesi → aynı
+  miktar Gelen, emanette → Giden emanet). Gizli işlemler görünmüyorsa ekranda görünen bakiye sıfırlanır.
 - **Gizli işlemler:** müşteri detayında müşterinin **adına tıklamak** gizli işlemleri gösterir/gizler (bilerek gizli kısayol).
 - İşlem kaydetmeden önce **onay penceresi**; yeni işlemde **aynı gün mükerrer** kontrolü.
 - Lisans: kurulumu tamamlanmış ama LicenseInfo'su olmayan veritabanı "güncelleme yapan eski kullanıcı" sayılır
@@ -94,7 +98,7 @@ docs/ETIKET_VE_OKUYUCU_TESTI.md  Etiket yazıcısı (TSC TE210) ve barkod okuyuc
 - Bu geliştirme bilgisayarındaki eski kurulum lisans sisteminden önceki sürüm (LicenseInfo tablosu yok) →
   aktarımdan sonra kasıtlı kural gereği "Deneme Süresi Doldu" gelir.
 
-### 4. Üst menü (24.11.2026, kullanıcı isteği)
+### 4. Üst menü (24.11.2026, kullanıcı isteği) — 26.11.2026'da yeniden sol menüye dönüldü (bölüm 17)
 - Sol menü kaldırıldı (`NavMenu.razor` silindi). `MainLayout`: antrasit tek satır üst bar (52 px) — marka/iş yeri adı,
   ikonlu sayfa düğmeleri (üzerine gelince başlık + kısayol), müşteri arama, deneme süresi rozeti, Drive yedek,
   tema, Ayarlar, "Yeni Müşteri". Kısayollar: Alt+1 Ana Sayfa, Alt+2 Müşteriler, Alt+3 İşlemler, Alt+4–7 stok sayfaları (bölüm 8),
@@ -191,8 +195,8 @@ Vitrin Stoku sayfasının üst düğmelerinde)
 - **Her stok değişikliği** ürünle aynı transaction'da `StockMovement`'a yazılır (giriş, satış, iade, düzeltme +
   değişen alanlar, silme + neden, kayıp/bulundu + sayım no, kasa giriş/çıkış/düzeltme). Silme = `IsDeleted`.
 - **Sayım:** bitirmek ürünü kayıp yapmaz; eksikleri seçip "kayıp yap" ayrı, onaylı adımdır. Aynı kod ikinci kez sayılmaz.
-- **Satış:** fiyat isteğe bağlı; öneri = net gram × (ayar milyemi + kategori işçilik milyemi) × has fiyatı (canlı,
-  elle değiştirilebilir), 10 TL'ye yuvarlanır. **Veresiye**: defterde müşteriye **Giden** işlem (TL ya da 22 ayar gram;
+- **Satış:** fiyat isteğe bağlı; son fiyat = net gram × listedeki aynı ayarın satış fiyatı + net gram × kategori
+  işçiliği (TL/gr), tam TL (bölüm 18; eskiden has × (milyem + işçilik milyemi) idi). **Veresiye**: defterde müşteriye **Giden** işlem (TL ya da 22 ayar gram;
   22 ayar karşılığı = net × (milyem + işçilik) / 22 ayar milyemi); defterin **mükerrer kontrolü ve onay penceresi**
   aynen uygulanır. İadede bu işlem isteğe bağlı silinir.
 - **Kasa satışı veresiye** (bölüm 16): Kasa → Çıkış'ta "Müşteri hesabına yaz" → defterde **Giden** işlem; borç cinsi
@@ -447,6 +451,89 @@ Kullanıcı kararı: borç cinsi her satışta seçilsin. "Kim sattı" alanı ya
   Defter işlemini silmek UI'da (`BulkStock.razor`, onay penceresindeki kutu). Geçmişte iade edilen satışın yanında
   "iade alındı" yazar. Testler: 2 yeni servis testi (113 test). Önizlemede: 2 Çeyrek iade → kasa 22 → 24, defterdeki
   20.840 TL işlem silindi.
+
+### 17. Arayüz turu: sol menü, ana sayfa, müşteri listesi, defter görünümü (26.11.2026, kullanıcı isteği)
+- **Sol menü (daraltılabilir)** `MainLayout.razor`: üst bar yok (dikey alan içeriğe kalır). Geniş 232 px / dar 64 px,
+  tercih `localStorage` `kd.sidebarCollapsed` (yoksa pencere < 1280 px ise dar başlar). Müşteri arama ve Yeni Müşteri
+  menünün başında; dar menüde arama ikonu ya da **Ctrl+K** menüyü içeriğin üstüne geçici açar (`OpenSearch`, JS'den).
+  Alt+1..8 artık `.kd-sidebar a.kd-nav-item` sırasına bakar. Bulut yedeği, tema ve daralt düğmesi menünün altında.
+- **Ana sayfa** `Home.razor`: tıklanınca süzülmüş müşteri listesini açan göstergeler (müşteri, borçlu, alacaklı,
+  emanet, takip edilecek = 60+ gündür işlem yapmayan borçlu, bugün); **Bakiyeler tablosu** (cins × Giden/Gelen/Fark,
+  hücrede müşteri sayısı) + yanında seçilen hücrenin müşterileri (8'li sayfalama, "Listede aç"); Hızlı İşlem (müşteri
+  seç → Giden/Gelen: `/customer/{id}?islem=giden` işlem penceresi açık gelir); Bugün (cins başına Giden/Gelen);
+  Son İşlemler; Altın Fiyatları (ilk çizimden sonra, sayfayı bekletmez); Takip Edilecekler. Eski grafikler kaldırıldı.
+- **Müşteriler** `Customers.razor`: bellekte süzme (`Core/Services/CustomerDirectory.cs`, birim testli) — arama
+  (Türkçe harf/şapka duyarsız, telefon rakamları), Tümü/Giden/Gelen/Hesabı sıfır (sayılarıyla), cins (çoklu),
+  Emaneti olan, İşlemsizlik (30–365 gün), sıralama (ad / son işlem / seçili cinsin bakiyesi). Cins seçiliyken toplam
+  satırı. Süzgeç ve sayfa `UI/Services/CustomerBrowseContext` (scoped) içinde saklanır, detaydan dönünce korunur.
+- **Müşteri detayı** `CustomerDetail.razor`:
+  - Tek başlık kartı: kimlik, eylemler, cins başına bakiye kutucukları; **son işlemler sağda soluk** (ayrı kart değil,
+    eski sürümdeki gibi; < 1100 px gizlenir).
+  - **Defter görünümü** (`Core LedgerPage`): her cins ayrı sayfa, Giden ve Gelen ayrı sütun; bakiyeyi sıfıra doğru
+    götüren her işlemden (ödeme/iade/yön değişimi) sonra altına çizgi çekilip "Kalan" yazılır, son satırda her zaman.
+    İlk 8 işlem, eskiler üstte "Önceki N işlem · devreden" satırıyla (tıklayınca +20).
+  - **Emanet defteri**: Bırakılan / Teslim sütunları; işlem penceresinde emanet anahtarı artık Giden'de de var
+    ("Emanet iadesi").
+  - **Hesabı Sıfırla** (`Dialogs/SettleDialog.razor`): başlıktaki düğme tüm cinsleri (emanetler işaretsiz) listeler;
+    kutucuktaki ve defter başlığındaki ⟲ tek cinsi sıfırlar. Açıklama varsayılanı "Hesap sıfırlandı" /
+    "Emanet teslim edildi". İşlemler tek SQLite transaction'ında eklenir (`DatabaseService.AddTransactionsAsync`).
+  - **Yazdır**: bölünmüş düğme; seçili yazıcının adı düğmede yazar, ▾ ile değiştirilir ve `kd.receiptPrinter`
+    tercihine kaydedilir (bu bilgisayara özel). Bir kez seçilen yazıcı hep kullanılır.
+  - **Önceki/sonraki hatası düzeltildi:** eskiden hızlı geçişte önceki müşterinin yarım kalan yüklemesi yeni
+    müşterinin verisinin üzerine yazabiliyor, `loadedTransactionsCount` sözlüğünde KeyNotFoundException
+    alınabiliyordu. Artık yüklemeler sıra numaralı (eski sonuç atılır), defter bellekte tek seferde kurulur
+    (cins başına ayrı sorgu yok), komşu müşteri sıralı kimlik listesinden hesaplanır ve art arda basışta gidilmekte
+    olan müşteriden devam edilir. Gezinti listesi Müşteriler sayfasının süzgecini (ya da ana sayfadaki bakiye
+    listesini) izler: "3 / 5 · Euro · Gelen"; listede değilse alfabetik tüm müşteriler. Kısayol **Alt+← / Alt+→**.
+- Özet görseli emanetleri net (bırakılan − teslim) yazar; Android `TypeBadge` "Emanet iadesi"ni ayırt eder.
+- Testler: `CustomerLedgerTests` (defter çizgileri, devir, emanet iadesi, sıfırlama) ve `CustomerDirectoryTests`. 144 test.
+- Önizlemede denendi (1366×768): sol menü geniş/dar, Ctrl+K geçici açılış, Alt+kısayollar, ana sayfa tablo/yan liste/
+  "Listede aç", Müşteriler süzgeçleri, detayda defter, Euro sıfırlama ve emanet teslimi, hızlı işlem penceresi, hızlı
+  ileri geçiş (5 basış → 5 müşteri), koyu tema. **Gerçek fiş yazıcısıyla yazıcı hatırlama denenmedi** (önizlemede
+  yazıcı yok); WPF uygulamasında elle bakılmalı.
+
+### 18. Fiyat hesabı, Okut/Satış, Defter → Kasa, İşlemler süzgeçleri (26.11.2026, kullanıcı isteği)
+- **Satış fiyatı** (`Core/Stock/SalePrice.cs`, birim testli) — kullanıcı kararı: dükkândaki gibi
+  `net gram × fiyat listesindeki aynı ayarın satış fiyatı + net gram × işçilik (TL/gr)`, tam TL'ye yuvarlanır.
+  20 gr 22 ayar bilezik, 22 Ayar satış 5.990 → 119.800 TL. Listede olmayan ayar (8/18/21) şimdilik 24 Ayar satış ×
+  milyem (ekranda "listede yok" diye yazar; kullanıcı "şimdilik kalsın" dedi). Net gram = brüt − taş.
+  Eski "has × (milyem + işçilik milyemi)" önerisi kaldırıldı (`StockCalculator.SuggestSalePrice` testler için duruyor).
+  - İşçilik kategoriye göre **TL/gr**: `StockCategory.LaborPerGram` (yeni kolon, varsayılan 0; Ayarlar → Stok
+    tanımları). Eski `LaborMilyem` kolonu uyum için duruyor, kullanılmıyor.
+  - Veresiyede 22 ayar karşılığı = satış fiyatı ÷ listedeki 22 ayar satış (`SalePrice.To22KGram`).
+  - Satış penceresi: gram fiyatı (listeden, elle değiştirilebilir), işçilik, döküm (`Shared/PriceQuoteView`), satış
+    fiyatı son fiyatı kendiliğinden izler; elle değiştirilince (pazarlık) izlemeyi bırakır.
+  - Kasa ürünlerinde gramla tutulan 22/14 ayar artık listedeki ayar satırından fiyatlanır (`BulkSale.FindPriceRow`).
+- **Okut/Satış**: okutunca ürünün bütün bilgileri (ayar/milyem, brüt/taş/net, konum, giriş, tedarikçi, alış
+  milyemi, not; satılmışsa satış tarihi/fiyatı) ve sağda **güncel fiyatla son fiyat** gelir (fiyat listesi 5 dk
+  önbellekte, ↻ zorla yeniler). "Sat · 117.600 ₺" düğmesi satış penceresini aynı hesapla açar.
+- **Defter → Kasa** (`Core/Stock/LedgerCash.cs`, birim/DB testli) — kullanıcı kararı: sarrafiye, döviz, TL ve gram
+  altının hepsi; hesap sıfırlama da işlenir; emanet hiçbir zaman.
+  - `Transaction.AffectsCash` (yeni kolon): defter ekranından girilen yeni işlemde açık, işlem penceresinde
+    "Kasaya işle: +2 Çeyrek" anahtarı (veresiye mal verildiyse kapatılır). **Eski kayıtlar kapalı** (geçmiş kasaya
+    işlenmez); stok ekranlarının açtığı veresiye işlemleri kapalı (kasa hareketini stok ekranı zaten yazar).
+  - `BulkProduct.LedgerCurrency` (yeni kolon): her defter cinsine bir kasa ürünü. Açılışta
+    `StockDefaults.EnsureLedgerProductsAsync`: kurulumdaki Çeyrek/Yarım/Tam/24 Ayar Gram bağlanır, yoksa açılır
+    (Ziynet, 22/14 Ayar Gram, TL, Dolar, Euro, Sterlin, Riyal). Bağlı ürün silinirse o cins kasaya işlenmez ve yeniden
+    açılmaz. Bağlı ürünün birimi değiştirilemez.
+  - `BulkUnit.Money = 2`: nakit/döviz, miktar kuruş (×100); has/grama girmez. Kasa sayfası "Altın ve sarrafiye" /
+    "Nakit ve döviz" diye ikiye ayrıldı; nakitler üstte gösterge olarak.
+  - Eşitleme defter işlemiyle **aynı SQLite transaction'ında** (`DatabaseService.SaveTransactionAsync`,
+    `AddTransactionsAsync`, `DeleteTransactionAsync`). İşlemin kasadaki etkisi = ona bağlı `StockMovement.FromLedger`
+    hareketlerinin toplamı; düzenleme/silmede fark kadar düzeltme hareketi yazılır (geçmiş silinmez; cins değişirse
+    eskisinden çıkar, yenisine girer). Kasa eksiye düşebilir: açılış miktarı "Sayım" ile girilir.
+  - Defterden gelen kasa hareketi "iade al" yapılamaz. Müşteri silinince kasaya dokunulmaz.
+- **İşlemler** (`Shared/TransactionFeed.razor` + `Core/Services/TransactionQuery.cs`, birim testli): dönem (Bugün, Dün,
+  Bu hafta, Bu ay, 30 gün, Tümü, tarih aralığı), tür (Giden/Gelen/Emanet), cins (çoklu), müşteri adı ya da açıklama
+  araması, "Kasaya işlenen"; cins başına Giden/Gelen toplamları; 25'li sayfalama. Ana sayfada küçük hâli (dönem ve
+  tür düğmeleri, 8'li sayfa) "Son İşlemler"in yerine. **Gizli işlemler artık İşlemler sayfasında görünmez** (eskiden
+  görünüyordu; müşteri ekrana bakarken açığa çıkmasın diye).
+- Testler: `SalePriceTests`, `TransactionQueryTests`, `StockServiceTests` içinde defter→kasa (bağlantı, giriş/çıkış,
+  emanet/kapalı işlenmez, düzenleme/silme düzeltmesi, sıfırlama, silinen ürün). 163 test.
+- Önizlemede denendi: kasa ürünleri bağlandı, Gelen 2 Yarım → kasa 8 → 10 ("Defter" rozetli hareket), okutma ekranı
+  (19,60 gr × 22 Ayar satış = 117.600 ₺), satış penceresinde 150 TL/gr işçilik → 120.540 ₺, İşlemler süzgeçleri,
+  ana sayfa bileşeni. **Etiketli ürün / kasa satışında alınan TL nakit kasaya otomatik girmiyor** (sadece defter
+  işlemleri işleniyor; istenirse eklenebilir).
 
 ## Kullanıcıya sunulan öneriler (karar bekleyen sıra)
 1. ~~Lisans~~ (yapıldı, bölüm 5), ~~Obfuscar ile kod karıştırma~~ (bölüm 13). Kalan (istenirse): çevrimiçi aktivasyon,

@@ -22,10 +22,10 @@
             Mevcut: <b>@StockService.FormatBulkAmount(Product, Product.Amount)</b>
             @(type == StockMovementType.BulkAdjust ? " · Sayımda bulunan miktarı yazın; fark hareket olarak kaydedilir." : "")
         </MudText>
-        <MudTextField T="string" Value="amount" ValueChanged="OnAmount" Label="@(Product.Unit == BulkUnit.Gram ? "Gram" : "Adet")" Variant="Variant.Outlined"
+        <MudTextField T="string" Value="amount" ValueChanged="OnAmount" Label="@(Product.Unit switch { BulkUnit.Gram => "Gram", BulkUnit.Money => $"Tutar ({LedgerCash.MoneySymbol(Product)})", _ => "Adet" })" Variant="Variant.Outlined"
                       AutoFocus="true" Immediate="true" Class="kd-amount-input" OnKeyDown="OnKeyDown" />
 
-        @if (type == StockMovementType.BulkOut)
+        @if (type == StockMovementType.BulkOut && Product.Unit != BulkUnit.Money)
         {
             <div class="kd-credit mt-3 @(onCredit ? "is-on" : "")">
                 <MudSwitch T="bool" Value="onCredit" ValueChanged="OnCreditChanged" Color="Color.Error" Label="Müşteri hesabına yaz (veresiye)" />
@@ -152,6 +152,18 @@
     private bool TryParseAmount(out long value, out string error)
     {
         error = string.Empty;
+        if (Product.Unit == BulkUnit.Money)
+        {
+            if (decimal.TryParse(amount?.Trim(), System.Globalization.NumberStyles.Number, new System.Globalization.CultureInfo("tr-TR"), out var money)
+                && money >= 0 && (money > 0 || type == StockMovementType.BulkAdjust))
+            {
+                value = LedgerCash.ToUnits(Product, money);
+                return true;
+            }
+            value = 0;
+            error = "Tutar girin (örn. 1.250 ya da 150,50).";
+            return false;
+        }
         if (Product.Unit == BulkUnit.Gram)
         {
             if (type == StockMovementType.BulkAdjust && amount?.Trim() == "0") { value = 0; return true; }

@@ -31,6 +31,7 @@ builder.Services.AddSingleton<ILegacyDataLocator, NoLegacyData>();
 builder.Services.AddKuyumcuCore();
 builder.Services.AddScoped<AppState>();
 builder.Services.AddScoped<ShortcutService>();
+builder.Services.AddScoped<CustomerBrowseContext>();
 
 var app = builder.Build();
 

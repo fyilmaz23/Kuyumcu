@@ -14,93 +14,130 @@
 <MudDialogProvider CloseOnEscapeKey="true" BackdropClick="false" />
 <MudSnackbarProvider />
 
-<MudLayout>
-    @* Masaüstü: tek satır üst menü. Sayfalar ikonla gösterilir, başlıkları üzerine gelince çıkar;
-       sol menü yok, içerik ekranın tamamını kullanır. *@
-    <MudAppBar Elevation="0" Class="kd-appbar kd-topbar">
-        <a href="/" class="kd-topbar-brand" title="@businessName">
-            <BrandLogo Class="kd-brand-logo" />
-            <span class="kd-brand-name">@businessName</span>
-        </a>
+@* Masaüstü: solda daraltılabilir menü (üst bar yok, dikey alan içeriğe kalır).
+   Daraltılınca sadece ikonlar görünür, başlıklar üzerine gelince çıkar. Müşteri arama ve Yeni Müşteri menünün
+   başında; daraltılmışken arama ikonu (ya da Ctrl+K) menüyü geçici olarak açar. *@
+<div class="kd-shell @(collapsed ? "is-collapsed" : null) @(peek ? "is-peek" : null)">
+    <aside class="kd-sidebar" aria-label="Ana menü">
+        <div class="kd-side-head">
+            <a href="/" class="kd-side-brand" title="@businessName">
+                <BrandLogo Class="kd-brand-logo" />
+                <span class="kd-side-text kd-brand-name">@businessName</span>
+            </a>
+        </div>
 
-        <nav class="kd-topnav" aria-label="Ana menü">
-            @foreach (var item in MainNavItems)
+        <div class="kd-side-tools">
+            @if (ShowFull)
+            {
+                <div class="kd-search" id="global-search">
+                    <MudAutocomplete @ref="searchAutocomplete" T="Customer" Placeholder="Müşteri ara…  Ctrl+K"
+                                     Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true"
+                                     SearchFunc="SearchCustomers" ToStringFunc="@(c => c?.Name)"
+                                     ValueChanged="OnCustomerSelected" Clearable="true" MaxItems="10" MinCharacters="1"
+                                     AdornmentIcon="@Icons.Material.Filled.Search" Adornment="Adornment.Start"
+                                     ShowProgressIndicator="false" AnchorOrigin="Origin.BottomLeft" TransformOrigin="Origin.TopLeft"
+                                     PopoverClass="kd-search-popover">
+                        <ItemTemplate Context="c">
+                            <div class="d-flex align-center gap-3">
+                                <Avatar Name="@c.Name" />
+                                <div style="min-width:0">
+                                    <div style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis">@c.Name</div>
+                                    <div class="kd-muted" style="font-size:.75rem">@c.PhoneNumber.FormatPhoneNumber()</div>
+                                </div>
+                            </div>
+                        </ItemTemplate>
+                        <NoItemsTemplate>
+                            <div class="pa-3 kd-muted">Müşteri bulunamadı.</div>
+                        </NoItemsTemplate>
+                    </MudAutocomplete>
+                </div>
+                <button type="button" class="kd-side-new" @onclick="NewCustomer">
+                    <MudIcon Icon="@Icons.Material.Filled.PersonAdd" Size="Size.Small" />
+                    <span>Yeni Müşteri</span>
+                </button>
+            }
+            else
+            {
+                <MudTooltip Text="Müşteri ara (Ctrl+K)" Placement="Placement.Right" RootClass="kd-side-tip">
+                    <button type="button" class="kd-nav-item" @onclick="OpenSearch" aria-label="Müşteri ara">
+                        <MudIcon Icon="@Icons.Material.Filled.Search" />
+                    </button>
+                </MudTooltip>
+                <MudTooltip Text="Yeni Müşteri" Placement="Placement.Right" RootClass="kd-side-tip">
+                    <button type="button" class="kd-nav-item is-accent" @onclick="NewCustomer" aria-label="Yeni Müşteri">
+                        <MudIcon Icon="@Icons.Material.Filled.PersonAdd" />
+                    </button>
+                </MudTooltip>
+            }
+        </div>
+
+        <nav class="kd-side-nav">
+            @foreach (var item in MainNavItems.Where(i => !i.Barcode))
+            {
+                @NavItem(item)
+            }
+            <div class="kd-side-section"><span class="kd-side-text">Vitrin ve Stok</span></div>
+            @foreach (var item in MainNavItems.Where(i => i.Barcode))
             {
                 @NavItem(item)
             }
         </nav>
 
-        <div class="kd-search" id="global-search">
-            <MudAutocomplete @ref="searchAutocomplete" T="Customer" Placeholder="Müşteri ara…  (Ctrl+K)"
-                             Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true"
-                             SearchFunc="SearchCustomers" ToStringFunc="@(c => c?.Name)"
-                             ValueChanged="OnCustomerSelected" Clearable="true" MaxItems="10" MinCharacters="1"
-                             AdornmentIcon="@Icons.Material.Filled.Search" Adornment="Adornment.Start"
-                             ShowProgressIndicator="false">
-                <ItemTemplate Context="c">
-                    <div class="d-flex align-center gap-3">
-                        <Avatar Name="@c.Name" />
-                        <div>
-                            <div>@c.Name</div>
-                            <div class="kd-muted" style="font-size:.75rem">@c.PhoneNumber.FormatPhoneNumber()</div>
-                        </div>
-                    </div>
-                </ItemTemplate>
-                <NoItemsTemplate>
-                    <div class="pa-3 kd-muted">Müşteri bulunamadı.</div>
-                </NoItemsTemplate>
-            </MudAutocomplete>
-        </div>
-
-        <MudSpacer />
-
-        <div class="kd-topbar-actions">
+        <div class="kd-side-footer">
             @if (licenseState?.Status == LicenseStatus.Trial)
             {
-                <MudTooltip Text="Deneme sürümü — lisans için Ayarlar" Placement="Placement.Bottom">
+                <MudTooltip Text="Deneme sürümü — lisans için Ayarlar" Placement="Placement.Right" RootClass="kd-side-tip">
                     <a class="kd-trial @(licenseState.RemainingTrialDays <= 7 ? "is-urgent" : null)" href="/settings">
                         <MudIcon Icon="@Icons.Material.Filled.HourglassTop" Size="Size.Small" />
-                        <span>@licenseState.RemainingTrialDays gün</span>
+                        <span class="kd-side-text">Deneme: @licenseState.RemainingTrialDays gün</span>
+                        <span class="kd-trial-short">@licenseState.RemainingTrialDays</span>
                     </a>
                 </MudTooltip>
             }
             else if (licenseState is { Status: LicenseStatus.Licensed, IsLicenseExpiringSoon: true })
             {
-                <MudTooltip Text="@($"Lisans {licenseState.LicenseExpiresOn:dd.MM.yyyy} tarihinde bitiyor — yenilemek için Ayarlar")" Placement="Placement.Bottom">
+                <MudTooltip Text="@($"Lisans {licenseState.LicenseExpiresOn:dd.MM.yyyy} tarihinde bitiyor — yenilemek için Ayarlar")" Placement="Placement.Right" RootClass="kd-side-tip">
                     <a class="kd-trial is-urgent" href="/settings">
                         <MudIcon Icon="@Icons.Material.Filled.EventBusy" Size="Size.Small" />
-                        <span>Lisans: @licenseState.DaysUntilLicenseExpiry gün</span>
+                        <span class="kd-side-text">Lisans: @licenseState.DaysUntilLicenseExpiry gün</span>
+                        <span class="kd-trial-short">@licenseState.DaysUntilLicenseExpiry</span>
                     </a>
                 </MudTooltip>
             }
 
-            <CloudBackupIndicator />
-
-            <MudTooltip Text="@(isDarkMode ? "Açık tema" : "Koyu tema")" Placement="Placement.Bottom">
-                <MudIconButton Icon="@(isDarkMode ? Icons.Material.Outlined.LightMode : Icons.Material.Outlined.DarkMode)"
-                               Class="kd-topbar-icon" OnClick="ToggleDarkMode" aria-label="Temayı değiştir" />
-            </MudTooltip>
-
             @NavItem(SettingsNavItem)
 
-            <MudButton Variant="Variant.Filled" Class="kd-new-customer ml-2"
-                       StartIcon="@Icons.Material.Filled.PersonAdd" OnClick="NewCustomer">
-                Yeni Müşteri
-            </MudButton>
+            <div class="kd-side-actions">
+                <CloudBackupIndicator />
+                <MudTooltip Text="@(isDarkMode ? "Açık tema" : "Koyu tema")" Placement="Placement.Right">
+                    <MudIconButton Icon="@(isDarkMode ? Icons.Material.Outlined.LightMode : Icons.Material.Outlined.DarkMode)"
+                                   Class="kd-topbar-icon" OnClick="ToggleDarkMode" aria-label="Temayı değiştir" />
+                </MudTooltip>
+                <span class="kd-side-spacer"></span>
+                <MudTooltip Text="@(collapsed ? "Menüyü genişlet" : "Menüyü daralt")" Placement="Placement.Right">
+                    <MudIconButton Icon="@(collapsed ? Icons.Material.Filled.KeyboardDoubleArrowRight : Icons.Material.Filled.KeyboardDoubleArrowLeft)"
+                                   Class="kd-topbar-icon" OnClick="ToggleCollapsed" aria-label="Menüyü daralt veya genişlet" />
+                </MudTooltip>
+            </div>
         </div>
-    </MudAppBar>
+    </aside>
 
-    <MudMainContent>
+    @if (peek)
+    {
+        <div class="kd-side-backdrop" @onclick="ClosePeek"></div>
+    }
+
+    <main class="kd-main">
         @Body
-    </MudMainContent>
-</MudLayout>
+    </main>
+</div>
 
 <MudScrollToTop>
     <MudFab Color="Color.Primary" StartIcon="@Icons.Material.Filled.KeyboardArrowUp" Size="Size.Small" />
 </MudScrollToTop>
 
 @code {
-    // Menü sırası Alt+1..4 kısayollarını da belirler (app.js, .kd-topnav-item sırasına bakar)
+    // Menü sırası Alt+1..8 kısayollarını da belirler (app.js, .kd-sidebar a.kd-nav-item sırasına bakar)
     private sealed record NavEntry(string Title, string Href, string Icon, NavLinkMatch Match, string Shortcut, bool Barcode = false);
 
     private static readonly NavEntry[] MainNavItems =
@@ -120,14 +157,20 @@
         new("Ayarlar", "/settings", Icons.Material.Outlined.Settings, NavLinkMatch.Prefix, "Alt+8");
 
     private RenderFragment NavItem(NavEntry item) =>
-        @<MudTooltip Placement="Placement.Bottom" Delay="150">
+        @<MudTooltip Placement="Placement.Right" Delay="150" Disabled="@ShowFull" RootClass="kd-side-tip">
             <ChildContent>
-                <NavLink href="@item.Href" Match="@item.Match" class="@(IsLocked(item) ? "kd-topnav-item is-locked" : "kd-topnav-item")"
-                         ActiveClass="active" aria-label="@(IsLocked(item) ? item.Title + " (barkod modülü)" : item.Title)">
+                <NavLink href="@item.Href" Match="@item.Match" class="@(IsLocked(item) ? "kd-nav-item is-locked" : "kd-nav-item")"
+                         ActiveClass="active" aria-label="@(IsLocked(item) ? item.Title + " (barkod modülü)" : item.Title)"
+                         @onclick="ClosePeek">
                     <MudIcon Icon="@item.Icon" />
+                    <span class="kd-side-text kd-nav-label">@item.Title</span>
                     @if (IsLocked(item))
                     {
-                        <span class="kd-topnav-lock" aria-hidden="true"><MudIcon Icon="@Icons.Material.Filled.Lock" /></span>
+                        <span class="kd-nav-lock" aria-hidden="true"><MudIcon Icon="@Icons.Material.Filled.Lock" /></span>
+                    }
+                    else
+                    {
+                        <span class="kd-side-text kd-nav-kbd">@item.Shortcut</span>
                     }
                 </NavLink>
             </ChildContent>
@@ -143,10 +186,16 @@
     private bool IsLocked(NavEntry item) => item.Barcode && !AppState.HasBarcodeModule;
 
     private bool isDarkMode;
+    private bool collapsed;
+    private bool peek;          // daraltılmışken arama için geçici açılış
+    private bool focusSearch;
+    private bool ShowFull => !collapsed || peek;
+
     private string businessName = ProductInfo.Name;
     private LicenseState? licenseState;
     private MudAutocomplete<Customer>? searchAutocomplete;
     private DotNetObjectReference<ShortcutService>? shortcutRef;
+    private DotNetObjectReference<MainLayout>? layoutRef;
 
     protected override async Task OnInitializedAsync()
     {
@@ -155,7 +204,6 @@
         var settings = await DatabaseService.GetSettingsAsync();
         if (!string.IsNullOrWhiteSpace(settings.BusinessName))
             businessName = settings.BusinessName;
-
 
         try
         {
@@ -169,17 +217,50 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!firstRender)
-            return;
-
-        try
+        if (firstRender)
         {
-            isDarkMode = await JS.InvokeAsync<string?>("kuyumcu.getPreference", "darkMode") == "1";
-            shortcutRef = DotNetObjectReference.Create(Shortcuts);
-            await JS.InvokeVoidAsync("kuyumcu.registerShortcuts", shortcutRef);
-            StateHasChanged();
+            try
+            {
+                isDarkMode = await JS.InvokeAsync<string?>("kuyumcu.getPreference", "darkMode") == "1";
+                // Tercih yoksa dar ekranda daraltılmış başlar
+                var pref = await JS.InvokeAsync<string?>("kuyumcu.getPreference", "sidebarCollapsed");
+                collapsed = pref == null ? await JS.InvokeAsync<bool>("kuyumcu.isNarrowScreen") : pref == "1";
+
+                shortcutRef = DotNetObjectReference.Create(Shortcuts);
+                layoutRef = DotNetObjectReference.Create(this);
+                await JS.InvokeVoidAsync("kuyumcu.registerShortcuts", shortcutRef, layoutRef);
+                StateHasChanged();
+            }
+            catch (JSDisconnectedException) { }
+            return;
         }
-        catch (JSDisconnectedException) { }
+
+        if (focusSearch)
+        {
+            focusSearch = false;
+            try { await JS.InvokeVoidAsync("kuyumcu.focusAndSelect", "global-search"); }
+            catch (JSDisconnectedException) { }
+        }
+    }
+
+    /// <summary>Ctrl+K (app.js): menü daraltılmışsa geçici olarak açıp arama kutusuna odaklanır.</summary>
+    [JSInvokable]
+    public Task OpenSearch()
+    {
+        if (collapsed)
+            peek = true;
+        focusSearch = true;
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+
+    private void ClosePeek() => peek = false;
+
+    private async Task ToggleCollapsed()
+    {
+        collapsed = !collapsed;
+        peek = false;
+        await JS.InvokeVoidAsync("kuyumcu.setPreference", "sidebarCollapsed", collapsed ? "1" : "0");
     }
 
     private async Task ToggleDarkMode()
@@ -198,6 +279,7 @@
         if (customer == null)
             return;
 
+        peek = false;
         NavigationManager.NavigateTo($"/customer/{customer.Id}");
         if (searchAutocomplete != null)
             await searchAutocomplete.ClearAsync();
@@ -205,12 +287,13 @@
 
     private async Task NewCustomer()
     {
+        peek = false;
         var saved = await CustomerEditDialog.ShowAsync(DialogService);
         if (saved != null)
             NavigationManager.NavigateTo($"/customer/{saved.Id}");
     }
 
-    // Lisans etkinleştirilince üst menüdeki deneme/lisans rozetini yenile
+    // Lisans etkinleştirilince menüdeki deneme/lisans rozetini yenile
     private async void OnLicenseChanged()
     {
         try
@@ -228,5 +311,6 @@
     {
         AppState.LicenseChanged -= OnLicenseChanged;
         shortcutRef?.Dispose();
+        layoutRef?.Dispose();
     }
 }

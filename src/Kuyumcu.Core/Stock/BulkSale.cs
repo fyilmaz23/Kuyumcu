@@ -22,6 +22,17 @@ public static class BulkSale
     /// </summary>
     public static CurrencyType? OwnCurrency(BulkProduct product)
     {
+        // Defter cinsine bağlı ürün (bkz. LedgerCash) o cinstir
+        if (product.LedgerCurrencyType is { } linked)
+            return linked;
+        if (product.Unit == BulkUnit.Money)
+            return null;
+        return NameCurrency(product);
+    }
+
+    /// <summary>Ürün adından ya da gram ürünün ayarından tahmin edilen cins (bağlantı kurulurken de kullanılır).</summary>
+    public static CurrencyType? NameCurrency(BulkProduct product)
+    {
         if (product.Unit == BulkUnit.Gram)
         {
             return product.Karat switch
@@ -34,6 +45,8 @@ public static class BulkSale
         }
 
         var words = Words(product.Name);
+        if (words.Contains("ziynet"))
+            return CurrencyType.Ziynet;
         if (words.Contains("çeyrek"))
             return CurrencyType.QuarterGold;
         if (words.Contains("yarım"))
@@ -106,7 +119,9 @@ public static class BulkSale
     public static GoldPriceDto? FindPriceRow(BulkProduct product, IReadOnlyList<GoldPriceDto> prices)
     {
         if (product.Unit == BulkUnit.Gram)
-            return product.Karat == 24 ? prices.FirstOrDefault(p => Words(p.Type).Contains("gram")) : null;
+            return product.Karat == 24 ? prices.FirstOrDefault(p => Words(p.Type).Contains("gram")) : SalePrice.FindKaratRow(prices, product.Karat);
+        if (product.Unit == BulkUnit.Money)
+            return null;
 
         var words = Words(product.Name);
         string? key = words.Contains("çeyrek") ? "çeyrek"

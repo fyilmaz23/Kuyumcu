@@ -4,9 +4,10 @@
 @inject DatabaseService Database
 @inject IDialogService Dialogs
 @inject ISnackbar Snackbar
+@inject NavigationManager Navigation
 
 <div class="kd-page">
-    <PageHeader Title="Kasa" Subtitle="Etiketlenmeyen, birbirinin aynısı mallar: çeyrek, yarım, tam, gram altın… Adet ya da gramla tutulur.">
+    <PageHeader Title="Kasa" Subtitle="Etiketlenmeyen mallar ve nakit: çeyrek, yarım, tam, gram altın, TL ve döviz. Müşteri defterine girilen Gelen kasaya girer, Giden çıkar (emanet hariç).">
         <Actions>
             <MudButton Variant="Variant.Text" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Settings" Href="/settings#stok-tanimlari">Ürünleri düzenle</MudButton>
         </Actions>
@@ -18,31 +19,83 @@
     }
     else
     {
-        <MudGrid Spacing="3" Class="mb-2">
-            <MudItem xs="12" sm="6" lg="3">
-                <StatCard Label="Kasa toplamı (has)" Value="@($"{WeightFormat.Gram2(rows.Sum(r => r.HasMg))} gr")" Icon="@Icons.Material.Outlined.Savings"
-                          Hint="@($"{WeightFormat.Gram2(rows.Sum(r => r.WeightMg))} gr brüt")" />
-            </MudItem>
-        </MudGrid>
+        var gold = rows.Where(r => r.Product.Unit != BulkUnit.Money).ToList();
+        var money = rows.Where(r => r.Product.Unit == BulkUnit.Money).ToList();
 
-        <div class="kd-card mt-4">
-            @if (!rows.Any())
+        <div class="kd-kpis">
+            <div class="kd-kpi">
+                <span class="kd-kpi-label">Altın toplamı (has)</span>
+                <span class="kd-kpi-value">@WeightFormat.Gram2(gold.Sum(r => r.HasMg)) <small>gr</small></span>
+                <span class="kd-kpi-hint">@WeightFormat.Gram2(gold.Sum(r => r.WeightMg)) gr brüt</span>
+            </div>
+            @foreach (var r in money.Where(r => r.Product.Amount != 0))
             {
-                <EmptyState Icon="@Icons.Material.Outlined.Savings" Title="Kasa ürünü tanımlı değil" Text="Ayarlar → Stok tanımları bölümünden ekleyin." />
+                <div class="kd-kpi @(r.Product.Amount < 0 ? "is-giden" : "is-gelen")">
+                    <span class="kd-kpi-label">@r.Product.Name</span>
+                    <span class="kd-kpi-value">@StockService.FormatBulkAmount(r.Product, r.Product.Amount)</span>
+                    <span class="kd-kpi-hint">@(r.Product.Amount < 0 ? "eksi: açılış miktarını Sayım ile girin" : "kasada")</span>
+                </div>
             }
-            @foreach (var r in rows)
+        </div>
+
+        @if (!rows.Any())
+        {
+            <div class="kd-card"><EmptyState Icon="@Icons.Material.Outlined.Savings" Title="Kasa ürünü tanımlı değil" Text="Ayarlar → Stok tanımları bölümünden ekleyin." /></div>
+        }
+        else
+        {
+            <div class="kd-bulk-groups">
+                @Group("Altın ve sarrafiye", Icons.Material.Outlined.Savings, gold)
+                @Group("Nakit ve döviz", Icons.Material.Outlined.Payments, money)
+            </div>
+        }
+    }
+</div>
+
+@code {
+    private List<BulkTotal>? rows;
+    private int? expanded;
+    private List<StockMovement> history = new();
+
+    protected override Task OnInitializedAsync() => Reload();
+
+    private async Task Reload()
+    {
+        var karats = await Stock.GetKaratsAsync(true);
+        rows = (await Stock.GetBulkProductsAsync()).Select(p => StockCalculator.CalculateBulk(p, karats)).ToList();
+        if (expanded.HasValue)
+            await LoadHistory(expanded.Value);
+    }
+
+    private RenderFragment Group(string title, string icon, List<BulkTotal> list) =>
+        @<section class="kd-card">
+            <div class="kd-card-header">
+                <div class="kd-card-title"><MudIcon Icon="@icon" /> @title</div>
+            </div>
+            @if (list.Count == 0)
+            {
+                <div class="kd-muted pa-4" style="font-size:.85rem">Bu grupta ürün yok.</div>
+            }
+            @foreach (var r in list)
             {
                 var p = r.Product;
                 <div class="kd-list-row kd-spread kd-bulk-row">
                     <div style="min-width:0">
                         <div class="kd-strong">@p.Name</div>
-                        <div class="kd-muted" style="font-size:.8rem">
-                            @p.Karat ayar@(p.Unit == BulkUnit.Piece ? $" · adedi {WeightFormat.Gram(p.PieceWeightMg)} gr" : " · gramla")
+                        <div class="kd-muted" style="font-size:.78rem">
+                            @(p.Unit switch { BulkUnit.Piece => $"{p.Karat} ayar · adedi {WeightFormat.Gram(p.PieceWeightMg)} gr", BulkUnit.Gram => $"{p.Karat} ayar · gramla", _ => "nakit" })
+                            @if (p.LedgerCurrencyType is { } lc)
+                            {
+                                <span title="Müşteri defterindeki bu cins buraya işlenir"> · <MudIcon Icon="@Icons.Material.Outlined.Link" Style="font-size:.85rem; vertical-align:-2px" /> defter: @lc.GetShortName()</span>
+                            }
                         </div>
                     </div>
                     <div class="text-right">
-                        <div class="kd-num kd-strong" style="font-size:1.15rem">@StockService.FormatBulkAmount(p, p.Amount)</div>
-                        <div class="kd-muted kd-num" style="font-size:.8rem">@WeightFormat.Gram2(r.WeightMg) gr · has @WeightFormat.Gram2(r.HasMg) gr</div>
+                        <div class="kd-num kd-strong @(p.Amount < 0 ? "kd-giden" : null)" style="font-size:1.1rem">@StockService.FormatBulkAmount(p, p.Amount)</div>
+                        @if (p.Unit != BulkUnit.Money)
+                        {
+                            <div class="kd-muted kd-num" style="font-size:.76rem">@WeightFormat.Gram2(r.WeightMg) gr · has @WeightFormat.Gram2(r.HasMg) gr</div>
+                        }
                     </div>
                     <div class="d-flex gap-1 align-center">
                         <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Success" OnClick="@(() => Move(p, StockMovementType.BulkIn))">Giriş</MudButton>
@@ -63,13 +116,22 @@
                         {
                             <div class="d-flex justify-space-between align-center gap-3 py-1">
                                 <span class="kd-muted kd-num" style="font-size:.8rem; width:120px">@m.Date.ToString("dd.MM.yyyy HH:mm")</span>
-                                <span style="flex:1">
+                                <span style="flex:1; min-width:0">
+                                    @if (m.FromLedger)
+                                    {
+                                        <span class="kd-badge notr mr-1" title="Müşteri defterinden otomatik">Defter</span>
+                                    }
                                     @m.Description
                                     @if (IsReturned(m))
                                     {
                                         <span class="kd-muted" style="font-size:.8rem"> · iade alındı</span>
                                     }
                                 </span>
+                                @if (m.CustomerId is { } cid && m.FromLedger)
+                                {
+                                    <MudIconButton Icon="@Icons.Material.Outlined.Person" Size="Size.Small" OnClick="@(() => Navigation.NavigateTo($"/customer/{cid}"))"
+                                                   aria-label="Müşteri hesabını aç" />
+                                }
                                 @if (IsReturnable(m))
                                 {
                                     <MudButton Size="Size.Small" Variant="Variant.Text" StartIcon="@Icons.Material.Filled.AssignmentReturn"
@@ -83,24 +145,7 @@
                     </div>
                 }
             }
-        </div>
-    }
-</div>
-
-@code {
-    private List<BulkTotal>? rows;
-    private int? expanded;
-    private List<StockMovement> history = new();
-
-    protected override Task OnInitializedAsync() => Reload();
-
-    private async Task Reload()
-    {
-        var karats = await Stock.GetKaratsAsync(true);
-        rows = (await Stock.GetBulkProductsAsync()).Select(p => StockCalculator.CalculateBulk(p, karats)).ToList();
-        if (expanded.HasValue)
-            history = await Stock.GetBulkMovementsAsync(expanded.Value);
-    }
+        </section>;
 
     private async Task Move(BulkProduct product, StockMovementType type)
     {
@@ -111,10 +156,10 @@
         await Reload();
     }
 
-    // Müşteri hesabına yazılmış (veresiye) kasa satışı, henüz iade alınmadıysa iade alınabilir
+    // Müşteri hesabına yazılmış (veresiye) kasa satışı, henüz iade alınmadıysa iade alınabilir. Defterden gelen hareket alınamaz.
     private bool IsReturned(StockMovement m) => history.Any(r => r.RelatedMovementId == m.Id);
     private bool IsReturnable(StockMovement m) =>
-        m.Type == StockMovementType.BulkOut && m.CustomerId.HasValue && !IsReturned(m);
+        m.Type == StockMovementType.BulkOut && m.CustomerId.HasValue && !m.FromLedger && !IsReturned(m);
 
     private async Task ReturnSale(BulkProduct product, StockMovement sale)
     {
@@ -153,6 +198,11 @@
     private async Task ToggleHistory(int id)
     {
         expanded = expanded == id ? null : id;
-        history = expanded.HasValue ? await Stock.GetBulkMovementsAsync(id) : new();
+        if (expanded.HasValue)
+            await LoadHistory(id);
+        else
+            history = new();
     }
+
+    private async Task LoadHistory(int id) => history = await Stock.GetBulkMovementsAsync(id);
 }

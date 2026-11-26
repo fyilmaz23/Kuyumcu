@@ -5,7 +5,8 @@
 @inject IDialogService Dialogs
 @inject ISnackbar Snackbar
 @*
-    Satış penceresi. Fiyat isteğe bağlıdır; öneri = net gram × (ayar milyemi + işçilik milyemi) × has fiyatı.
+    Satış penceresi. Son fiyat = net gram × fiyat listesindeki aynı ayarın satış fiyatı + net gram × işçilik (TL/gr)
+    (bkz. Kuyumcu.Stock.SalePrice). Fiyat kendiliğinden yazılır, pazarlıkta değiştirilebilir.
     "Müşteri hesabına yaz" seçilirse mevcut defterde Giden (müşteri borçlu) işlemi oluşturulur;
     defterin kuralları aynen uygulanır: aynı gün mükerrer kontrolü ve kaydetmeden önce onay.
 *@
@@ -27,29 +28,24 @@
         </div>
 
         <MudGrid Spacing="2">
-            <MudItem xs="12" sm="5">
-                <MudNumericField T="decimal?" Value="hasPrice" ValueChanged="OnHasPrice" Label="Has fiyatı (TL/gr)" Variant="Variant.Outlined"
-                                 Margin="Margin.Dense" Format="N0" HideSpinButtons="true" Min="0"
-                                 HelperText="@hasPriceSource" Adornment="Adornment.End" AdornmentIcon="@Icons.Material.Filled.Refresh"
-                                 OnAdornmentClick="@(() => LoadHasPrice(true))" />
+            <MudItem xs="12" sm="6">
+                <MudNumericField T="decimal?" Value="unitPrice" ValueChanged="OnUnitPrice" Label="Gram fiyatı (TL)" Variant="Variant.Outlined"
+                                 Margin="Margin.Dense" Format="N2" HideSpinButtons="true" Min="0"
+                                 HelperText="@unitSource" Adornment="Adornment.End" AdornmentIcon="@Icons.Material.Filled.Refresh"
+                                 OnAdornmentClick="@(() => LoadPrices(true))" />
             </MudItem>
-            <MudItem xs="12" sm="3">
-                <MudTextField T="string" Value="labor" ValueChanged="OnLabor" Label="İşçilik milyemi" Variant="Variant.Outlined" Margin="Margin.Dense"
-                              Placeholder="0,050" Immediate="true" />
-            </MudItem>
-            <MudItem xs="12" sm="4">
-                <div class="kd-suggest">
-                    <div class="kd-muted" style="font-size:.75rem">Önerilen fiyat</div>
-                    <div class="kd-num kd-strong">@(suggested > 0 ? suggested.ToString("N0") + " ₺" : "—")</div>
-                    @if (suggested > 0)
-                    {
-                        <MudLink Typo="Typo.caption" OnClick="UseSuggestion">Kullan</MudLink>
-                    }
-                </div>
+            <MudItem xs="12" sm="6">
+                <MudNumericField T="decimal" Value="laborPerGram" ValueChanged="OnLabor" Label="İşçilik (TL / gr)" Variant="Variant.Outlined"
+                                 Margin="Margin.Dense" Format="N2" HideSpinButtons="true" Min="0"
+                                 HelperText="@(Lookup.LaborPerGram(Item.CategoryId) > 0 ? $"{Lookup.CategoryName(Item.CategoryId)} varsayılanı" : "Kategoride işçilik tanımlı değil")" />
             </MudItem>
             <MudItem xs="12">
-                <MudNumericField T="decimal?" Value="price" ValueChanged="@(v => { price = v; UpdateCreditSuggestion(); })" Label="Satış fiyatı (TL, isteğe bağlı)" Variant="Variant.Outlined" Margin="Margin.Dense"
-                                 Format="N2" HideSpinButtons="true" Min="0" Class="kd-amount-input" />
+                <PriceQuoteView Quote="quote" PriceTime="priceTime" EmptyText="Gram fiyatı girin." />
+            </MudItem>
+            <MudItem xs="12">
+                <MudNumericField T="decimal?" Value="price" ValueChanged="OnPrice" Label="Satış fiyatı (TL)" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                 Format="N2" HideSpinButtons="true" Min="0" Class="kd-amount-input"
+                                 HelperText="@(priceTouched && quote != null && price != quote.Total ? "Elle değiştirildi (pazarlık)" : "Son fiyat otomatik yazılır; pazarlıkta değiştirebilirsiniz")" />
             </MudItem>
         </MudGrid>
 
@@ -72,7 +68,7 @@
                     <MudItem xs="12" sm="6">
                         <MudNumericField T="decimal?" @bind-Value="creditAmount" Label="@($"Borç ({creditCurrency.GetSymbol()})")" Variant="Variant.Outlined" Margin="Margin.Dense"
                                          Format="N2" HideSpinButtons="true" Min="0"
-                                         HelperText="@(creditCurrency == CurrencyType.Gold22K ? "net gram × (milyem + işçilik) / 22 ayar milyemi" : "satış fiyatı")" />
+                                         HelperText="@(creditCurrency == CurrencyType.Gold22K ? "satış fiyatı ÷ listedeki 22 ayar satış" : "satış fiyatı")" />
                     </MudItem>
                 </MudGrid>
                 <MudText Typo="Typo.caption" Class="kd-muted">Müşterinin hesabına <b class="kd-giden">Giden</b> (müşteri borçlu) işlem olarak yazılır.</MudText>
@@ -94,62 +90,77 @@
     [Parameter] public StockItem Item { get; set; } = default!;
     [Parameter] public StockLookup Lookup { get; set; } = default!;
 
-    private decimal? hasPrice, price, creditAmount;
-    private string? labor, description;
-    private string hasPriceSource = "Alınıyor…";
-    private decimal suggested;
+    private List<GoldPriceDto>? prices;
+    private decimal? unitPrice, price, creditAmount;
+    private decimal laborPerGram;
+    private string? description;
+    private string unitSource = "Alınıyor…";
+    private bool unitFromList;
+    private DateTime? priceTime;
+    private SalePrice.Quote? quote;
+    private bool priceTouched;
     private bool onCredit, saving;
     private Customer? customer;
     private CurrencyType creditCurrency = CurrencyType.TurkishLira;
 
     private int Milyem => Lookup.Milyem(Item.Karat);
-    private int LaborMilyem => WeightFormat.TryParseMilyem(labor, out var m) ? m ?? 0 : 0;
 
     protected override async Task OnInitializedAsync()
     {
-        var laborDefault = Lookup.LaborMilyem(Item.CategoryId);
-        labor = laborDefault > 0 ? WeightFormat.Milyem(laborDefault) : null;
-        await LoadHasPrice(false);
+        laborPerGram = Lookup.LaborPerGram(Item.CategoryId);
+        await LoadPrices(false);
     }
 
-    private async Task LoadHasPrice(bool force)
+    private async Task LoadPrices(bool force)
     {
-        hasPriceSource = "Alınıyor…";
-        var has = await GoldPrices.GetHasGoldPriceAsync(force);
-        if (has != null)
+        unitSource = "Alınıyor…";
+        try { prices = await GoldPrices.GetGoldPricesAsync(force); }
+        catch (Exception ex) { Console.WriteLine($"Fiyatlar alınamadı: {ex.Message}"); }
+
+        if (SalePrice.UnitPriceFor(Item.Karat, Milyem, prices) is { } unit)
         {
-            hasPrice = has.SellPrice;
-            hasPriceSource = $"{GoldPrices.SourceName} · {has.UpdateTime:HH:mm} (24 ayar satış)";
+            unitPrice = unit.Price;
+            unitFromList = unit.FromList;
+            unitSource = $"{unit.Source} · {GoldPrices.SourceName}";
+            priceTime = prices?.FirstOrDefault()?.UpdateTime;
         }
         else
         {
-            hasPriceSource = "Canlı fiyat alınamadı, elle girin";
+            unitSource = "Canlı fiyat alınamadı, gram fiyatını elle girin";
         }
         Recalculate();
     }
 
-    private void OnHasPrice(decimal? value)
+    private void OnUnitPrice(decimal? value)
     {
-        hasPrice = value;
-        hasPriceSource = "Elle girildi";
+        unitPrice = value;
+        unitFromList = false;
+        unitSource = "Elle girildi";
+        priceTime = null;
         Recalculate();
     }
 
-    private void OnLabor(string? value)
+    private void OnLabor(decimal value)
     {
-        labor = value;
+        laborPerGram = Math.Max(0, value);
         Recalculate();
+    }
+
+    private void OnPrice(decimal? value)
+    {
+        price = value;
+        priceTouched = true;
+        UpdateCreditSuggestion();
     }
 
     private void Recalculate()
     {
-        suggested = StockCalculator.SuggestSalePrice(Item.NetWeightMg, Milyem, LaborMilyem, hasPrice ?? 0);
-        UpdateCreditSuggestion();
-    }
-
-    private void UseSuggestion()
-    {
-        price = suggested;
+        quote = unitPrice is > 0
+            ? SalePrice.Calculate(Item.NetWeightMg, unitPrice.Value, unitFromList ? unitSource : "elle girilen gram fiyatı", unitFromList, laborPerGram)
+            : null;
+        // Elle pazarlık edilmediyse satış fiyatı son fiyatı izler
+        if (!priceTouched)
+            price = quote?.Total;
         UpdateCreditSuggestion();
     }
 
@@ -171,7 +182,9 @@
         if (!onCredit)
             return;
         if (creditCurrency == CurrencyType.Gold22K)
-            creditAmount = StockCalculator.Suggest22KGram(Item.NetWeightMg, Milyem, LaborMilyem, Lookup.Milyem(22));
+            creditAmount = price is > 0
+                ? SalePrice.To22KGram(price.Value, prices) ?? StockCalculator.Suggest22KGram(Item.NetWeightMg, Milyem, 0, Lookup.Milyem(22))
+                : StockCalculator.Suggest22KGram(Item.NetWeightMg, Milyem, 0, Lookup.Milyem(22));
         else if (price is > 0)
             creditAmount = price;
     }

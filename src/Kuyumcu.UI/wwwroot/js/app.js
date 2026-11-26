@@ -4,35 +4,47 @@ window.kuyumcu = (function () {
     const scanInputs = {}; // id → { el, keydown, stray }
 
     return {
-        // Genel kısayollar: Ctrl/Cmd+K → müşteri arama, F2 → Giden, F3 → Gelen (sayfa destekliyorsa)
-        registerShortcuts: function (dotnetRef) {
+        // Genel kısayollar: Ctrl/Cmd+K → müşteri arama, Alt+1..8 → menü, F2 → Giden, F3 → Gelen,
+        // Alt+← / Alt+→ → önceki / sonraki müşteri (sayfa destekliyorsa)
+        registerShortcuts: function (dotnetRef, layoutRef) {
             if (shortcutHandler) document.removeEventListener('keydown', shortcutHandler);
+            const dialogOpen = function () { return !!document.querySelector('.mud-dialog-container'); };
             shortcutHandler = function (e) {
                 const key = (e.key || '').toLowerCase();
                 if ((e.ctrlKey || e.metaKey) && key === 'k') {
                     e.preventDefault();
                     const input = document.querySelector('#global-search input');
                     if (input) { input.focus(); input.select(); }
+                    else if (layoutRef) layoutRef.invokeMethodAsync('OpenSearch'); // menü daraltılmış
                     return;
                 }
-                // Alt+1..9 → üst menüdeki n. sayfa (menü sırası). Sadece üst sıradaki rakam tuşları:
+                // Alt+1..9 → sol menüdeki n. sayfa (menü sırası). Sadece üst sıradaki rakam tuşları:
                 // bazı barkod okuyucular karakterleri "Alt + numerik tuş takımı" ile gönderir; onlar sayfa değiştirmemeli.
                 if (e.altKey && !e.ctrlKey && !e.metaKey && /^[1-9]$/.test(e.key) && !(e.code || '').startsWith('Numpad')) {
-                    if (document.querySelector('.mud-dialog-container')) return;
-                    const items = document.querySelectorAll('.kd-topbar a.kd-topnav-item');
+                    if (dialogOpen()) return;
+                    const items = document.querySelectorAll('.kd-sidebar a.kd-nav-item');
                     const target = items[parseInt(e.key, 10) - 1];
                     if (target) { e.preventDefault(); target.click(); }
                     return;
                 }
+                // Alt+ok: tarayıcının geri/ileri gitmesi yerine önceki/sonraki müşteri
+                if (e.altKey && !e.ctrlKey && !e.metaKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+                    e.preventDefault();
+                    if (dialogOpen()) return;
+                    dotnetRef.invokeMethodAsync('OnShortcut', e.key === 'ArrowLeft' ? 'PrevCustomer' : 'NextCustomer');
+                    return;
+                }
                 if (e.key === 'F2' || e.key === 'F3') {
                     // Açık bir pencere varken kısayol tetiklenmesin
-                    if (document.querySelector('.mud-dialog-container')) return;
+                    if (dialogOpen()) return;
                     e.preventDefault();
                     dotnetRef.invokeMethodAsync('OnShortcut', e.key);
                 }
             };
             document.addEventListener('keydown', shortcutHandler);
         },
+
+        isNarrowScreen: function () { return window.innerWidth < 1280; },
 
         // id bir input'a ya da input içeren bir kapsayıcıya ait olabilir; pencere animasyonu için kısa süre dener
         focusAndSelect: function (id) {

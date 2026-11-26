@@ -684,22 +684,61 @@ namespace Kuyumcu.Services
                 .ToListAsync();
         }
 
+        /// <summary>
+        /// İşlemi kaydeder; <see cref="Transaction.AffectsCash"/> açıksa kasaya da yansıtır (aynı transaction'da,
+        /// bkz. <see cref="Kuyumcu.Stock.LedgerCash"/>). Düzenlemede kasadaki fark kadar düzeltme hareketi yazılır.
+        /// </summary>
         public async Task<int> SaveTransactionAsync(Transaction transaction)
         {
             await InitializeAsync();
-            if (transaction.Id != 0)
-                return await _database.UpdateAsync(transaction);
-            else
-                return await _database.InsertAsync(transaction);
+            var count = 0;
+            await _database.RunInTransactionAsync(db =>
+            {
+                count = transaction.Id != 0 ? db.Update(transaction) : db.Insert(transaction);
+                Kuyumcu.Stock.LedgerCash.Sync(db, transaction);
+            });
+            return count;
+        }
+
+        /// <summary>Yeni işlemleri tek seferde ekler (hepsi ya da hiçbiri; ör. hesap sıfırlama), kasaya da yansıtır.</summary>
+        public async Task AddTransactionsAsync(IReadOnlyCollection<Transaction> transactions)
+        {
+            if (transactions.Count == 0)
+                return;
+            await InitializeAsync();
+            await _database.RunInTransactionAsync(db =>
+            {
+                foreach (var t in transactions)
+                {
+                    db.Insert(t);
+                    Kuyumcu.Stock.LedgerCash.Sync(db, t);
+                }
+            });
+        }
+
+        /// <summary>
+        /// Müşterilerin alfabetik (Türkçe) sırası; önceki/sonraki müşteri gezintisi için tek sorguda.
+        /// </summary>
+        public async Task<List<int>> GetCustomerOrderAsync()
+        {
+            await InitializeAsync();
+            var customers = await _database.Table<Customer>().Where(c => !c.IsDeleted).ToListAsync();
+            return CustomerDirectory.AlphabeticalIds(customers);
         }
 
         public async Task<int> DeleteTransactionAsync(Transaction transaction)
         {
             await InitializeAsync();
 
-            // Soft delete transaction
+            // Soft delete; kasaya yansımışsa ters hareketle geri alınır (geçmiş silinmez)
             transaction.IsDeleted = true;
-            return await _database.UpdateAsync(transaction);
+            var count = 0;
+            await _database.RunInTransactionAsync(db =>
+            {
+                count = db.Update(transaction);
+                Kuyumcu.Stock.LedgerCash.Sync(db, transaction);
+            });
+            return count;
         }
 
 

@@ -25,14 +25,14 @@
                         <MudSelectItem Value="k.Karat">@k.DisplayName</MudSelectItem>
                     }
                 </MudSelect>
-                <MudTextField @bind-Value="catLabor" Label="İşçilik milyemi" Placeholder="0,050" Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width:140px" />
+                <MudNumericField T="decimal" @bind-Value="cat.LaborPerGram" Label="İşçilik (TL/gr)" Variant="Variant.Outlined" Margin="Margin.Dense" Min="0" HideSpinButtons="true" Format="N2" Style="max-width:150px" />
                 <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveCategory">@(cat.Id == 0 ? "Ekle" : "Güncelle")</MudButton>
                 @if (cat.Id != 0) { <MudButton Variant="Variant.Text" OnClick="@(() => EditCategory(null))">Vazgeç</MudButton> }
             </div>
             @foreach (var c in categories)
             {
                 <div class="kd-list-row kd-spread">
-                    <span><b>@c.Name</b> <span class="kd-muted">· @(c.ShortName ?? "—") · @c.DefaultKarat ayar@(c.LaborMilyem > 0 ? $" · işçilik {WeightFormat.Milyem(c.LaborMilyem)}" : "")</span></span>
+                    <span><b>@c.Name</b> <span class="kd-muted">· @(c.ShortName ?? "—") · @c.DefaultKarat ayar@(c.LaborPerGram > 0 ? $" · işçilik {FormatHelper.FormatPrice(c.LaborPerGram)} TL/gr" : "")</span></span>
                     @Buttons(() => EditCategory(c), () => Delete("kategori", c.Name, () => Stock.DeleteCategoryAsync(c)))
                 </div>
             }
@@ -75,8 +75,9 @@
                 <MudSelect T="BulkUnit" @bind-Value="bulk.Unit" Label="Birim" Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width:120px">
                     <MudSelectItem Value="BulkUnit.Piece">Adet</MudSelectItem>
                     <MudSelectItem Value="BulkUnit.Gram">Gram</MudSelectItem>
+                    <MudSelectItem Value="BulkUnit.Money">Para (TL / döviz)</MudSelectItem>
                 </MudSelect>
-                <MudSelect T="int" @bind-Value="bulk.Karat" Label="Ayar" Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width:120px">
+                <MudSelect T="int" @bind-Value="bulk.Karat" Label="Ayar" Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width:120px" Disabled="@(bulk.Unit == BulkUnit.Money)">
                     @foreach (var k in karats.Where(k => !k.IsDeleted))
                     {
                         <MudSelectItem Value="k.Karat">@k.DisplayName</MudSelectItem>
@@ -92,7 +93,7 @@
             @foreach (var b in bulkProducts)
             {
                 <div class="kd-list-row kd-spread">
-                    <span><b>@b.Name</b> <span class="kd-muted">· @b.Karat ayar · @(b.Unit == BulkUnit.Piece ? $"adet ({WeightFormat.Gram(b.PieceWeightMg)} gr)" : "gram") · mevcut @StockService.FormatBulkAmount(b, b.Amount)</span></span>
+                    <span><b>@b.Name</b> <span class="kd-muted">· @(b.Unit switch { BulkUnit.Piece => $"{b.Karat} ayar · adet ({WeightFormat.Gram(b.PieceWeightMg)} gr)", BulkUnit.Gram => $"{b.Karat} ayar · gram", _ => "para" }) · mevcut @StockService.FormatBulkAmount(b, b.Amount)@(b.LedgerCurrencyType is { } lc ? $" · defterdeki {lc.GetDisplayName()} buraya işlenir" : "")</span></span>
                     @Buttons(() => EditBulk(b), () => Delete("kasa ürünü", b.Name, () => Stock.DeleteBulkProductAsync(b)))
                 </div>
             }
@@ -109,7 +110,6 @@
     private List<BulkProduct> bulkProducts = new();
 
     private StockCategory cat = new();
-    private string? catLabor;
     private KaratDefinition karat = new();
     private string? karatMilyem;
     private StockLocation location = new();
@@ -133,8 +133,7 @@
     private void EditCategory(StockCategory? c)
     {
         cat = c == null ? new StockCategory { DefaultKarat = 22 }
-            : new StockCategory { Id = c.Id, Name = c.Name, ShortName = c.ShortName, DefaultKarat = c.DefaultKarat, LaborMilyem = c.LaborMilyem, SortOrder = c.SortOrder };
-        catLabor = c is { LaborMilyem: > 0 } ? WeightFormat.Milyem(c.LaborMilyem) : null;
+            : new StockCategory { Id = c.Id, Name = c.Name, ShortName = c.ShortName, DefaultKarat = c.DefaultKarat, LaborMilyem = c.LaborMilyem, LaborPerGram = c.LaborPerGram, SortOrder = c.SortOrder };
     }
 
     private void EditKarat(KaratDefinition? k)
@@ -149,14 +148,12 @@
     private void EditBulk(BulkProduct? b)
     {
         bulk = b == null ? new BulkProduct { Karat = 22 }
-            : new BulkProduct { Id = b.Id, Name = b.Name, Unit = b.Unit, Karat = b.Karat, PieceWeightMg = b.PieceWeightMg, SortOrder = b.SortOrder, Amount = b.Amount };
+            : new BulkProduct { Id = b.Id, Name = b.Name, Unit = b.Unit, Karat = b.Karat, PieceWeightMg = b.PieceWeightMg, SortOrder = b.SortOrder, Amount = b.Amount, LedgerCurrency = b.LedgerCurrency };
         bulkPieceGram = b == null ? null : WeightFormat.ToInput(b.PieceWeightMg);
     }
 
     private Task SaveCategory()
     {
-        if (!WeightFormat.TryParseMilyem(catLabor, out var labor)) { Snackbar.Add("İşçilik milyemi geçersiz (örn. 0,050).", Severity.Warning); return Task.CompletedTask; }
-        cat.LaborMilyem = labor ?? 0;
         return Run(() => Stock.SaveCategoryAsync(cat), "Kategori kaydedildi.");
     }
 

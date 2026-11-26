@@ -289,6 +289,105 @@ public sealed class StockServiceTests : IAsyncLifetime
         Assert.Equal(StockItemStatus.InStock, (await gated.GetItemAsync(existing.Id))!.Status);
     }
 
+    // ───────── Defter → Kasa (LedgerCash) ─────────
+
+    private async Task<BulkProduct> Linked(CurrencyType c) =>
+        (await _stock.GetBulkProductsAsync(true)).Single(p => p.LedgerCurrency == (int)c);
+
+    private async Task<int> NewCustomer()
+    {
+        var c = new Customer { Name = "Kasa Testi " + Guid.NewGuid().ToString("N")[..6] };
+        await _db.SaveCustomerAsync(c);
+        return c.Id;
+    }
+
+    private static Transaction Tx(int customerId, TransactionType type, decimal amount, CurrencyType currency, bool cash = true, bool deposit = false) =>
+        new() { CustomerId = customerId, Type = type, Amount = amount, CurrencyType = currency, Date = DateTime.Now, AffectsCash = cash, IsDeposit = deposit };
+
+    [Fact]
+    public async Task Her_defter_cinsine_tek_kasa_urunu_baglanir()
+    {
+        var products = await _stock.GetBulkProductsAsync(true);
+        foreach (var c in Enum.GetValues<CurrencyType>())
+            Assert.Single(products, p => p.LedgerCurrency == (int)c);
+
+        // Kurulumdaki ürünler bağlanır, kopyası açılmaz
+        Assert.Equal("Çeyrek", (await Linked(CurrencyType.QuarterGold)).Name);
+        Assert.Equal("24 Ayar Gram Altın", (await Linked(CurrencyType.Gold24K)).Name);
+        Assert.Single(products, p => p.Name == "Çeyrek");
+        Assert.Null(products.Single(p => p.Name == "Ata Lira").LedgerCurrency);
+        Assert.Equal(BulkUnit.Money, (await Linked(CurrencyType.Euro)).Unit);
+
+        // İkinci çalıştırma bir şey değiştirmez
+        await _db.UpdateDatabaseSchemaAsync();
+        Assert.Equal(products.Count, (await _stock.GetBulkProductsAsync(true)).Count);
+    }
+
+    [Fact]
+    public async Task Gelen_kasaya_girer_giden_cikar_emanet_ve_kapali_islenmez()
+    {
+        var customer = await NewCustomer();
+        await _db.SaveTransactionAsync(Tx(customer, TransactionType.StoreDebt, 2, CurrencyType.QuarterGold));
+        await _db.SaveTransactionAsync(Tx(customer, TransactionType.CustomerDebt, 150.5m, CurrencyType.Euro));
+        await _db.SaveTransactionAsync(Tx(customer, TransactionType.StoreDebt, 12.345m, CurrencyType.Gold22K));
+        await _db.SaveTransactionAsync(Tx(customer, TransactionType.StoreDebt, 5, CurrencyType.QuarterGold, deposit: true));
+        await _db.SaveTransactionAsync(Tx(customer, TransactionType.StoreDebt, 7, CurrencyType.QuarterGold, cash: false));
+
+        Assert.Equal(2, (await Linked(CurrencyType.QuarterGold)).Amount);
+        var euro = await Linked(CurrencyType.Euro);
+        Assert.Equal(-15_050, euro.Amount); // kuruş; kasa eksiye düşebilir
+        Assert.Equal("-150,50 €", StockService.FormatBulkAmount(euro, euro.Amount));
+        Assert.Equal(12_345, (await Linked(CurrencyType.Gold22K)).Amount);
+
+        var history = await _stock.GetBulkMovementsAsync(euro.Id);
+        var m = Assert.Single(history);
+        Assert.True(m.FromLedger);
+        Assert.Equal(StockMovementType.BulkOut, m.Type);
+        Assert.Equal(customer, m.CustomerId);
+        await Assert.ThrowsAsync<StockException>(() => _stock.ReturnBulkSaleAsync(m.Id));
+    }
+
+    [Fact]
+    public async Task Duzenleme_ve_silme_kasada_duzeltme_hareketi_yazar()
+    {
+        var customer = await NewCustomer();
+        var t = Tx(customer, TransactionType.StoreDebt, 2, CurrencyType.QuarterGold);
+        await _db.SaveTransactionAsync(t);
+
+        t.Amount = 3;
+        await _db.SaveTransactionAsync(t);
+        Assert.Equal(3, (await Linked(CurrencyType.QuarterGold)).Amount);
+
+        t.CurrencyType = CurrencyType.HalfGold; // cins değişti: çeyrekten çıkar, yarıma girer
+        await _db.SaveTransactionAsync(t);
+        Assert.Equal(0, (await Linked(CurrencyType.QuarterGold)).Amount);
+        Assert.Equal(3, (await Linked(CurrencyType.HalfGold)).Amount);
+
+        t.Description = "sadece açıklama"; // kasaya etkisi değişmeyen düzenleme hareket yazmaz
+        await _db.SaveTransactionAsync(t);
+        var halfId = (await Linked(CurrencyType.HalfGold)).Id;
+        Assert.Single(await _stock.GetBulkMovementsAsync(halfId));
+
+        await _db.DeleteTransactionAsync(t);
+        Assert.Equal(0, (await Linked(CurrencyType.HalfGold)).Amount);
+        Assert.Equal(2, (await _stock.GetBulkMovementsAsync(halfId)).Count);
+    }
+
+    [Fact]
+    public async Task Sifirlama_kasaya_islenir_ve_silinen_urunun_cinsi_islenmez()
+    {
+        var customer = await NewCustomer();
+        var settle = CustomerLedger.Settlement(customer, CurrencyType.Dollar, 200, false, DateTime.Now, "Hesap sıfırlandı")!;
+        settle.AffectsCash = true;
+        await _db.AddTransactionsAsync([settle]);
+        Assert.Equal(20_000, (await Linked(CurrencyType.Dollar)).Amount); // 200 $ Giden bakiye → 200 $ Gelen
+
+        var riyal = await Linked(CurrencyType.Riyal);
+        await _stock.DeleteBulkProductAsync(riyal);
+        await _db.SaveTransactionAsync(Tx(customer, TransactionType.StoreDebt, 50, CurrencyType.Riyal));
+        Assert.Equal(0, (await Linked(CurrencyType.Riyal)).Amount);
+    }
+
     private sealed class MemorySecureStore : ISecureStore
     {
         private readonly Dictionary<string, string> _values = [];

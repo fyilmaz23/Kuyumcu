@@ -1,0 +1,264 @@
+@* Süzgeçli işlem listesi: İşlemler sayfasında tam hâli, ana sayfada küçük hâli (Compact).
+   Süzme Core'da (TransactionQuery): silinenler ve gizli işlemler listelenmez. *@
+@inject DatabaseService DatabaseService
+@inject NavigationManager NavigationManager
+
+<section class="kd-card kd-feed @(Compact ? "is-compact" : null)">
+    <div class="kd-card-header">
+        <div class="kd-card-title"><MudIcon Icon="@Icons.Material.Outlined.ReceiptLong" /> @Title</div>
+        @if (Compact)
+        {
+            <div class="d-flex align-center gap-2 flex-wrap">
+                <div class="kd-seg is-small" role="group" aria-label="Dönem">
+                    @foreach (var (value, text) in CompactPeriods)
+                    {
+                        <button type="button" class="kd-seg-btn @(filter.Period == value ? "is-on" : null)" @onclick="@(() => SetPeriod(value))">@text</button>
+                    }
+                </div>
+                <div class="kd-seg is-small" role="group" aria-label="Tür">
+                    @foreach (var (value, text, css) in Kinds.Take(3))
+                    {
+                        <button type="button" class="kd-seg-btn @css @(filter.Kind == value ? "is-on" : null)" @onclick="@(() => SetKind(value))">@text</button>
+                    }
+                </div>
+                <MudButton Size="Size.Small" Variant="Variant.Text" Href="/transactions" EndIcon="@Icons.Material.Filled.ArrowForward">Tümü</MudButton>
+            </div>
+        }
+        else
+        {
+            <span class="kd-muted" style="font-size:.8rem">@filtered.Count.ToString("N0") işlem</span>
+        }
+    </div>
+
+    @if (!Compact)
+    {
+        <div class="kd-filters">
+            <div class="kd-filters-row">
+                <div class="kd-filters-search">
+                    <MudTextField T="string" Placeholder="Müşteri adı ya da açıklama…" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                  Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                                  Value="filter.Search" ValueChanged="OnSearch" Immediate="true" DebounceInterval="200" Clearable="true" />
+                </div>
+                <div class="kd-seg" role="group" aria-label="Dönem">
+                    @foreach (var (value, text) in Periods)
+                    {
+                        <button type="button" class="kd-seg-btn @(filter.Period == value ? "is-on" : null)" @onclick="@(() => SetPeriod(value))">@text</button>
+                    }
+                </div>
+                @if (filter.Period == TransactionPeriod.Custom)
+                {
+                    <MudDatePicker Label="Başlangıç" Date="filter.From" DateChanged="@(d => { filter.From = d; Apply(); })" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                   DateFormat="dd.MM.yyyy" Editable="true" Class="kd-filter-date" />
+                    <MudDatePicker Label="Bitiş" Date="filter.To" DateChanged="@(d => { filter.To = d; Apply(); })" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                   DateFormat="dd.MM.yyyy" Editable="true" Class="kd-filter-date" />
+                }
+            </div>
+            <div class="kd-filters-row">
+                <div class="kd-seg" role="group" aria-label="Tür">
+                    @foreach (var (value, text, css) in Kinds)
+                    {
+                        <button type="button" class="kd-seg-btn @css @(filter.Kind == value ? "is-on" : null)" @onclick="@(() => SetKind(value))">@text</button>
+                    }
+                </div>
+                <span class="kd-filters-divider"></span>
+                <span class="kd-filters-label">Cins</span>
+                <div class="kd-chips">
+                    @foreach (var c in usedCurrencies)
+                    {
+                        <button type="button" class="kd-chip @(filter.Currencies.Contains(c) ? "is-on" : null)" @onclick="@(() => ToggleCurrency(c))">@c.GetShortName()</button>
+                    }
+                </div>
+                <span class="kd-filters-divider"></span>
+                <button type="button" class="kd-chip @(filter.OnlyCash ? "is-on" : null)" @onclick="ToggleCash" title="Kasaya işlenen işlemler">
+                    <MudIcon Icon="@Icons.Material.Outlined.Savings" /> Kasaya işlenen
+                </button>
+                @if (!filter.IsEmpty)
+                {
+                    <MudButton Variant="Variant.Text" Size="Size.Small" StartIcon="@Icons.Material.Filled.FilterAltOff" OnClick="Clear">Temizle</MudButton>
+                }
+            </div>
+            @if (totals.Count > 0)
+            {
+                <div class="kd-filters-totals">
+                    @foreach (var t in totals)
+                    {
+                        <span class="kd-filters-total">
+                            <b>@t.Currency.GetDisplayName():</b>
+                            @if (t.GidenCount > 0)
+                            {
+                                <span class="kd-num kd-giden">@FormatHelper.FormatPrice(t.Giden) Giden</span><span class="kd-muted">(@t.GidenCount)</span>
+                            }
+                            @if (t.GelenCount > 0)
+                            {
+                                <span class="kd-num kd-gelen">@FormatHelper.FormatPrice(t.Gelen) Gelen</span><span class="kd-muted">(@t.GelenCount)</span>
+                            }
+                        </span>
+                    }
+                </div>
+            }
+        </div>
+    }
+
+    @if (isLoading)
+    {
+        <MudProgressLinear Color="Color.Primary" Indeterminate="true" />
+    }
+    else if (filtered.Count == 0)
+    {
+        <EmptyState Icon="@Icons.Material.Outlined.ReceiptLong" Title="@(filter.IsEmpty ? "Henüz işlem yok" : "Bu süzgeçle işlem yok")" />
+    }
+    else
+    {
+        <table class="kd-grid-table">
+            @if (!Compact)
+            {
+                <thead>
+                    <tr>
+                        <th style="width:130px">Tarih</th>
+                        <th>Müşteri</th>
+                        <th style="width:130px">Tür</th>
+                        <th class="kd-right" style="width:160px">Tutar</th>
+                        <th>Açıklama</th>
+                        <th style="width:40px"></th>
+                    </tr>
+                </thead>
+            }
+            <tbody>
+                @foreach (var t in filtered.Skip(page * PageSize).Take(PageSize))
+                {
+                    var name = names.GetValueOrDefault(t.CustomerId, "Bilinmeyen müşteri");
+                    <tr class="kd-grid-row" @onclick="@(() => NavigationManager.NavigateTo($"/customer/{t.CustomerId}"))">
+                        @if (Compact)
+                        {
+                            <td style="width:50%">
+                                <div class="d-flex align-center gap-3">
+                                    <Avatar Name="@name" />
+                                    <span class="kd-strong kd-ellipsis">@name</span>
+                                </div>
+                            </td>
+                            <td><TypeBadge Type="t.Type" IsDeposit="t.IsDeposit" /></td>
+                            <td class="kd-right kd-num kd-strong">@FormatHelper.FormatPrice(t.Amount) @t.CurrencyType.GetShortName()</td>
+                            <td class="kd-right kd-muted kd-num" style="font-size:.8rem; width:110px">@WhenText(t.Date)</td>
+                        }
+                        else
+                        {
+                            <td class="kd-num">@t.Date.ToString("dd.MM.yyyy") <span class="kd-muted" style="font-size:.75rem">@t.Date.ToString("HH:mm")</span></td>
+                            <td>
+                                <div class="d-flex align-center gap-2">
+                                    <Avatar Name="@name" />
+                                    <span class="kd-strong kd-ellipsis">@name</span>
+                                </div>
+                            </td>
+                            <td><TypeBadge Type="t.Type" IsDeposit="t.IsDeposit" /></td>
+                            <td class="kd-right kd-num kd-strong">@FormatHelper.FormatPrice(t.Amount) @t.CurrencyType.GetShortName()</td>
+                            <td class="kd-muted kd-ellipsis" style="max-width:280px; font-size:.84rem" title="@t.Description">@t.Description</td>
+                            <td>
+                                @if (t.AffectsCash && !t.IsDeposit)
+                                {
+                                    <MudTooltip Text="Kasaya işlendi"><MudIcon Icon="@Icons.Material.Outlined.Savings" Size="Size.Small" Class="kd-muted" /></MudTooltip>
+                                }
+                            </td>
+                        }
+                    </tr>
+                }
+            </tbody>
+        </table>
+        @if (PageCount > 1 || !Compact)
+        {
+            <div class="kd-pager">
+                <span class="kd-muted">@(page * PageSize + 1)–@Math.Min((page + 1) * PageSize, filtered.Count) / @filtered.Count</span>
+                <span class="kd-filters-spacer"></span>
+                @if (PageCount > 1)
+                {
+                    <MudPagination Count="PageCount" Selected="page + 1" SelectedChanged="@(p => page = p - 1)" Size="Size.Small"
+                                   BoundaryCount="1" MiddleCount="@(Compact ? 1 : 3)" />
+                }
+            </div>
+        }
+    }
+</section>
+
+@code {
+    [Parameter] public bool Compact { get; set; }
+    [Parameter] public int PageSize { get; set; } = 25;
+    [Parameter] public string Title { get; set; } = "İşlemler";
+    [Parameter] public TransactionPeriod InitialPeriod { get; set; } = TransactionPeriod.All;
+
+    private static readonly (TransactionPeriod, string)[] Periods =
+    [
+        (TransactionPeriod.Today, "Bugün"), (TransactionPeriod.Yesterday, "Dün"), (TransactionPeriod.ThisWeek, "Bu hafta"),
+        (TransactionPeriod.ThisMonth, "Bu ay"), (TransactionPeriod.Last30Days, "30 gün"), (TransactionPeriod.All, "Tümü"),
+        (TransactionPeriod.Custom, "Tarih seç"),
+    ];
+    private static readonly (TransactionPeriod, string)[] CompactPeriods =
+    [
+        (TransactionPeriod.Today, "Bugün"), (TransactionPeriod.ThisWeek, "Hafta"), (TransactionPeriod.ThisMonth, "Ay"), (TransactionPeriod.All, "Tümü"),
+    ];
+    private static readonly (TransactionKind, string, string)[] Kinds =
+    [
+        (TransactionKind.All, "Tümü", ""), (TransactionKind.Giden, "Giden", "giden"), (TransactionKind.Gelen, "Gelen", "gelen"),
+        (TransactionKind.Deposit, "Emanet", ""),
+    ];
+
+    private bool isLoading = true;
+    private List<Transaction> all = new();
+    private Dictionary<int, string> names = new();
+    private List<Transaction> filtered = new();
+    private List<TransactionTotal> totals = new();
+    private List<CurrencyType> usedCurrencies = new();
+    private TransactionFilter filter = new();
+    private int page;
+
+    private int PageCount => Math.Max(1, (filtered.Count + PageSize - 1) / PageSize);
+
+    protected override async Task OnInitializedAsync()
+    {
+        filter.Period = InitialPeriod;
+        try
+        {
+            names = (await DatabaseService.GetCustomersAsync()).ToDictionary(c => c.Id, c => c.Name);
+            all = await DatabaseService.GetTransactionsAsync();
+            usedCurrencies = all.Where(t => !t.IsDeleted).Select(t => t.CurrencyType).Distinct().OrderBy(c => c).ToList();
+            Apply();
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void Apply()
+    {
+        filtered = TransactionQuery.Apply(all, filter, names, DateTime.Now);
+        totals = Compact ? new() : TransactionQuery.Totals(filtered);
+        page = 0;
+    }
+
+    private void SetPeriod(TransactionPeriod value)
+    {
+        filter.Period = value;
+        if (value == TransactionPeriod.Custom && filter.From == null)
+        {
+            filter.From = DateTime.Today.AddDays(-7);
+            filter.To = DateTime.Today;
+        }
+        Apply();
+    }
+
+    private void SetKind(TransactionKind value) { filter.Kind = value; Apply(); }
+    private void OnSearch(string? text) { filter.Search = text; Apply(); }
+    private void ToggleCash() { filter.OnlyCash = !filter.OnlyCash; Apply(); }
+    private void Clear() { filter = new TransactionFilter(); Apply(); }
+
+    private void ToggleCurrency(CurrencyType c)
+    {
+        if (!filter.Currencies.Remove(c))
+            filter.Currencies.Add(c);
+        Apply();
+    }
+
+    private static string WhenText(DateTime date) =>
+        date.Date == DateTime.Today ? $"Bugün {date:HH:mm}"
+        : date.Date == DateTime.Today.AddDays(-1) ? $"Dün {date:HH:mm}"
+        : date.ToString("dd.MM.yyyy");
+}

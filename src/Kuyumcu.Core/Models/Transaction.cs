@@ -46,6 +46,13 @@ namespace Kuyumcu.Models
         /// </summary>
         public bool IsHidden { get; set; } = false;
 
+        /// <summary>
+        /// İşlem kasaya yansısın mı? Gelen kasaya girer, Giden çıkar (cinsin bağlı kasa ürününe; emanet hiçbir zaman).
+        /// Defter ekranından girilen yeni işlemlerde varsayılan açık; stok ekranlarından açılan veresiye işlemlerinde ve
+        /// bu özellikten önceki eski kayıtlarda kapalı (kasa hareketi stok ekranı yazar / geçmiş kasaya işlenmez).
+        /// </summary>
+        public bool AffectsCash { get; set; } = false;
+
         public string GetFormattedAmount()
         {
             return $"{Amount} {CurrencyType.GetSymbol()}";

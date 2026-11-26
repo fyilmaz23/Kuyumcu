@@ -1,9 +1,9 @@
 @page "/"
 @page "/home"
-@using Kuyumcu.Helpers
 @inject DatabaseService DatabaseService
 @inject NavigationManager NavigationManager
-@inject IJSRuntime JS
+@inject GoldPriceExportService GoldPrices
+@inject CustomerBrowseContext Browse
 
 <div class="kd-page">
     <PageHeader Title="@greeting" Subtitle="@DateTime.Now.ToString("dd MMMM yyyy, dddd")">
@@ -20,197 +20,305 @@
     }
     else
     {
-        <MudGrid Spacing="3">
-            <MudItem xs="12" sm="6" lg="3">
-                <StatCard Label="Toplam müşteri" Value="@totalCustomerCount.ToString("N0")" Icon="@Icons.Material.Outlined.People"
-                          OnClick="@(() => NavigationManager.NavigateTo("/customers"))" />
-            </MudItem>
-            <MudItem xs="12" sm="6" lg="3">
-                <StatCard Label="Borçlu müşteri" Value="@indebtedCustomersCount.ToString("N0")" Icon="@Icons.Material.Outlined.AccountBalanceWallet"
-                          Tone="giden" Hint="En az bir kalemde giden bakiyesi olan" />
-            </MudItem>
-            <MudItem xs="12" sm="6" lg="3">
-                <StatCard Label="Bugünkü işlem" Value="@todayTransactionCount.ToString("N0")" Icon="@Icons.Material.Outlined.Today" Tone="info" />
-            </MudItem>
-            <MudItem xs="12" sm="6" lg="3">
-                <StatCard Label="Bu ayki işlem" Value="@currentMonthTransactionCount.ToString("N0")" Icon="@Icons.Material.Outlined.CalendarMonth"
-                          Hint="@(string.IsNullOrEmpty(mostActiveCurrencyName) ? null : $"En çok: {mostActiveCurrencyName}")" />
-            </MudItem>
-        </MudGrid>
-
-        <div class="kd-section-title">
-            <div>
-                <MudText Typo="Typo.h6">Bakiyeler</MudText>
-                <MudText Typo="Typo.caption" Class="kd-muted">Tüm müşterilerin para birimi bazında açık bakiyeleri. Tutara tıklayınca ilgili müşteriler listelenir.</MudText>
-            </div>
+        @* ---------- Kısa göstergeler: tıklayınca ilgili süzgeçle müşteri listesi ---------- *@
+        <div class="kd-kpis">
+            <button type="button" class="kd-kpi" @onclick="@(() => OpenCustomers(new CustomerListFilter()))">
+                <span class="kd-kpi-label">Müşteri</span>
+                <span class="kd-kpi-value">@rows.Count.ToString("N0")</span>
+                <span class="kd-kpi-hint">@activeThisMonth aktif (bu ay)</span>
+            </button>
+            <button type="button" class="kd-kpi is-giden" @onclick="@(() => OpenCustomers(new CustomerListFilter { Balance = BalanceFilter.Giden }))">
+                <span class="kd-kpi-label">Borçlu müşteri</span>
+                <span class="kd-kpi-value">@debtorCount.ToString("N0")</span>
+                <span class="kd-kpi-hint">Giden bakiyesi olan</span>
+            </button>
+            <button type="button" class="kd-kpi is-gelen" @onclick="@(() => OpenCustomers(new CustomerListFilter { Balance = BalanceFilter.Gelen }))">
+                <span class="kd-kpi-label">Alacaklı müşteri</span>
+                <span class="kd-kpi-value">@creditorCount.ToString("N0")</span>
+                <span class="kd-kpi-hint">Gelen bakiyesi olan</span>
+            </button>
+            <button type="button" class="kd-kpi is-emanet" @onclick="@(() => OpenCustomers(new CustomerListFilter { HasDeposit = true }))">
+                <span class="kd-kpi-label">Emanet</span>
+                <span class="kd-kpi-value">@depositCustomerCount.ToString("N0")</span>
+                <span class="kd-kpi-hint">müşteride emanet var</span>
+            </button>
+            <button type="button" class="kd-kpi is-warning" @onclick="@(() => OpenCustomers(new CustomerListFilter { Balance = BalanceFilter.Giden, InactiveDays = FollowUpDays, Sort = CustomerSort.LastTransaction }))">
+                <span class="kd-kpi-label">Takip edilecek</span>
+                <span class="kd-kpi-value">@followUp.Count.ToString("N0")</span>
+                <span class="kd-kpi-hint">@FollowUpDays+ gündür uğramayan borçlu</span>
+            </button>
+            <a class="kd-kpi" href="/transactions">
+                <span class="kd-kpi-label">Bugün</span>
+                <span class="kd-kpi-value">@today.Count.ToString("N0") <small>işlem</small></span>
+                <span class="kd-kpi-hint">@monthCount.ToString("N0") işlem bu ay</span>
+            </a>
         </div>
 
-        @if (!activeBalanceRows.Any())
-        {
-            <div class="kd-card"><EmptyState Icon="@Icons.Material.Outlined.Savings" Title="Açık bakiye yok" Text="Tüm müşteri hesapları sıfır." /></div>
-        }
-        else
-        {
-            <MudGrid Spacing="3">
-                @foreach (var row in activeBalanceRows)
-                {
-                    <MudItem xs="12" sm="6" md="4" xl="3">
-                        <div class="kd-card kd-balance-tile @(row.Difference > 0 ? "is-giden" : row.Difference < 0 ? "is-gelen" : "")">
-                            <div class="d-flex justify-space-between align-center">
-                                <span class="kd-tile-label">@row.CurrencyType.GetDisplayName()</span>
-                                <BalanceAmount Balance="row.Difference" Currency="row.CurrencyType" ZeroText="Dengede" Class="kd-strong" />
-                            </div>
-                            <div class="d-flex mt-3" style="gap:8px">
-                                <div class="flex-1 kd-clickable pa-2" style="border-radius:8px; flex:1" title="Giden bakiyesi olan müşteriler"
-                                     @onclick="@(() => ShowBalanceDetails(row, isOutgoing: true))">
-                                    <div class="kd-tile-hint">Giden</div>
-                                    <div class="kd-num kd-giden kd-strong">@FormatHelper.FormatPrice(row.TotalOutgoing) @row.CurrencyType.GetSymbol()</div>
-                                </div>
-                                <div class="flex-1 kd-clickable pa-2" style="border-radius:8px; flex:1" title="Gelen bakiyesi olan müşteriler"
-                                     @onclick="@(() => ShowBalanceDetails(row, isOutgoing: false))">
-                                    <div class="kd-tile-hint">Gelen</div>
-                                    <div class="kd-num kd-gelen kd-strong">@FormatHelper.FormatPrice(row.TotalIncoming) @row.CurrencyType.GetSymbol()</div>
-                                </div>
-                            </div>
-                        </div>
-                    </MudItem>
-                }
-            </MudGrid>
-
-            @if (showBalanceDetails)
-            {
-                <div id="balance-detail-panel" class="kd-card mt-4">
-                    <div class="kd-card-header">
-                        <MudText Typo="Typo.subtitle1">@balanceDetailTitle</MudText>
-                        <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small" OnClick="CloseBalanceDetails" aria-label="Kapat" />
+        <div class="kd-dash">
+            @* ---------- Bakiyeler: tablo + seçilen tutarın müşterileri ---------- *@
+            <section class="kd-card kd-dash-wide">
+                <div class="kd-card-header">
+                    <div>
+                        <div class="kd-card-title"><MudIcon Icon="@Icons.Material.Outlined.Savings" /> Bakiyeler</div>
+                        <div class="kd-muted" style="font-size:.78rem">Cins başına açık bakiyeler. Tutara tıklayınca o bakiyedeki müşteriler yanda listelenir.</div>
                     </div>
-                    @if (balanceDetailList.Any())
-                    {
-                        @foreach (var item in balanceDetailList)
-                        {
-                            <div class="kd-list-row kd-clickable" @onclick="@(() => NavigateToCustomer(item.CustomerId))">
-                                <Avatar Name="@item.CustomerName" />
-                                <div style="flex:1">@item.CustomerName</div>
-                                <BalanceAmount Balance="item.NetBalance" Currency="item.CurrencyType" ShowDirection="false" Class="kd-strong" />
-                            </div>
-                        }
-                        <div class="kd-list-row" style="background: var(--mud-palette-background-gray)">
-                            <div style="flex:1" class="kd-strong">Toplam (@balanceDetailList.Count müşteri)</div>
-                            <BalanceAmount Balance="@balanceDetailList.Sum(b => b.NetBalance)" Currency="balanceDetailList[0].CurrencyType" ShowDirection="false" Class="kd-strong" />
+                </div>
+
+                @if (balanceRows.Count == 0)
+                {
+                    <EmptyState Icon="@Icons.Material.Outlined.Savings" Title="Açık bakiye yok" Text="Tüm müşteri hesapları sıfır." />
+                }
+                else
+                {
+                    <div class="kd-balances">
+                        <table class="kd-grid-table kd-balance-table">
+                            <thead>
+                                <tr>
+                                    <th>Cins</th>
+                                    <th class="kd-right">Giden <span class="kd-th-hint">müşteri borçlu</span></th>
+                                    <th class="kd-right">Gelen <span class="kd-th-hint">müşteri alacaklı</span></th>
+                                    <th class="kd-right">Fark</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var row in balanceRows)
+                                {
+                                    <tr>
+                                        <td class="kd-strong">@row.Currency.GetDisplayName()</td>
+                                        <td class="kd-right kd-cell-pick @(IsSelected(row.Currency, true) ? "is-on" : null) @(row.GidenCount == 0 ? "is-empty" : null)"
+                                            @onclick="@(() => Select(row.Currency, true))">
+                                            @if (row.GidenCount > 0)
+                                            {
+                                                <span class="kd-num kd-giden kd-strong">@FormatHelper.FormatPrice(row.Giden) @row.Currency.GetSymbol()</span>
+                                                <span class="kd-cell-count">@row.GidenCount</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="kd-muted">—</span>
+                                            }
+                                        </td>
+                                        <td class="kd-right kd-cell-pick @(IsSelected(row.Currency, false) ? "is-on" : null) @(row.GelenCount == 0 ? "is-empty" : null)"
+                                            @onclick="@(() => Select(row.Currency, false))">
+                                            @if (row.GelenCount > 0)
+                                            {
+                                                <span class="kd-num kd-gelen kd-strong">@FormatHelper.FormatPrice(row.Gelen) @row.Currency.GetSymbol()</span>
+                                                <span class="kd-cell-count">@row.GelenCount</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="kd-muted">—</span>
+                                            }
+                                        </td>
+                                        <td class="kd-right">
+                                            <BalanceAmount Balance="@(row.Giden - row.Gelen)" Currency="row.Currency" ZeroText="Dengede" ShowDirection="false" />
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+
+                        <div class="kd-balance-detail">
+                            @if (selected is { } sel)
+                            {
+                                var list = SelectedList;
+                                var pageCount = Math.Max(1, (list.Count + DetailPageSize - 1) / DetailPageSize);
+                                <div class="kd-balance-detail-head">
+                                    <div style="min-width:0">
+                                        <div class="kd-strong">
+                                            @sel.Currency.GetDisplayName() ·
+                                            <span class="@(sel.Giden ? "kd-giden" : "kd-gelen")">@(sel.Giden ? "Giden" : "Gelen")</span>
+                                        </div>
+                                        <div class="kd-muted" style="font-size:.78rem">
+                                            @list.Count müşteri · toplam
+                                            <span class="kd-num">@FormatHelper.FormatPrice(list.Sum(x => Math.Abs(x.Net))) @sel.Currency.GetSymbol()</span>
+                                        </div>
+                                    </div>
+                                    <MudButton Size="Size.Small" Variant="Variant.Text" EndIcon="@Icons.Material.Filled.ArrowForward"
+                                               OnClick="OpenSelectionInCustomers">Listede aç</MudButton>
+                                </div>
+                                <div class="kd-balance-detail-list">
+                                    @foreach (var item in list.Skip(detailPage * DetailPageSize).Take(DetailPageSize))
+                                    {
+                                        <div class="kd-list-row kd-clickable" @onclick="@(() => OpenFromSelection(item.Row.Customer.Id))">
+                                            <Avatar Name="@item.Row.Customer.Name" />
+                                            <div style="flex:1; min-width:0">
+                                                <div class="kd-ellipsis">@item.Row.Customer.Name</div>
+                                                <div class="kd-muted" style="font-size:.72rem">@LastText(item.Row.LastTransaction)</div>
+                                            </div>
+                                            <span class="kd-num kd-strong @(sel.Giden ? "kd-giden" : "kd-gelen")">@FormatHelper.FormatPrice(Math.Abs(item.Net)) @sel.Currency.GetSymbol()</span>
+                                        </div>
+                                    }
+                                </div>
+                                @if (pageCount > 1)
+                                {
+                                    <div class="kd-balance-detail-pager">
+                                        <MudPagination Count="pageCount" Selected="detailPage + 1" SelectedChanged="@(p => detailPage = p - 1)" Size="Size.Small"
+                                                       BoundaryCount="1" MiddleCount="1" />
+                                    </div>
+                                }
+                            }
                         </div>
-                    }
-                    else
-                    {
-                        <EmptyState Title="Bu tutarla ilişkili müşteri yok." />
-                    }
-                </div>
-            }
-        }
+                    </div>
+                }
+            </section>
 
-        <MudGrid Spacing="3" Class="mt-2">
-            <MudItem xs="12" lg="8">
-                <div class="kd-section-title"><MudText Typo="Typo.h6">Son İşlemler</MudText></div>
-                <div class="kd-card">
-                    @if (!recentTransactions.Any())
+            @* ---------- Hızlı işlem + bugün ---------- *@
+            <div class="kd-dash-side">
+                <section class="kd-card kd-card-pad">
+                    <div class="kd-card-title mb-3"><MudIcon Icon="@Icons.Material.Outlined.Bolt" /> Hızlı İşlem</div>
+                    <MudAutocomplete T="Customer" @bind-Value="quickCustomer" Placeholder="Müşteri seçin…" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                     Dense="true" SearchFunc="SearchCustomers" ToStringFunc="@(c => c?.Name)" Clearable="true" MaxItems="8"
+                                     MinCharacters="1" AdornmentIcon="@Icons.Material.Filled.Search" Adornment="Adornment.Start" ShowProgressIndicator="false" />
+                    <div class="kd-quick-actions">
+                        <MudButton Variant="Variant.Filled" Color="Color.Error" StartIcon="@Icons.Material.Filled.NorthEast" Disabled="@(quickCustomer == null)"
+                                   OnClick="@(() => Quick("giden"))">Giden</MudButton>
+                        <MudButton Variant="Variant.Filled" Color="Color.Success" StartIcon="@Icons.Material.Filled.SouthWest" Disabled="@(quickCustomer == null)"
+                                   OnClick="@(() => Quick("gelen"))">Gelen</MudButton>
+                        <MudTooltip Text="Müşterinin hesabını aç">
+                            <MudIconButton Icon="@Icons.Material.Outlined.OpenInNew" Variant="Variant.Outlined" Disabled="@(quickCustomer == null)"
+                                           OnClick="@(() => Quick(null))" aria-label="Hesabı aç" />
+                        </MudTooltip>
+                    </div>
+                </section>
+
+                <section class="kd-card">
+                    <div class="kd-card-header">
+                        <div class="kd-card-title"><MudIcon Icon="@Icons.Material.Outlined.Today" /> Bugün</div>
+                        <span class="kd-muted" style="font-size:.78rem">@today.Count işlem</span>
+                    </div>
+                    @if (todayRows.Count == 0)
                     {
-                        <EmptyState Icon="@Icons.Material.Outlined.ReceiptLong" Title="Henüz işlem yok" Text="Bir müşteri açıp ilk işlemi ekleyin." />
+                        <div class="kd-muted pa-4" style="font-size:.85rem">Bugün henüz işlem yok.</div>
                     }
                     else
                     {
-                        @foreach (var t in recentTransactions)
+                        <table class="kd-grid-table kd-compact">
+                            <thead><tr><th>Cins</th><th class="kd-right">Giden</th><th class="kd-right">Gelen</th></tr></thead>
+                            <tbody>
+                                @foreach (var r in todayRows)
+                                {
+                                    <tr>
+                                        <td>@r.Currency.GetDisplayName()@(r.Deposit ? " · emanet" : "")</td>
+                                        <td class="kd-right kd-num @(r.Deposit ? "" : "kd-giden")">@(r.Giden > 0 ? $"{FormatHelper.FormatPrice(r.Giden)} {r.Currency.GetSymbol()}" : "—")</td>
+                                        <td class="kd-right kd-num @(r.Deposit ? "" : "kd-gelen")">@(r.Gelen > 0 ? $"{FormatHelper.FormatPrice(r.Gelen)} {r.Currency.GetSymbol()}" : "—")</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    }
+                </section>
+            </div>
+
+            @* ---------- İşlemler (süzgeçli küçük liste; tam hâli İşlemler sayfasında) ---------- *@
+            <div class="kd-dash-wide">
+                <TransactionFeed Compact="true" PageSize="8" Title="İşlemler" />
+            </div>
+
+            @* ---------- Fiyatlar + takip ---------- *@
+            <div class="kd-dash-side">
+                <section class="kd-card">
+                    <div class="kd-card-header">
+                        <div class="kd-card-title"><MudIcon Icon="@Icons.Material.Outlined.ShowChart" /> Altın Fiyatları</div>
+                        <MudTooltip Text="@($"Yenile · {GoldPrices.SourceName}")">
+                            <MudIconButton Icon="@Icons.Material.Filled.Refresh" Size="Size.Small" OnClick="@(() => LoadPrices(true))" Disabled="pricesLoading" aria-label="Fiyatları yenile" />
+                        </MudTooltip>
+                    </div>
+                    @if (pricesLoading && prices == null)
+                    {
+                        <MudProgressLinear Color="Color.Primary" Indeterminate="true" />
+                    }
+                    else if (prices is not { Count: > 0 })
+                    {
+                        <div class="kd-muted pa-4" style="font-size:.85rem">Fiyatlar alınamadı (internet bağlantısını kontrol edin).</div>
+                    }
+                    else
+                    {
+                        <table class="kd-grid-table kd-compact">
+                            <thead><tr><th></th><th class="kd-right">Alış</th><th class="kd-right">Satış</th></tr></thead>
+                            <tbody>
+                                @foreach (var p in prices.Take(8))
+                                {
+                                    <tr>
+                                        <td>@p.Type</td>
+                                        <td class="kd-right kd-num">@(p.BuyPrice == p.SellPrice ? "—" : FormatHelper.FormatPrice(p.BuyPrice))</td>
+                                        <td class="kd-right kd-num kd-strong">@FormatHelper.FormatPrice(p.SellPrice)</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                        <div class="kd-muted" style="font-size:.72rem; padding:6px 16px 10px">@prices[0].UpdateTime.ToString("HH:mm") · @GoldPrices.SourceName</div>
+                    }
+                </section>
+
+                <section class="kd-card">
+                    <div class="kd-card-header">
+                        <div>
+                            <div class="kd-card-title"><MudIcon Icon="@Icons.Material.Outlined.NotificationsActive" /> Takip Edilecekler</div>
+                            <div class="kd-muted" style="font-size:.75rem">Borcu olup @FollowUpDays+ gündür işlem yapmayanlar</div>
+                        </div>
+                    </div>
+                    @if (followUp.Count == 0)
+                    {
+                        <div class="kd-muted pa-4" style="font-size:.85rem">Takip edilecek müşteri yok.</div>
+                    }
+                    else
+                    {
+                        @foreach (var r in followUp.Take(5))
                         {
-                            var name = customerNames.TryGetValue(t.CustomerId, out var n) ? n : "Bilinmeyen müşteri";
-                            <div class="kd-list-row kd-clickable" @onclick="@(() => NavigateToCustomer(t.CustomerId))">
-                                <Avatar Name="@name" />
+                            <div class="kd-list-row kd-clickable" @onclick="@(() => NavigationManager.NavigateTo($"/customer/{r.Customer.Id}"))">
                                 <div style="flex:1; min-width:0">
-                                    <div class="kd-strong" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis">@name</div>
-                                    <div class="kd-muted" style="font-size:.78rem">@t.Date.ToString("dd.MM.yyyy HH:mm") · @t.CurrencyType.GetDisplayName()</div>
+                                    <div class="kd-ellipsis">@r.Customer.Name</div>
+                                    <div class="kd-muted" style="font-size:.72rem">@LastText(r.LastTransaction)</div>
                                 </div>
-                                <TypeBadge Type="t.Type" IsDeposit="t.IsDeposit" />
-                                <div class="kd-num kd-strong" style="min-width:120px; text-align:right">
-                                    @FormatHelper.FormatPrice(t.Amount) @t.CurrencyType.GetSymbol()
+                                <div class="kd-badges" style="justify-content:flex-end">
+                                    @foreach (var b in r.Balances.Where(b => b.Net > 0).Take(2))
+                                    {
+                                        <span class="kd-badge giden"><span class="kd-num">@FormatHelper.FormatPrice(b.Net) @b.Currency.GetShortName()</span></span>
+                                    }
                                 </div>
                             </div>
                         }
-                    }
-                </div>
-            </MudItem>
-            <MudItem xs="12" lg="4">
-                <div class="kd-section-title"><MudText Typo="Typo.h6">En Aktif Müşteriler</MudText></div>
-                <div class="kd-card">
-                    @if (!topCustomers.Any())
-                    {
-                        <EmptyState Title="Henüz işlem yok" />
-                    }
-                    else
-                    {
-                        @foreach (var c in topCustomers)
+                        @if (followUp.Count > 5)
                         {
-                            <div class="kd-list-row kd-clickable" @onclick="@(() => NavigateToCustomer(c.CustomerId))">
-                                <Avatar Name="@c.CustomerName" />
-                                <div style="flex:1">@c.CustomerName</div>
-                                <span class="kd-badge notr">@c.TransactionCount işlem</span>
+                            <div class="pa-2">
+                                <MudButton Size="Size.Small" Variant="Variant.Text" FullWidth="true"
+                                           OnClick="@(() => OpenCustomers(new CustomerListFilter { Balance = BalanceFilter.Giden, InactiveDays = FollowUpDays, Sort = CustomerSort.LastTransaction }))">
+                                    Tümünü gör (@followUp.Count)
+                                </MudButton>
                             </div>
                         }
                     }
-                </div>
-            </MudItem>
-        </MudGrid>
-
-        <div class="kd-section-title"><MudText Typo="Typo.h6">İşlem Hareketleri</MudText></div>
-        <MudGrid Spacing="3">
-            <MudItem xs="12" lg="8">
-                <div class="kd-card kd-card-pad">
-                    <MudText Typo="Typo.subtitle2" Class="kd-muted mb-2">Son 6 ay · işlem sayısı</MudText>
-                    <MudChart ChartType="ChartType.Bar" ChartSeries="monthlyTransactionSeries" XAxisLabels="monthLabels"
-                              ChartOptions="barOptions" Width="100%" Height="300px" />
-                </div>
-            </MudItem>
-            <MudItem xs="12" lg="4">
-                <div class="kd-card kd-card-pad" style="height:100%">
-                    <MudText Typo="Typo.subtitle2" Class="kd-muted mb-2">Para birimine göre dağılım</MudText>
-                    @if (currencyDistributionData.Length > 0)
-                    {
-                        <MudChart ChartType="ChartType.Donut" InputData="currencyDistributionData" InputLabels="currencyLabels"
-                                  ChartOptions="donutOptions" Width="100%" Height="260px" />
-                    }
-                </div>
-            </MudItem>
-        </MudGrid>
+                </section>
+            </div>
+        </div>
     }
 </div>
 
 @code {
+    private const int FollowUpDays = 60;
+    private const int DetailPageSize = 8;
+
     private bool isLoading = true;
     private string greeting = "Hoş geldiniz";
 
-    private int totalCustomerCount;
-    private int indebtedCustomersCount;
-    private int currentMonthTransactionCount;
-    private int todayTransactionCount;
-    private string mostActiveCurrencyName = string.Empty;
-
-    private double[] currencyDistributionData = Array.Empty<double>();
-    private string[] currencyLabels = Array.Empty<string>();
-    private List<ChartSeries> monthlyTransactionSeries = new();
-    private string[] monthLabels = Array.Empty<string>();
-
-    // Altın tonları ve Giden/Gelen ile karışmayan nötr renkler
-    private static readonly string[] ChartPalette = { "#B8860B", "#5B4A36", "#2F6FB0", "#8C9A5B", "#C9A86A", "#7A6F9B" };
-    private readonly ChartOptions barOptions = new() { ChartPalette = ChartPalette, YAxisTicks = 5, ShowToolTips = true };
-    private readonly ChartOptions donutOptions = new() { ChartPalette = ChartPalette, ShowToolTips = true };
-
-    private List<CustomerActivityData> topCustomers = new();
-    private List<Transaction> recentTransactions = new();
+    private List<CustomerRow> rows = new();
     private Dictionary<int, string> customerNames = new();
+    private int debtorCount, creditorCount, depositCustomerCount, activeThisMonth, monthCount;
+    private List<CustomerRow> followUp = new();
+    private List<Transaction> today = new();
+    private List<TodayRow> todayRows = new();
+    private List<BalanceRow> balanceRows = new();
 
-    private CurrencyBalanceSummaryResult? currencyBalanceSummary;
-    private List<CurrencyBalanceRow> activeBalanceRows = new();
+    private (CurrencyType Currency, bool Giden)? selected;
+    private int detailPage;
 
-    private bool showBalanceDetails;
-    private string balanceDetailTitle = string.Empty;
-    private List<CustomerCurrencyBalance> balanceDetailList = new();
-    private bool scrollToBalanceDetails;
+    private Customer? quickCustomer;
+
+    private List<GoldPriceDto>? prices;
+    private bool pricesLoading;
+
+    private sealed record BalanceRow(CurrencyType Currency, decimal Giden, int GidenCount, decimal Gelen, int GelenCount);
+    private sealed record TodayRow(CurrencyType Currency, bool Deposit, decimal Giden, decimal Gelen);
 
     protected override async Task OnInitializedAsync()
     {
@@ -219,168 +327,150 @@
         var salute = hour < 12 ? "Günaydın" : hour < 18 ? "İyi günler" : "İyi akşamlar";
         greeting = string.IsNullOrWhiteSpace(settings.BusinessName) ? salute : $"{salute}, {settings.BusinessName}";
 
-        await LoadDashboardData();
-        await LoadCurrencyBalanceSummary();
-        isLoading = false;
-    }
-
-    private async Task LoadDashboardData()
-    {
         try
         {
-            totalCustomerCount = await DatabaseService.GetCustomerCountAsync(string.Empty);
-            indebtedCustomersCount = await DatabaseService.GetIndebtedCustomersCountAsync();
-
             var customers = await DatabaseService.GetCustomersAsync();
-            customerNames = customers.ToDictionary(c => c.Id, c => c.Name);
-
-            var all = (await DatabaseService.GetTransactionsAsync()).Where(t => !t.IsDeleted).ToList();
-            var regular = all.Where(t => !t.IsDeposit).ToList();
-
-            var now = DateTime.Now;
-            var monthStart = new DateTime(now.Year, now.Month, 1);
-            currentMonthTransactionCount = regular.Count(t => t.Date >= monthStart && t.Date < monthStart.AddMonths(1));
-            todayTransactionCount = all.Count(t => t.Date.Date == now.Date);
-
-            var mostActive = await DatabaseService.GetMostActiveCurrencyTypeAsync();
-            mostActiveCurrencyName = mostActive.TransactionCount > 0 ? mostActive.CurrencyType.GetDisplayName() : string.Empty;
-
-            CalculateCurrencyDistribution(regular);
-            CalculateMonthlyTransactions(regular);
-
-            topCustomers = regular
-                .Where(t => t.CustomerId > 0 && customerNames.ContainsKey(t.CustomerId))
-                .GroupBy(t => t.CustomerId)
-                .Select(g => new CustomerActivityData { CustomerId = g.Key, CustomerName = customerNames[g.Key], TransactionCount = g.Count() })
-                .OrderByDescending(c => c.TransactionCount)
-                .Take(6)
-                .ToList();
-
-            recentTransactions = all
-                .Where(t => !t.IsHidden)
-                .OrderByDescending(t => t.Date).ThenByDescending(t => t.Id)
-                .Take(8)
-                .ToList();
+            var transactions = await DatabaseService.GetTransactionsAsync();
+            Build(customers, transactions);
         }
         catch (Exception ex)
         {
             Console.WriteLine($"Ana sayfa verisi yüklenirken hata: {ex.Message}");
         }
+        isLoading = false;
     }
-
-    private void CalculateCurrencyDistribution(List<Transaction> transactions)
-    {
-        var groups = transactions.GroupBy(t => t.CurrencyType)
-            .Select(g => (Currency: g.Key, Count: g.Count()))
-            .OrderByDescending(g => g.Count)
-            .ToList();
-
-        var top = groups.Take(5).ToList();
-        var other = groups.Skip(5).Sum(g => g.Count);
-
-        var data = top.Select(g => (double)g.Count).ToList();
-        var labels = top.Select(g => g.Currency.GetDisplayName()).ToList();
-        if (other > 0)
-        {
-            data.Add(other);
-            labels.Add("Diğer");
-        }
-
-        currencyDistributionData = data.ToArray();
-        currencyLabels = labels.ToArray();
-    }
-
-    private void CalculateMonthlyTransactions(List<Transaction> transactions)
-    {
-        var monthStart = new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1);
-        var months = Enumerable.Range(0, 6).Select(i => monthStart.AddMonths(i - 5)).ToList();
-
-        static bool IsGold(CurrencyType c) => c is CurrencyType.Gold14K or CurrencyType.Gold22K or CurrencyType.Gold24K
-            or CurrencyType.QuarterGold or CurrencyType.HalfGold or CurrencyType.FullGold or CurrencyType.Ziynet;
-        static bool IsForeign(CurrencyType c) => c is CurrencyType.Dollar or CurrencyType.Euro or CurrencyType.Sterlin or CurrencyType.Riyal;
-
-        double[] Count(Func<CurrencyType, bool> filter) => months
-            .Select(m => (double)transactions.Count(t => t.Date >= m && t.Date < m.AddMonths(1) && filter(t.CurrencyType)))
-            .ToArray();
-
-        monthlyTransactionSeries = new List<ChartSeries>
-        {
-            new() { Name = "Altın", Data = Count(IsGold) },
-            new() { Name = "TL", Data = Count(c => c == CurrencyType.TurkishLira) },
-            new() { Name = "Döviz", Data = Count(IsForeign) },
-        };
-        monthLabels = months.Select(m => m.ToString("MMM yy")).ToArray();
-    }
-
-    private async Task LoadCurrencyBalanceSummary()
-    {
-        try
-        {
-            var r = await DatabaseService.GetCurrencyBalanceSummaryAsync();
-            currencyBalanceSummary = r;
-
-            var rows = new List<CurrencyBalanceRow>
-            {
-                new(CurrencyType.TurkishLira, r.ToplamGelenTL, r.ToplamGidenTL),
-                new(CurrencyType.Gold24K, r.ToplamGelen24Ayar, r.ToplamGiden24Ayar),
-                new(CurrencyType.Gold22K, r.ToplamGelen22Ayar, r.ToplamGiden22Ayar),
-                new(CurrencyType.Gold14K, r.ToplamGelen14Ayar, r.ToplamGiden14Ayar),
-                new(CurrencyType.QuarterGold, r.ToplamGelenCeyrekAltin, r.ToplamGidenCeyrekAltin),
-                new(CurrencyType.HalfGold, r.ToplamGelenYarimAltin, r.ToplamGidenYarimAltin),
-                new(CurrencyType.FullGold, r.ToplamGelenTamAltin, r.ToplamGidenTamAltin),
-                new(CurrencyType.Ziynet, r.ToplamGelenZiynetAltin, r.ToplamGidenZiynetAltin),
-                new(CurrencyType.Dollar, r.ToplamGelenDolar, r.ToplamGidenDolar),
-                new(CurrencyType.Euro, r.ToplamGelenEuro, r.ToplamGidenEuro),
-                new(CurrencyType.Sterlin, r.ToplamGelenSterlin, r.ToplamGidenSterlin),
-                new(CurrencyType.Riyal, r.ToplamGelenRiyal, r.ToplamGidenRiyal),
-            };
-            activeBalanceRows = rows.Where(x => x.TotalIncoming != 0 || x.TotalOutgoing != 0).ToList();
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Para birimi bakiye özeti yüklenirken hata: {ex.Message}");
-        }
-    }
-
-    // Giden / Gelen tutarına tıklandığında ilgili müşterileri listeler
-    private void ShowBalanceDetails(CurrencyBalanceRow row, bool isOutgoing)
-    {
-        if ((isOutgoing ? row.TotalOutgoing : row.TotalIncoming) == 0)
-        {
-            CloseBalanceDetails();
-            return;
-        }
-
-        // NetBalance > 0 → giden, < 0 → gelen
-        balanceDetailList = (currencyBalanceSummary?.CustomerBalances ?? new List<CustomerCurrencyBalance>())
-            .Where(cb => cb.CurrencyType == row.CurrencyType && (isOutgoing ? cb.NetBalance > 0 : cb.NetBalance < 0))
-            .OrderByDescending(cb => Math.Abs(cb.NetBalance))
-            .ToList();
-
-        balanceDetailTitle = $"{row.CurrencyType.GetDisplayName()} · {(isOutgoing ? "Giden" : "Gelen")} bakiyesi olan müşteriler";
-        showBalanceDetails = true;
-        scrollToBalanceDetails = true;
-    }
-
-    private void CloseBalanceDetails()
-    {
-        showBalanceDetails = false;
-        balanceDetailList = new List<CustomerCurrencyBalance>();
-    }
-
-    private void NavigateToCustomer(int customerId) => NavigationManager.NavigateTo($"/customer/{customerId}");
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (scrollToBalanceDetails)
+        // Fiyatlar sayfayı bekletmesin: ilk çizimden sonra arka planda
+        if (firstRender)
+            await LoadPrices(false);
+    }
+
+    private async Task LoadPrices(bool force)
+    {
+        pricesLoading = true;
+        StateHasChanged();
+        try { prices = await GoldPrices.GetGoldPricesAsync(force); }
+        catch (Exception ex) { Console.WriteLine($"Fiyatlar alınamadı: {ex.Message}"); }
+        pricesLoading = false;
+        StateHasChanged();
+    }
+
+    private void Build(List<Customer> customers, List<Transaction> transactions)
+    {
+        var now = DateTime.Now;
+        customerNames = customers.ToDictionary(c => c.Id, c => c.Name);
+        var live = transactions.Where(t => !t.IsDeleted && customerNames.ContainsKey(t.CustomerId)).ToList();
+        rows = CustomerDirectory.BuildRows(customers, live);
+
+        debtorCount = rows.Count(r => r.Balances.Any(b => b.Net > 0));
+        creditorCount = rows.Count(r => r.Balances.Any(b => b.Net < 0));
+        depositCustomerCount = rows.Count(r => r.Deposits.Any(d => d.Net > 0));
+        followUp = CustomerDirectory.Apply(rows,
+            new CustomerListFilter { Balance = BalanceFilter.Giden, InactiveDays = FollowUpDays, Sort = CustomerSort.LastTransaction }, now);
+        followUp.Reverse(); // en uzun süredir uğramayan önce
+
+        var monthStart = new DateTime(now.Year, now.Month, 1);
+        monthCount = live.Count(t => t.Date >= monthStart);
+        activeThisMonth = live.Where(t => t.Date >= monthStart).Select(t => t.CustomerId).Distinct().Count();
+
+        today = live.Where(t => t.Date.Date == now.Date && !t.IsHidden).ToList();
+        todayRows = today.GroupBy(t => (t.CurrencyType, t.IsDeposit))
+            .OrderBy(g => g.Key.IsDeposit).ThenBy(g => g.Key.CurrencyType)
+            .Select(g => new TodayRow(g.Key.CurrencyType, g.Key.IsDeposit,
+                g.Where(t => t.Type == TransactionType.CustomerDebt).Sum(t => t.Amount),
+                g.Where(t => t.Type == TransactionType.StoreDebt).Sum(t => t.Amount)))
+            .ToList();
+
+        balanceRows = rows.SelectMany(r => r.Balances)
+            .GroupBy(b => b.Currency)
+            .Select(g => new BalanceRow(g.Key,
+                g.Where(b => b.Net > 0).Sum(b => b.Net), g.Count(b => b.Net > 0),
+                -g.Where(b => b.Net < 0).Sum(b => b.Net), g.Count(b => b.Net < 0)))
+            .OrderBy(r => CurrencyOrder(r.Currency))
+            .ToList();
+
+        // Başlangıçta en çok müşterisi olan Giden hücresi seçili gelir (boş panel kalmasın)
+        var first = balanceRows.OrderByDescending(r => r.GidenCount).FirstOrDefault();
+        if (first != null)
+            selected = (first.Currency, first.GidenCount > 0);
+    }
+
+    private static int CurrencyOrder(CurrencyType c) => c switch
+    {
+        CurrencyType.TurkishLira => 0, CurrencyType.Gold24K => 1, CurrencyType.Gold22K => 2, CurrencyType.Gold14K => 3,
+        CurrencyType.QuarterGold => 4, CurrencyType.HalfGold => 5, CurrencyType.FullGold => 6, CurrencyType.Ziynet => 7,
+        CurrencyType.Dollar => 8, CurrencyType.Euro => 9, CurrencyType.Sterlin => 10, _ => 11,
+    };
+
+    private bool IsSelected(CurrencyType c, bool giden) => selected is { } s && s.Currency == c && s.Giden == giden;
+
+    private void Select(CurrencyType c, bool giden)
+    {
+        var row = balanceRows.FirstOrDefault(r => r.Currency == c);
+        if (row == null || (giden ? row.GidenCount : row.GelenCount) == 0)
+            return;
+        selected = (c, giden);
+        detailPage = 0;
+    }
+
+    private List<(CustomerRow Row, decimal Net)> SelectedList
+    {
+        get
         {
-            scrollToBalanceDetails = false;
-            await JS.InvokeVoidAsync("kuyumcu.scrollIntoView", "balance-detail-panel");
+            if (selected is not { } s)
+                return new();
+            return rows.Select(r => (Row: r, Net: r.BalanceOf(s.Currency)))
+                .Where(x => s.Giden ? x.Net > 0 : x.Net < 0)
+                .OrderByDescending(x => Math.Abs(x.Net))
+                .ToList();
         }
     }
 
-    private sealed record CurrencyBalanceRow(CurrencyType CurrencyType, decimal TotalIncoming, decimal TotalOutgoing)
+    private CustomerListFilter SelectionFilter() => selected is { } s
+        ? new CustomerListFilter { Currencies = { s.Currency }, Balance = s.Giden ? BalanceFilter.Giden : BalanceFilter.Gelen, Sort = CustomerSort.Balance }
+        : new CustomerListFilter();
+
+    private void OpenSelectionInCustomers() => OpenCustomers(SelectionFilter());
+
+    private void OpenFromSelection(int customerId)
     {
-        public decimal Difference => TotalOutgoing - TotalIncoming;
+        // Önceki/sonraki bu listede gezsin (ör. "Euro · Giden")
+        var filter = SelectionFilter();
+        Browse.SetList(SelectedList.Select(x => x.Row.Customer.Id).ToList(), filter.Describe());
+        NavigationManager.NavigateTo($"/customer/{customerId}");
     }
+
+    private void OpenCustomers(CustomerListFilter filter)
+    {
+        Browse.Filter = filter;
+        Browse.Page = 0;
+        NavigationManager.NavigateTo("/customers");
+    }
+
+    private async Task<IEnumerable<Customer>> SearchCustomers(string value, CancellationToken cancellationToken) =>
+        await DatabaseService.GetCustomersPaginationAsync(0, 8, null, null, string.IsNullOrWhiteSpace(value) ? null : value);
+
+    private void Quick(string? action)
+    {
+        if (quickCustomer == null)
+            return;
+        NavigationManager.NavigateTo(action == null ? $"/customer/{quickCustomer.Id}" : $"/customer/{quickCustomer.Id}?islem={action}");
+    }
+
+    private static string LastText(DateTime? date)
+    {
+        if (date is not { } d)
+            return "İşlem yok";
+        var days = (DateTime.Today - d.Date).Days;
+        return days switch
+        {
+            <= 0 => "Son işlem bugün",
+            1 => "Son işlem dün",
+            < 60 => $"Son işlem {days} gün önce",
+            _ => $"Son işlem {d:dd.MM.yyyy}",
+        };
+    }
+
 }

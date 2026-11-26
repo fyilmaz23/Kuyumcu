@@ -1,0 +1,109 @@
+@* Hesap sıfırlama: silmeden, her cins için bakiyenin tersi yönde işlem eklenir (geçmiş defterde kalır).
+   Emanette: dükkânda duran emanet için "teslim edildi" (Giden emanet) eklenir. *@
+
+<MudDialog>
+    <DialogContent>
+        <MudText Typo="Typo.body2" Class="kd-muted mb-3">
+            Hiçbir kayıt silinmez. Seçilen her cins için bakiyenin tersi yönde bir işlem eklenir; defterde
+            "@(description)" açıklamasıyla görünür.
+        </MudText>
+
+        <div class="kd-settle-list">
+            @foreach (var item in items)
+            {
+                var preview = Preview(item);
+                <div class="kd-settle-row @(item.Selected ? "is-on" : null)" @onclick="@(() => item.Selected = !item.Selected)">
+                    <span @onclick:stopPropagation="true">
+                        <MudCheckBox T="bool" @bind-Value="item.Selected" Color="Color.Primary" Dense="true" />
+                    </span>
+                    <div class="kd-settle-name">
+                        @item.Currency.GetDisplayName()
+                        @if (item.IsDeposit)
+                        {
+                            <span class="kd-badge emanet ml-1">Emanet</span>
+                        }
+                    </div>
+                    <div class="kd-settle-now kd-num">
+                        @if (item.IsDeposit)
+                        {
+                            <span>@FormatHelper.FormatPrice(Math.Abs(item.Balance)) @item.Currency.GetSymbol() @(item.Balance > 0 ? "emanette" : "fazla verilmiş")</span>
+                        }
+                        else
+                        {
+                            <BalanceAmount Balance="item.Balance" Currency="item.Currency" />
+                        }
+                    </div>
+                    <MudIcon Icon="@Icons.Material.Filled.ArrowForward" Size="Size.Small" Class="kd-muted" />
+                    <div class="kd-settle-add kd-num">
+                        @if (preview != null)
+                        {
+                            <span class="@(preview.Type == TransactionType.CustomerDebt ? "kd-giden" : "kd-gelen") kd-strong">
+                                + @FormatHelper.FormatPrice(preview.Amount) @item.Currency.GetSymbol()
+                                @(item.IsDeposit ? (preview.Type == TransactionType.CustomerDebt ? "teslim" : "emanet") : preview.Type == TransactionType.CustomerDebt ? "Giden" : "Gelen")
+                            </span>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+
+        <MudTextField @bind-Value="description" Label="Açıklama" Variant="Variant.Outlined" Margin="Margin.Dense"
+                      MaxLength="255" Class="mt-4" Immediate="true" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" OnClick="@(() => MudDialog.Cancel())">Vazgeç</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="@(SelectedCount == 0)" OnClick="Confirm"
+                   StartIcon="@Icons.Material.Filled.RestartAlt">
+            @(SelectedCount == 0 ? "Sıfırla" : $"Sıfırla ({SelectedCount} işlem)")
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public List<SettleItem> Items { get; set; } = new();
+    [Parameter] public string DefaultDescription { get; set; } = "Hesap sıfırlandı";
+
+    private List<SettleItem> items = new();
+    private string description = string.Empty;
+
+    private int SelectedCount => items.Count(i => i.Selected);
+
+    protected override void OnInitialized()
+    {
+        items = Items.Select(i => i with { }).ToList();
+        description = DefaultDescription;
+    }
+
+    private static Transaction? Preview(SettleItem item) =>
+        CustomerLedger.Settlement(0, item.Currency, item.Balance, item.IsDeposit, DateTime.Now, null);
+
+    private void Confirm()
+    {
+        if (SelectedCount == 0)
+            return;
+        MudDialog.Close(DialogResult.Ok(new SettleResult(items.Where(i => i.Selected).ToList(), description?.Trim())));
+    }
+
+    /// <summary>Sıfırlanabilecek bir hesap (cins). Bakiye normal hesapta Giden +, emanette dükkânda duran +.</summary>
+    public sealed record SettleItem(CurrencyType Currency, decimal Balance, bool IsDeposit)
+    {
+        public bool Selected { get; set; }
+    }
+
+    public sealed record SettleResult(List<SettleItem> Items, string? Description);
+
+    /// <summary>Pencereyi açar; vazgeçilirse null döner.</summary>
+    public static async Task<SettleResult?> ShowAsync(IDialogService dialogs, string title, List<SettleItem> items, string defaultDescription)
+    {
+        var parameters = new DialogParameters<SettleDialog>
+        {
+            { x => x.Items, items },
+            { x => x.DefaultDescription, defaultDescription },
+        };
+        var dialog = await dialogs.ShowAsync<SettleDialog>(title, parameters,
+            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true });
+        var result = await dialog.Result;
+        return result is { Canceled: false } ? result.Data as SettleResult : null;
+    }
+}

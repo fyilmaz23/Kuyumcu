@@ -1,11 +1,11 @@
-@* Üst menüdeki bulut yedeği göstergesi: durum rengi + üzerine gelince açıklama.
+@* Sol menüdeki bulut yedeği göstergesi: durum rengi + üzerine gelince açıklama.
    Bağlı ise tıklamak hemen yedekler; bağlı değilse Ayarlar'a götürür. *@
 @implements IDisposable
 @inject CloudBackupService CloudBackup
 @inject NavigationManager NavigationManager
 @inject ISnackbar Snackbar
 
-<MudTooltip Placement="Placement.Bottom">
+<MudTooltip Placement="Placement.Right">
     <ChildContent>
         @if (status.IsRunning)
         {

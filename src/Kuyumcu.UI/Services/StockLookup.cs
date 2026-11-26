@@ -40,7 +40,8 @@ public sealed class StockLookup
     public string CategoryName(int id) => Category(id)?.Name ?? "—";
     public string LocationName(int id) => AllLocations.FirstOrDefault(l => l.Id == id)?.Name ?? "—";
     public int Milyem(int karat) => AllKarats.FirstOrDefault(k => k.Karat == karat)?.Milyem ?? StockCalculator.DefaultMilyem(karat);
-    public int LaborMilyem(int categoryId) => Category(categoryId)?.LaborMilyem ?? 0;
+    /// <summary>Kategorinin gram başı işçiliği (TL); satış fiyatına eklenir (bkz. <see cref="SalePrice"/>).</summary>
+    public decimal LaborPerGram(int categoryId) => Category(categoryId)?.LaborPerGram ?? 0;
 
     /// <summary>"Bilezik · Burgu"</summary>
     public string Title(StockItem item) =>

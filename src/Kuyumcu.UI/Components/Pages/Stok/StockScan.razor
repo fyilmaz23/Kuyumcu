@@ -5,8 +5,9 @@
 @inject IDialogService Dialogs
 @inject ISnackbar Snackbar
 @inject IJSRuntime JS
+@inject GoldPriceExportService GoldPrices
 
-<div class="kd-page" style="max-width: 980px">
+<div class="kd-page" style="max-width: 1200px">
     <PageHeader Title="Okut / Satış" Subtitle="Etiketi okutun: ürün bilgisi gelir. Satış, iade ve kayıp işlemleri buradan yapılır.">
         <Actions>
             <MudSwitch T="bool" @bind-Value="autoSell" Color="Color.Primary" Label="Okutunca satış penceresini aç" />
@@ -22,22 +23,61 @@
             @if (result.Item != null && lookup != null)
             {
                 var i = result.Item;
-                <div class="d-flex justify-space-between flex-wrap gap-3">
+                <div class="kd-scan-detail">
                     <div style="min-width:0">
                         <div class="d-flex align-center gap-2 flex-wrap">
                             <span class="kd-code" style="font-size:1rem">@i.Code</span>
                             <StockStatusBadge Item="i" />
                         </div>
                         <div class="kd-scan-title">@lookup.Title(i)</div>
-                        <div class="kd-muted">@i.Karat ayar · @lookup.LocationName(i.LocationId) · giriş @i.CreatedAt.ToString("dd.MM.yyyy")</div>
+                        <div class="d-flex align-baseline gap-3 flex-wrap mt-1">
+                            <span class="kd-scan-gram kd-num">@WeightFormat.Gram(i.WeightMg) <small>gr</small></span>
+                            <span class="kd-karat" style="font-size:1rem">@i.Karat</span>
+                        </div>
+                        <div class="kd-detail-grid mt-3">
+                            <div><span>Ayar / milyem</span><b class="kd-num">@i.Karat ayar · @WeightFormat.Milyem(lookup.Milyem(i.Karat))</b></div>
+                            <div><span>Brüt / taş / net</span><b class="kd-num">@WeightFormat.Gram(i.WeightMg) / @WeightFormat.Gram(i.StoneWeightMg) / @WeightFormat.Gram(i.NetWeightMg) gr</b></div>
+                            <div><span>Konum</span><b>@lookup.LocationName(i.LocationId)</b></div>
+                            <div><span>Giriş</span><b class="kd-num">@i.CreatedAt.ToString("dd.MM.yyyy")</b></div>
+                            @if (!string.IsNullOrWhiteSpace(i.SupplierName))
+                            {
+                                <div><span>Tedarikçi</span><b>@i.SupplierName</b></div>
+                            }
+                            @if (i.PurchaseMilyem is { } pm)
+                            {
+                                <div><span>Alış milyemi</span><b class="kd-num">@WeightFormat.Milyem(pm)</b></div>
+                            }
+                            @if (i.Status == StockItemStatus.Sold)
+                            {
+                                <div><span>Satış</span><b class="kd-num">@i.SoldAt?.ToString("dd.MM.yyyy HH:mm")</b></div>
+                                <div><span>Satış fiyatı</span><b class="kd-num">@(i.SalePrice.HasValue ? i.SalePrice.Value.ToString("N0") + " ₺" : "—")</b></div>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(i.Note))
+                            {
+                                <div style="grid-column: 1 / -1"><span>Not</span><b>@i.Note</b></div>
+                            }
+                        </div>
                     </div>
-                    <div class="text-right">
-                        <div class="kd-scan-gram kd-num">@WeightFormat.Gram(i.WeightMg) <small>gr</small></div>
-                        @if (i.StoneWeightMg > 0)
-                        {
-                            <div class="kd-muted kd-num">net @WeightFormat.Gram(i.NetWeightMg) gr</div>
-                        }
-                    </div>
+
+                    @if (!i.IsDeleted && i.Status == StockItemStatus.InStock)
+                    {
+                        <div class="kd-scan-price">
+                            <div class="d-flex justify-space-between align-center mb-1">
+                                <span class="kd-muted" style="font-size:.78rem; font-weight:650">GÜNCEL FİYAT</span>
+                                <MudTooltip Text="@($"Fiyatları yenile · {GoldPrices.SourceName}")">
+                                    <MudIconButton Icon="@Icons.Material.Filled.Refresh" Size="Size.Small" OnClick="RefreshPrices" Disabled="pricesLoading" aria-label="Fiyatları yenile" />
+                                </MudTooltip>
+                            </div>
+                            @if (pricesLoading && quote == null)
+                            {
+                                <MudProgressLinear Color="Color.Primary" Indeterminate="true" />
+                            }
+                            else
+                            {
+                                <PriceQuoteView Quote="quote" PriceTime="priceTime" Large="true" />
+                            }
+                        </div>
+                    }
                 </div>
             }
             @if (!string.IsNullOrEmpty(result.Message))
@@ -49,7 +89,7 @@
                 <div class="d-flex gap-2 mt-3 flex-wrap">
                     @if (item.Status == StockItemStatus.InStock)
                     {
-                        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Sell" OnClick="Sell">Satıldı olarak işaretle</MudButton>
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Sell" OnClick="Sell">@(quote != null ? $"Sat · {quote.Total:N0} ₺" : "Sat")</MudButton>
                     }
                     else if (item.Status == StockItemStatus.Sold)
                     {
@@ -101,6 +141,12 @@
     private ScanInput? scanInput;
     private StockLookup? lookup;
     private ScanResult? result;
+
+    // Okutulan ürünün güncel fiyatı (fiyat listesi 5 dk önbellekte; yenile düğmesi zorla çeker)
+    private List<GoldPriceDto>? prices;
+    private SalePrice.Quote? quote;
+    private DateTime? priceTime;
+    private bool pricesLoading;
     private readonly List<HistoryRow> history = new();
     private bool autoSell;
     private StockActions? actions;
@@ -141,6 +187,7 @@
         }
 
         await ShowItem(item);
+        await UpdateQuote(false);
         AddHistory(item.Code, $"{lookup!.Title(item)} · {WeightFormat.Gram(item.WeightMg)} gr · {StatusText(item)}", item.Id);
 
         if (autoSell && item is { IsDeleted: false, Status: StockItemStatus.InStock })
@@ -149,6 +196,28 @@
             await Sell();
         }
     }
+
+    /// <summary>Son fiyat = net gram × listedeki aynı ayarın satışı + gram × kategori işçiliği (bkz. SalePrice).</summary>
+    private async Task UpdateQuote(bool force)
+    {
+        quote = null;
+        var item = result?.Item;
+        if (item is not { IsDeleted: false, Status: StockItemStatus.InStock } || lookup == null)
+            return;
+
+        pricesLoading = true;
+        StateHasChanged();
+        try { prices = await GoldPrices.GetGoldPricesAsync(force); }
+        catch (Exception ex) { Console.WriteLine($"Fiyatlar alınamadı: {ex.Message}"); }
+        pricesLoading = false;
+
+        priceTime = prices?.FirstOrDefault()?.UpdateTime;
+        quote = SalePrice.Calculate(item.NetWeightMg, item.Karat, lookup.Milyem(item.Karat), lookup.LaborPerGram(item.CategoryId), prices);
+        if (quote != null)
+            quote = quote with { Source = $"{quote.Source} · {GoldPrices.SourceName}" };
+    }
+
+    private Task RefreshPrices() => UpdateQuote(true);
 
     private async Task ShowItem(StockItem item)
     {
@@ -187,6 +256,7 @@
             {
                 result = new ScanResult(fresh, fresh.Status == StockItemStatus.Sold ? "Satıldı olarak işaretlendi." : "Güncellendi.", Severity.Success, "is-ok");
                 AddHistory(fresh.Code, $"{lookup!.Title(fresh)} · {StatusText(fresh)}", fresh.Id);
+                await UpdateQuote(false);
             }
         }
         StateHasChanged();

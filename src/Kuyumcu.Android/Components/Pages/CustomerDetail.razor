@@ -124,7 +124,7 @@ else
                 {
                     <div class="kd-tx">
                         <div class="kd-tx-main">
-                            <TypeBadge IsDeposit="true" />
+                            <TypeBadge Type="t.Type" IsDeposit="true" />
                             <div class="kd-tx-date">@Fmt.DateTime(t.Date) · @t.CurrencyType.GetDisplayName()</div>
                             @if (!string.IsNullOrWhiteSpace(t.Description))
                             {

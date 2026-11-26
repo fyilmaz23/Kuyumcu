@@ -128,6 +128,7 @@ public partial class App : Application
         services.AddKuyumcuCore();
         services.AddScoped<AppState>();
         services.AddScoped<ShortcutService>();
+        services.AddScoped<CustomerBrowseContext>();
 
         return services.BuildServiceProvider();
     }

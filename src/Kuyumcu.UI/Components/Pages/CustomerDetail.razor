@@ -8,9 +8,10 @@
 @inject CustomerSummaryImageService CustomerSummaryImageService
 @inject ISnackbar Snackbar
 @inject ShortcutService Shortcuts
+@inject CustomerBrowseContext Browse
 
-<div class="kd-page">
-    @if (isLoading && customer == null)
+<div class="kd-page kd-cd">
+    @if (customer == null && isLoading)
     {
         <MudProgressLinear Color="Color.Primary" Indeterminate="true" Class="my-6" />
     }
@@ -24,261 +25,174 @@
     }
     else
     {
-        @* ---------- Müşteri başlık kartı ---------- *@
-        <div class="kd-card kd-card-pad mb-4">
-            <div class="d-flex flex-wrap align-center" style="gap:16px">
-                <Avatar Name="@customer.Name" Large="true" />
-                <div style="flex:1; min-width:220px">
-                    <div class="d-flex align-center" style="gap:6px">
-                        @* İsme tıklamak gizli işlemleri gösterir/gizler (bilerek göze batmayan bir kısayol) *@
-                        <MudText Typo="Typo.h5" @onclick="ToggleHiddenTransactions" Style="cursor:default"
-                                 Color="@(hasHiddenTransactions ? Color.Primary : Color.Default)">@customer.Name</MudText>
-                        @if (showHiddenTransactions || !hasHiddenTransactions)
-                        {
-                            <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Primary" Size="Size.Small" Title="Tüm işlemler görünüyor" Style="opacity:.55" />
-                        }
+        <div class="kd-cd-loading">
+            @if (isLoading)
+            {
+                <MudProgressLinear Color="Color.Primary" Indeterminate="true" Size="Size.Small" />
+            }
+        </div>
+
+        @* ---------- Başlık: kimlik, eylemler, bakiyeler + sağda soluk son işlemler ---------- *@
+        <div class="kd-card kd-cd-head">
+            <div class="kd-cd-main">
+                <div class="kd-cd-identity">
+                    <Avatar Name="@customer.Name" Large="true" />
+                    <div style="min-width:0; flex:1">
+                        <div class="d-flex align-center" style="gap:6px">
+                            @* İsme tıklamak gizli işlemleri gösterir/gizler (bilerek göze batmayan bir kısayol) *@
+                            <MudText Typo="Typo.h5" @onclick="ToggleHiddenTransactions" Class="kd-cd-name"
+                                     Color="@(ledger.HasHiddenTransactions ? Color.Primary : Color.Default)">@customer.Name</MudText>
+                            @if (ledger.ShowingHidden || !ledger.HasHiddenTransactions)
+                            {
+                                <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Primary" Size="Size.Small" Title="Tüm işlemler görünüyor" Style="opacity:.55" />
+                            }
+                            <MudTooltip Text="Müşteri bilgilerini düzenle">
+                                <MudIconButton Icon="@Icons.Material.Outlined.Edit" Size="Size.Small" OnClick="EditCustomer" aria-label="Düzenle" />
+                            </MudTooltip>
+                        </div>
+                        <div class="kd-cd-meta">
+                            @if (!string.IsNullOrWhiteSpace(customer.PhoneNumber))
+                            {
+                                <span><MudIcon Icon="@Icons.Material.Outlined.Phone" /> <span class="kd-num">@customer.PhoneNumber.FormatPhoneNumber()</span></span>
+                            }
+                            <span><MudIcon Icon="@Icons.Material.Outlined.ReceiptLong" /> @ledger.VisibleCount işlem</span>
+                        </div>
                     </div>
-                    <div class="kd-muted d-flex flex-wrap" style="gap:14px; font-size:.85rem; margin-top:2px">
-                        @if (!string.IsNullOrWhiteSpace(customer.PhoneNumber))
-                        {
-                            <span><MudIcon Icon="@Icons.Material.Outlined.Phone" Style="font-size:.95rem; vertical-align:-2px" /> <span class="kd-num">@customer.PhoneNumber.FormatPhoneNumber()</span></span>
-                        }
-                        <span><MudIcon Icon="@Icons.Material.Outlined.ReceiptLong" Style="font-size:.95rem; vertical-align:-2px" /> @(allTransactions?.Count ?? 0) işlem</span>
-                        @if (RecentTransactions.FirstOrDefault() is { } last)
-                        {
-                            <span><MudIcon Icon="@Icons.Material.Outlined.Schedule" Style="font-size:.95rem; vertical-align:-2px" /> Son işlem @last.Date.ToString("dd.MM.yyyy")</span>
-                        }
+
+                    <div class="kd-cd-nav">
+                        <MudTooltip Text="Önceki müşteri (Alt+←)">
+                            <MudIconButton Icon="@Icons.Material.Filled.ChevronLeft" Variant="Variant.Outlined" Size="Size.Small"
+                                           Disabled="@(PreviousId == null)" OnClick="GoToPreviousCustomer" aria-label="Önceki müşteri" />
+                        </MudTooltip>
+                        <div class="kd-cd-nav-pos">
+                            <div class="kd-num">@(navIndex + 1) / @navIds.Count</div>
+                            <div class="kd-cd-nav-label" title="@NavLabel">@NavLabel</div>
+                        </div>
+                        <MudTooltip Text="Sonraki müşteri (Alt+→)">
+                            <MudIconButton Icon="@Icons.Material.Filled.ChevronRight" Variant="Variant.Outlined" Size="Size.Small"
+                                           Disabled="@(NextId == null)" OnClick="GoToNextCustomer" aria-label="Sonraki müşteri" />
+                        </MudTooltip>
                     </div>
                 </div>
 
-                <div class="d-flex align-center flex-wrap" style="gap:4px">
-                    <MudTooltip Text="Önceki müşteri">
-                        <MudIconButton Icon="@Icons.Material.Filled.ChevronLeft" Variant="Variant.Outlined" Size="Size.Small"
-                                       Disabled="@(previousCustomerId == null)" OnClick="GoToPreviousCustomer" />
-                    </MudTooltip>
-                    <MudTooltip Text="Sonraki müşteri">
-                        <MudIconButton Icon="@Icons.Material.Filled.ChevronRight" Variant="Variant.Outlined" Size="Size.Small"
-                                       Disabled="@(nextCustomerId == null)" OnClick="GoToNextCustomer" />
-                    </MudTooltip>
-                    <MudDivider Vertical="true" FlexItem="true" Class="mx-2" />
+                <div class="kd-cd-actions">
+                    <MudButton Variant="Variant.Filled" Color="Color.Error" StartIcon="@Icons.Material.Filled.NorthEast"
+                               OnClick="@(() => ShowTransactionModal(TransactionType.CustomerDebt))">
+                        Giden Ekle <span class="kd-kbd">F2</span>
+                    </MudButton>
+                    <MudButton Variant="Variant.Filled" Color="Color.Success" StartIcon="@Icons.Material.Filled.SouthWest"
+                               OnClick="@(() => ShowTransactionModal(TransactionType.StoreDebt))">
+                        Gelen Ekle <span class="kd-kbd">F3</span>
+                    </MudButton>
+                    <span class="kd-cd-actions-spacer"></span>
+                    @if (ledger.Groups.Any(g => g.Balance != 0) || ledger.DepositTotals.Any())
+                    {
+                        <MudTooltip Text="Silmeden, bakiyenin tersi yönde işlem ekleyerek hesabı sıfırlar">
+                            <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.RestartAlt" OnClick="SettleAll">Hesabı Sıfırla</MudButton>
+                        </MudTooltip>
+                    }
                     <MudTooltip Text="Özeti görsel olarak kopyala (WhatsApp'a yapıştırabilirsiniz)">
-                        <MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Outlined.ContentCopy" OnClick="CopySummaryImage" Disabled="isCopyingSummary">
+                        <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Outlined.ContentCopy" OnClick="CopySummaryImage" Disabled="isCopyingSummary">
                             @(isCopyingSummary ? "Kopyalanıyor…" : "Özeti Kopyala")
                         </MudButton>
                     </MudTooltip>
                     @if (PrintService.IsSupported && availablePrinters.Any())
                     {
-                        <MudMenu StartIcon="@Icons.Material.Outlined.Print" Label="Yazdır" Variant="Variant.Text" Dense="true"
-                                 AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight">
-                            @foreach (var printer in availablePrinters)
-                            {
-                                <MudMenuItem OnClick="@(() => PrintCustomerReceipt(printer))"
-                                             Icon="@(printer == selectedPrinter ? Icons.Material.Filled.Check : null)">@printer</MudMenuItem>
-                            }
-                        </MudMenu>
+                        <MudButtonGroup Variant="Variant.Outlined" Class="kd-print-group">
+                            <MudTooltip Text="@($"Fişi {selectedPrinter} yazıcısına gönderir")">
+                                <MudButton StartIcon="@Icons.Material.Outlined.Print" OnClick="PrintToSelected" Disabled="@(selectedPrinter == null)">
+                                    Yazdır <span class="kd-print-name">@selectedPrinter</span>
+                                </MudButton>
+                            </MudTooltip>
+                            <MudMenu Icon="@Icons.Material.Filled.ArrowDropDown" Dense="true" aria-label="Yazıcı seç"
+                                     AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight">
+                                <MudMenuItem Disabled="true"><span class="kd-muted" style="font-size:.78rem">Yazıcı seç (hatırlanır)</span></MudMenuItem>
+                                @foreach (var printer in availablePrinters)
+                                {
+                                    <MudMenuItem OnClick="@(() => SelectPrinter(printer))"
+                                                 Icon="@(printer == selectedPrinter ? Icons.Material.Filled.Check : Icons.Material.Filled.Print)">@printer</MudMenuItem>
+                                }
+                            </MudMenu>
+                        </MudButtonGroup>
                     }
-                    <MudTooltip Text="Müşteri bilgilerini düzenle">
-                        <MudIconButton Icon="@Icons.Material.Outlined.Edit" OnClick="EditCustomer" />
-                    </MudTooltip>
                 </div>
-            </div>
 
-            <MudDivider Class="my-4" />
-
-            <div class="d-flex flex-wrap" style="gap:10px">
-                <MudButton Variant="Variant.Filled" Color="Color.Error" Size="Size.Large" StartIcon="@Icons.Material.Filled.NorthEast"
-                           OnClick="@(() => ShowTransactionModal(TransactionType.CustomerDebt))">
-                    Giden Ekle <span class="kd-kbd">F2</span>
-                </MudButton>
-                <MudButton Variant="Variant.Filled" Color="Color.Success" Size="Size.Large" StartIcon="@Icons.Material.Filled.SouthWest"
-                           OnClick="@(() => ShowTransactionModal(TransactionType.StoreDebt))">
-                    Gelen Ekle <span class="kd-kbd">F3</span>
-                </MudButton>
-            </div>
-        </div>
-
-        @* ---------- Güncel durum + son işlemler ---------- *@
-        <MudGrid Spacing="3">
-            <MudItem xs="12" lg="8">
-                <MudText Typo="Typo.h6" Class="mb-3">Güncel Durum</MudText>
-                @if (groupedTransactions == null || !groupedTransactions.Any())
+                @* ---------- Güncel durum: cins başına bakiye ---------- *@
+                @if (ledger.Groups.Count > 0 || ledger.DepositGroups.Count > 0)
                 {
-                    <div class="kd-card">
-                        <EmptyState Icon="@Icons.Material.Outlined.Savings" Title="Henüz işlem yok"
-                                    Text="Giden veya Gelen ekleyerek bu müşterinin hesabını başlatın." />
+                    <div class="kd-cd-balances">
+                        @foreach (var group in ledger.Groups)
+                        {
+                            <div class="kd-bal-chip @(group.Balance > 0 ? "is-giden" : group.Balance < 0 ? "is-gelen" : "is-zero")"
+                                 title="@($"{group.Key.GetDisplayName()} hareketlerine git")" @onclick="@(() => ScrollToCard(GetCurrencyCardId(group.Key)))">
+                                <span class="kd-bal-label">@group.Key.GetDisplayName()</span>
+                                <BalanceAmount Balance="group.Balance" Currency="group.Key" ZeroText="Sıfır" Class="kd-bal-value" />
+                                @if (group.Balance != 0)
+                                {
+                                    <span @onclick:stopPropagation="true">
+                                        <MudTooltip Text="@($"{group.Key.GetDisplayName()} hesabını sıfırla")">
+                                            <MudIconButton Icon="@Icons.Material.Filled.RestartAlt" Size="Size.Small" Class="kd-bal-reset"
+                                                           OnClick="@(() => SettleOne(group.Key, group.Balance, false))" aria-label="Sıfırla" />
+                                        </MudTooltip>
+                                    </span>
+                                }
+                            </div>
+                        }
+                        @foreach (var group in ledger.DepositGroups.Where(g => g.Balance != 0))
+                        {
+                            <div class="kd-bal-chip is-emanet" title="Emanet hareketlerine git" @onclick="@(() => ScrollToCard(GetDepositCardId(group.Key)))">
+                                <span class="kd-bal-label"><MudIcon Icon="@Icons.Material.Filled.Lock" Style="font-size:.8rem; vertical-align:-1px" /> @group.Key.GetDisplayName() emanet</span>
+                                <span class="kd-num kd-bal-value">@FormatHelper.FormatPrice(Math.Abs(group.Balance)) @group.Key.GetSymbol()</span>
+                                <span @onclick:stopPropagation="true">
+                                    <MudTooltip Text="Emaneti teslim et (sıfırla)">
+                                        <MudIconButton Icon="@Icons.Material.Filled.RestartAlt" Size="Size.Small" Class="kd-bal-reset"
+                                                       OnClick="@(() => SettleOne(group.Key, group.Balance, true))" aria-label="Emaneti teslim et" />
+                                    </MudTooltip>
+                                </span>
+                            </div>
+                        }
                     </div>
                 }
-                else
-                {
-                    <MudGrid Spacing="2">
-                        @foreach (var group in groupedTransactions)
-                        {
-                            <MudItem xs="12" sm="6" md="4">
-                                <div class="kd-card kd-balance-tile kd-clickable @(group.Balance > 0 ? "is-giden" : group.Balance < 0 ? "is-gelen" : "")"
-                                     title="@($"{group.Key.GetDisplayName()} hareketlerine git")" @onclick="@(() => ScrollToCurrencyCard(group.Key))">
-                                    <div class="kd-tile-label">@group.Key.GetDisplayName()</div>
-                                    <div class="kd-tile-value"><BalanceAmount Balance="group.Balance" Currency="group.Key" ShowDirection="false" /></div>
-                                    <div class="kd-tile-hint">@(group.Balance > 0 ? "Giden · müşteri borçlu" : group.Balance < 0 ? "Gelen · müşteri alacaklı" : "Hesap sıfır")</div>
-                                </div>
-                            </MudItem>
-                        }
-                        @if (depositTransactions != null && depositTransactions.Any())
-                        {
-                            @foreach (var group in depositTransactions.GroupBy(t => t.CurrencyType))
-                            {
-                                <MudItem xs="12" sm="6" md="4">
-                                    <div class="kd-card kd-balance-tile is-emanet kd-clickable" title="Emanet işlemlerine git" @onclick="ScrollToDepositSection">
-                                        <div class="kd-tile-label">@group.Key.GetDisplayName() · Emanet</div>
-                                        <div class="kd-tile-value kd-num">@FormatHelper.FormatPrice(group.Sum(t => t.Amount)) @group.Key.GetSymbol()</div>
-                                        <div class="kd-tile-hint">Müşterinin emaneti</div>
-                                    </div>
-                                </MudItem>
-                            }
-                        }
-                    </MudGrid>
-                }
-            </MudItem>
-            <MudItem xs="12" lg="4">
-                <MudText Typo="Typo.h6" Class="mb-3">Son İşlemler</MudText>
-                <div class="kd-card">
-                    @if (!RecentTransactions.Any())
+            </div>
+
+            @* Son işlemler: kimlikle karışmasın diye sağda, soluk ve sade (ayrı kart değil) *@
+            @if (recentTransactions.Count > 0)
+            {
+                <div class="kd-cd-recent">
+                    <div class="kd-cd-recent-title">Son işlemler</div>
+                    @foreach (var recent in recentTransactions)
                     {
-                        <EmptyState Title="İşlem yok" />
-                    }
-                    else
-                    {
-                        @foreach (var recent in RecentTransactions)
-                        {
-                            <div class="kd-list-row" style="padding:9px 16px">
-                                <TypeBadge Type="recent.Type" IsDeposit="recent.IsDeposit" />
-                                <div style="flex:1; min-width:0">
-                                    <div class="kd-num kd-strong">@FormatHelper.FormatPrice(recent.Amount) <span style="font-weight:500">@recent.CurrencyType.GetShortName()</span></div>
-                                    <div class="kd-muted" style="font-size:.75rem">@recent.Date.ToString("dd.MM.yyyy HH:mm")</div>
-                                </div>
-                            </div>
-                        }
+                        var isGiden = recent.Type == TransactionType.CustomerDebt;
+                        <div class="kd-cd-recent-row" title="@DescribeInline(recent)">
+                            <MudIcon Icon="@(recent.IsDeposit ? Icons.Material.Filled.Lock : isGiden ? Icons.Material.Filled.NorthEast : Icons.Material.Filled.SouthWest)"
+                                     Class="@(recent.IsDeposit ? "" : isGiden ? "kd-giden" : "kd-gelen")" />
+                            <span class="kd-num kd-cd-recent-amount">@FormatHelper.FormatPrice(recent.Amount) @recent.CurrencyType.GetShortName()</span>
+                            <span class="kd-cd-recent-date">@FormatRecentDate(recent.Date)</span>
+                        </div>
                     }
                 </div>
-            </MudItem>
-        </MudGrid>
+            }
+        </div>
 
-        @* ---------- Para birimi bazında hareketler ---------- *@
-        @if (groupedTransactions != null && groupedTransactions.Any())
+        @* ---------- Hesap hareketleri: her cins bir defter sayfası ---------- *@
+        @if (ledger.Groups.Count == 0 && ledger.DepositGroups.Count == 0)
         {
-            <div class="kd-section-title">
-                <MudText Typo="Typo.h6">Hesap Hareketleri</MudText>
-                <MudText Typo="Typo.caption" Class="kd-muted">Kalan: o işleme kadar biriken bakiye</MudText>
+            <div class="kd-card mt-4">
+                <EmptyState Icon="@Icons.Material.Outlined.Savings" Title="Henüz işlem yok"
+                            Text="Giden veya Gelen ekleyerek bu müşterinin hesabını başlatın." />
             </div>
-            <MudGrid Spacing="3">
-                @foreach (var currencyGroup in groupedTransactions)
-                {
-                    var allForCurrency = allTransactions
-                        .Where(t => !t.IsDeposit && t.CurrencyType == currencyGroup.Key && (!t.IsHidden || showHiddenTransactions))
-                        .Count();
-                    var hasMoreTransactions = allForCurrency > currencyGroup.Transactions.Count;
-                    var loadMoreId = $"load-more-{currencyGroup.Key}";
-
-                    <MudItem xs="12" lg="6">
-                        <div class="kd-card" id="@GetCurrencyCardId(currencyGroup.Key)">
-                            <div class="kd-card-header">
-                                <div>
-                                    <MudText Typo="Typo.subtitle1">@currencyGroup.Key.GetDisplayName() <span class="kd-muted" style="font-weight:500">(@currencyGroup.Key.GetSymbol())</span></MudText>
-                                    <div style="font-size:.85rem">Kalan: <BalanceAmount Balance="currencyGroup.Balance" Currency="currencyGroup.Key" Class="kd-strong" /></div>
-                                </div>
-                                <div class="d-flex" style="gap:6px">
-                                    <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Error" StartIcon="@Icons.Material.Filled.Add"
-                                               OnClick="@(() => ShowTransactionModal(TransactionType.CustomerDebt, currencyGroup.Key))">Giden</MudButton>
-                                    <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Success" StartIcon="@Icons.Material.Filled.Add"
-                                               OnClick="@(() => ShowTransactionModal(TransactionType.StoreDebt, currencyGroup.Key))">Gelen</MudButton>
-                                </div>
-                            </div>
-
-                            @if (hasMoreTransactions)
-                            {
-                                <MudButton Variant="Variant.Text" Color="Color.Primary" FullWidth="true" id="@loadMoreId" Size="Size.Small"
-                                           StartIcon="@Icons.Material.Filled.ExpandLess"
-                                           OnClick="@(() => LoadMoreTransactions(currencyGroup.Key, loadMoreId))">
-                                    Daha eski işlemleri göster (@(allForCurrency - currencyGroup.Transactions.Count))
-                                </MudButton>
-                            }
-
-                            <MudSimpleTable Dense="true" Hover="true" Elevation="0" Class="kd-table">
-                                <thead>
-                                    <tr>
-                                        <th>Tarih</th>
-                                        <th>Tür</th>
-                                        <th class="kd-right">Tutar</th>
-                                        <th class="kd-right">Kalan</th>
-                                        <th style="width:96px"></th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    @foreach (var t in currencyGroup.Transactions)
-                                    {
-                                        <tr style="@(t.IsHidden ? "opacity:.55" : "")">
-                                            <td class="kd-num">
-                                                @t.Date.ToString("dd.MM.yyyy")
-                                                <span class="kd-muted" style="font-size:.75rem">@t.Date.ToString("HH:mm")</span>
-                                            </td>
-                                            <td><TypeBadge Type="t.Type" /></td>
-                                            <td class="kd-right kd-num kd-strong">@FormatHelper.FormatPrice(t.Amount)</td>
-                                            <td class="kd-right">
-                                                @if (currencyGroup.RunningBalances.TryGetValue(t.Id, out var running))
-                                                {
-                                                    <BalanceAmount Balance="running" Currency="currencyGroup.Key" ShowDirection="false" ZeroText="0" />
-                                                }
-                                            </td>
-                                            <td class="kd-right" style="white-space:nowrap">
-                                                @if (!string.IsNullOrWhiteSpace(t.Description))
-                                                {
-                                                    <MudTooltip Text="@t.Description">
-                                                        <MudIconButton Icon="@Icons.Material.Outlined.Notes" Size="Size.Small" OnClick="@(() => ShowTransactionDescription(t))" />
-                                                    </MudTooltip>
-                                                }
-                                                <MudIconButton Icon="@Icons.Material.Outlined.Edit" Size="Size.Small" OnClick="@(() => EditTransaction(t))" aria-label="Düzenle" />
-                                                <MudIconButton Icon="@Icons.Material.Outlined.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(() => DeleteTransaction(t))" aria-label="Sil" />
-                                            </td>
-                                        </tr>
-                                    }
-                                </tbody>
-                            </MudSimpleTable>
-                        </div>
-                    </MudItem>
-                }
-            </MudGrid>
         }
-
-        @* ---------- Emanetler ---------- *@
-        @if (depositTransactions != null && depositTransactions.Any())
+        else
         {
-            <div class="kd-section-title"><MudText Typo="Typo.h6">Emanetler</MudText></div>
-            <div class="kd-card" id="@DEPOSIT_SECTION_ID">
-                <MudSimpleTable Dense="true" Hover="true" Elevation="0" Class="kd-table">
-                    <thead>
-                        <tr>
-                            <th>Tarih</th>
-                            <th>Cins</th>
-                            <th class="kd-right">Miktar</th>
-                            <th>Açıklama</th>
-                            <th style="width:96px"></th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var t in depositTransactions.OrderByDescending(x => x.Date))
-                        {
-                            <tr>
-                                <td class="kd-num">@t.Date.ToString("dd.MM.yyyy HH:mm")</td>
-                                <td>@t.CurrencyType.GetDisplayName()</td>
-                                <td class="kd-right kd-num kd-strong">@FormatHelper.FormatPrice(t.Amount) @t.CurrencyType.GetSymbol()</td>
-                                <td class="kd-muted">@t.Description</td>
-                                <td class="kd-right" style="white-space:nowrap">
-                                    <MudIconButton Icon="@Icons.Material.Outlined.Edit" Size="Size.Small" OnClick="@(() => EditTransaction(t))" aria-label="Düzenle" />
-                                    <MudIconButton Icon="@Icons.Material.Outlined.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(() => DeleteTransaction(t))" aria-label="Sil" />
-                                </td>
-                            </tr>
-                        }
-                    </tbody>
-                </MudSimpleTable>
+            <div class="kd-ledger-grid">
+                @foreach (var group in ledger.Groups)
+                {
+                    @LedgerCard(group, false)
+                }
+                @foreach (var group in ledger.DepositGroups)
+                {
+                    @LedgerCard(group, true)
+                }
             </div>
         }
     }
@@ -295,14 +209,14 @@
             <MudStack Spacing="3" Class="pb-2">
                 <div class="kd-type-toggle">
                     <div class="kd-type-option giden @(currentTransaction.Type == TransactionType.CustomerDebt ? "selected" : "")"
-                         @onclick="@(() => SetTransactionType(TransactionType.CustomerDebt))">
+                         @onclick="@(() => currentTransaction.Type = TransactionType.CustomerDebt)">
                         <MudIcon Icon="@Icons.Material.Filled.NorthEast" Style="font-size:1rem; vertical-align:-3px" /> Giden
-                        <div style="font-size:.72rem; font-weight:500">Müşteriye verildi</div>
+                        <div style="font-size:.72rem; font-weight:500">@(currentTransaction.IsDeposit ? "Emanet müşteriye teslim edildi" : "Müşteriye verildi")</div>
                     </div>
                     <div class="kd-type-option gelen @(currentTransaction.Type == TransactionType.StoreDebt ? "selected" : "")"
-                         @onclick="@(() => SetTransactionType(TransactionType.StoreDebt))">
+                         @onclick="@(() => currentTransaction.Type = TransactionType.StoreDebt)">
                         <MudIcon Icon="@Icons.Material.Filled.SouthWest" Style="font-size:1rem; vertical-align:-3px" /> Gelen
-                        <div style="font-size:.72rem; font-weight:500">Müşteriden alındı</div>
+                        <div style="font-size:.72rem; font-weight:500">@(currentTransaction.IsDeposit ? "Müşteri emanet bıraktı" : "Müşteriden alındı")</div>
                     </div>
                 </div>
 
@@ -316,18 +230,10 @@
                     </MudItem>
                     <MudItem xs="12" sm="5">
                         <MudSelect T="CurrencyType" Label="Cins" @bind-Value="currentTransaction.CurrencyType" Variant="Variant.Outlined">
-                            <MudSelectItem T="CurrencyType" Value="CurrencyType.Gold24K">24 Ayar (gr)</MudSelectItem>
-                            <MudSelectItem T="CurrencyType" Value="CurrencyType.Gold22K">22 Ayar (gr)</MudSelectItem>
-                            <MudSelectItem T="CurrencyType" Value="CurrencyType.Gold14K">14 Ayar (gr)</MudSelectItem>
-                            <MudSelectItem T="CurrencyType" Value="CurrencyType.QuarterGold">Çeyrek Altın</MudSelectItem>
-                            <MudSelectItem T="CurrencyType" Value="CurrencyType.HalfGold">Yarım Altın</MudSelectItem>
-                            <MudSelectItem T="CurrencyType" Value="CurrencyType.FullGold">Tam Altın</MudSelectItem>
-                            <MudSelectItem T="CurrencyType" Value="CurrencyType.Ziynet">Ziynet Altın</MudSelectItem>
-                            <MudSelectItem T="CurrencyType" Value="CurrencyType.TurkishLira">Türk Lirası</MudSelectItem>
-                            <MudSelectItem T="CurrencyType" Value="CurrencyType.Dollar">Dolar</MudSelectItem>
-                            <MudSelectItem T="CurrencyType" Value="CurrencyType.Euro">Euro</MudSelectItem>
-                            <MudSelectItem T="CurrencyType" Value="CurrencyType.Sterlin">Sterlin</MudSelectItem>
-                            <MudSelectItem T="CurrencyType" Value="CurrencyType.Riyal">Riyal</MudSelectItem>
+                            @foreach (var c in CurrencyOrder)
+                            {
+                                <MudSelectItem T="CurrencyType" Value="c">@c.GetDisplayName()@(c.GetSymbol() == "gr" ? " (gr)" : "")</MudSelectItem>
+                            }
                         </MudSelect>
                     </MudItem>
                     <MudItem xs="7">
@@ -343,11 +249,14 @@
                               Variant="Variant.Outlined" Lines="2" />
 
                 <div class="d-flex flex-wrap" style="gap:16px">
-                    @if (currentTransaction.Type == TransactionType.StoreDebt)
-                    {
-                        <MudSwitch @bind-Value="currentTransaction.IsDeposit" Label="Emanet olarak kaydet" Color="Color.Primary" />
-                    }
+                    <MudSwitch @bind-Value="currentTransaction.IsDeposit" Color="Color.Primary"
+                               Label="@(currentTransaction.Type == TransactionType.StoreDebt ? "Emanet (müşteri bırakıyor, bakiyeye girmez)" : "Emanet iadesi (müşteriye geri veriliyor, bakiyeye girmez)")" />
                     <MudSwitch @bind-Value="currentTransaction.IsHidden" Label="Gizli" Color="Color.Default" />
+                    @if (!currentTransaction.IsDeposit)
+                    {
+                        <MudSwitch @bind-Value="currentTransaction.AffectsCash" Color="Color.Primary"
+                                   Label="@(currentTransaction.AffectsCash ? CashHint(currentTransaction) : "Kasaya işleme (ör. mal veresiye verildi, para çıkmadı)")" />
+                    }
                 </div>
             </MudStack>
         </EditForm>
@@ -363,43 +272,106 @@
 
 @code {
     [Parameter] public int CustomerId { get; set; }
+    [SupplyParameterFromQuery(Name = "islem")] public string? Islem { get; set; }
 
-    // Para birimi başına yüklenen işlem sayısı ("Daha eski işlemleri göster" ile artar)
-    private Dictionary<CurrencyType, int> loadedTransactionsCount = new();
-    private const int PAGE_SIZE = 5;
+    // Defter sayfasında ilk gösterilen en yeni işlem sayısı ("Daha eski" ile artar)
+    private const int PAGE_SIZE = 8;
+    private const int MORE_STEP = 20;
     private const int RECENT_TRANSACTIONS_COUNT = 6;
-    private const string DEPOSIT_SECTION_ID = "deposit-transactions-section";
 
-    /// <summary>Son işlemler (emanetler dahil, gizliler görünürlük ayarına göre).</summary>
-    private IEnumerable<Transaction> RecentTransactions =>
-        (allTransactions ?? new List<Transaction>())
-            .Where(t => showHiddenTransactions || !t.IsHidden)
-            .OrderByDescending(t => t.Date)
-            .ThenByDescending(t => t.Id)
-            .Take(RECENT_TRANSACTIONS_COUNT);
+    private static readonly CurrencyType[] CurrencyOrder =
+    [
+        CurrencyType.Gold24K, CurrencyType.Gold22K, CurrencyType.Gold14K, CurrencyType.QuarterGold, CurrencyType.HalfGold,
+        CurrencyType.FullGold, CurrencyType.Ziynet, CurrencyType.TurkishLira, CurrencyType.Dollar, CurrencyType.Euro,
+        CurrencyType.Sterlin, CurrencyType.Riyal,
+    ];
 
     private readonly DialogOptions _dialogOptions = new() { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true };
 
     private Customer? customer;
-    private List<Transaction> transactions = new();
-    private List<Transaction> allTransactions = new(); // gizliler dahil
-    private List<Transaction> depositTransactions = new();
-    private List<TransactionGroup> groupedTransactions = new();
+    private List<Transaction> allTransactions = new(); // gizliler ve emanetler dahil
+    private CustomerLedger ledger = CustomerLedger.Build([], false);
+    private List<Transaction> recentTransactions = new();
+    private bool showHiddenTransactions;
     private bool isLoading = true;
 
-    private bool showHiddenTransactions;
-    private bool hasHiddenTransactions;
+    // Kart başına gösterilen satır sayısı (anahtar: kart kimliği)
+    private Dictionary<string, int> shownCount = new();
+
+    // Önceki/sonraki: gezinti listesi (Müşteriler sayfasının süzgeci ya da alfabetik tüm müşteriler)
+    private List<int> navIds = new();
+    private string? navLabel;
+    private string NavLabel => navLabel ?? "Tüm müşteriler (A–Z)";
+    // Art arda hızlı basışta adres henüz değişmemiş olabilir: gidilmekte olan müşteriden devam edilir
+    private int? navTargetId;
+    private DateTime navTargetAt;
+    private int? navTarget => navTargetId != null && DateTime.UtcNow - navTargetAt < TimeSpan.FromSeconds(2) ? navTargetId : null;
+    private int CurrentNavId => navTarget ?? CustomerId;
+    private int navIndex => navIds.IndexOf(CurrentNavId);
+    private int? PreviousId => NeighborOf(CurrentNavId, -1);
+    private int? NextId => NeighborOf(CurrentNavId, +1);
+
+    // Yüklemeler sıra numarasıyla: hızlı önceki/sonraki geçişinde eski yükleme yenisinin üzerine yazmaz
+    private int loadVersion;
+    private int loadedCustomerId;
 
     private bool showTransactionModal;
     private Transaction currentTransaction = new();
     private DateTime? currentTransactionDate;
     private TimeSpan? currentTransactionTime;
+    private bool focusAmountInput;
 
     private bool isCopyingSummary;
-    private bool focusAmountInput;
+    private List<string> availablePrinters = new();
+    private string? selectedPrinter;
+    private const string PrinterPreferenceKey = "receiptPrinter";
+
+    protected override void OnInitialized()
+    {
+        Shortcuts.Handler = OnShortcut;
+        if (PrintService.IsSupported)
+        {
+            try { availablePrinters = PrintService.GetAvailablePrinters(); }
+            catch (Exception ex) { Console.WriteLine($"Yazıcı listesi alınamadı: {ex.Message}"); }
+        }
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        // Sayfa yeniden çizilince (ör. lisans rozeti) tekrar yükleme yapılmaz; sadece müşteri değişince
+        if (CustomerId == loadedCustomerId)
+            return;
+
+        loadedCustomerId = CustomerId;
+        if (navTargetId == CustomerId)
+            navTargetId = null;
+        showHiddenTransactions = false;  // önceki/sonraki müşteriye geçişte görünürlük sıfırlanır
+        showTransactionModal = false;
+        shownCount = new Dictionary<string, int>();
+        await LoadCustomerData();
+
+        // Ana sayfadaki "Hızlı İşlem": /customer/5?islem=giden → işlem penceresi açık gelir
+        if (customer != null && Islem is "giden" or "gelen")
+        {
+            ShowTransactionModal(Islem == "giden" ? TransactionType.CustomerDebt : TransactionType.StoreDebt);
+            NavigationManager.NavigateTo($"/customer/{CustomerId}", replace: true);
+        }
+    }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        if (firstRender && availablePrinters.Count > 0)
+        {
+            // Son kullanılan yazıcı hatırlanır (bu bilgisayara özel); yoksa termal ya da ilk yazıcı
+            string? saved = null;
+            try { saved = await JSRuntime.InvokeAsync<string?>("kuyumcu.getPreference", PrinterPreferenceKey); }
+            catch (JSDisconnectedException) { }
+            selectedPrinter = availablePrinters.FirstOrDefault(p => p == saved)
+                              ?? availablePrinters.FirstOrDefault(p => p.Contains("thermal", StringComparison.OrdinalIgnoreCase) || p.Contains("termal", StringComparison.OrdinalIgnoreCase))
+                              ?? availablePrinters.FirstOrDefault();
+            StateHasChanged();
+        }
+
         // Pencere açıldıktan sonra tutar alanına odaklan ve içeriğini seç (hızlı giriş için)
         if (focusAmountInput && showTransactionModal)
         {
@@ -408,27 +380,62 @@
         }
     }
 
-    private List<string> availablePrinters = new();
-    private string? selectedPrinter;
-    private int? nextCustomerId;
-    private int? previousCustomerId;
-    private int loadedCustomerId;
-
-    protected override void OnInitialized()
+    private async Task LoadCustomerData()
     {
-        LoadPrinters();
-        Shortcuts.Handler = OnShortcut;
+        var version = ++loadVersion;
+        var id = CustomerId;
+        isLoading = true;
+
+        try
+        {
+            var loadedCustomer = await DatabaseService.GetCustomerAsync(id);
+            var transactions = loadedCustomer == null
+                ? new List<Transaction>()
+                : await DatabaseService.GetCustomerTransactionsAsync(id) ?? new List<Transaction>();
+            var (ids, label) = await ResolveNavigationList(id);
+
+            // Bu arada başka bir müşteriye geçildiyse bu sonuç atılır
+            if (version != loadVersion)
+                return;
+
+            customer = loadedCustomer;
+            allTransactions = transactions;
+            navIds = ids;
+            navLabel = label;
+            RebuildLedger();
+        }
+        catch (Exception ex)
+        {
+            if (version == loadVersion)
+                Snackbar.Add($"Müşteri yüklenemedi: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            if (version == loadVersion)
+                isLoading = false;
+        }
     }
 
-    protected override async Task OnParametersSetAsync()
+    private async Task<(List<int> Ids, string? Label)> ResolveNavigationList(int id)
     {
-        if (CustomerId != loadedCustomerId)
-        {
-            // Önceki/sonraki müşteriye geçişte görünürlük ayarı sıfırlanır
-            showHiddenTransactions = false;
-            loadedCustomerId = CustomerId;
-        }
-        await LoadCustomerData();
+        if (Browse.Ids is { } ids && ids.Contains(id))
+            return (ids.ToList(), Browse.Label);
+        return (await DatabaseService.GetCustomerOrderAsync(), null);
+    }
+
+    private int? NeighborOf(int id, int step)
+    {
+        var i = navIds.IndexOf(id);
+        if (i < 0)
+            return null;
+        var j = i + step;
+        return j >= 0 && j < navIds.Count ? navIds[j] : null;
+    }
+
+    private void RebuildLedger()
+    {
+        ledger = CustomerLedger.Build(allTransactions, showHiddenTransactions);
+        recentTransactions = ledger.Recent(RECENT_TRANSACTIONS_COUNT).ToList();
     }
 
     private async Task OnShortcut(string key)
@@ -438,130 +445,234 @@
 
         await InvokeAsync(() =>
         {
-            if (key == "F2") ShowTransactionModal(TransactionType.CustomerDebt);
-            else if (key == "F3") ShowTransactionModal(TransactionType.StoreDebt);
+            switch (key)
+            {
+                case "F2": ShowTransactionModal(TransactionType.CustomerDebt); break;
+                case "F3": ShowTransactionModal(TransactionType.StoreDebt); break;
+                case "PrevCustomer": GoToPreviousCustomer(); break;
+                case "NextCustomer": GoToNextCustomer(); break;
+            }
             StateHasChanged();
         });
     }
 
-    private void LoadPrinters()
+    private void ToggleHiddenTransactions()
     {
-        if (!PrintService.IsSupported)
-            return;
-
-        try
-        {
-            availablePrinters = PrintService.GetAvailablePrinters();
-            // Termal yazıcı varsa onu, yoksa ilk yazıcıyı varsayılan yap
-            selectedPrinter = availablePrinters.FirstOrDefault(p => p.Contains("thermal", StringComparison.OrdinalIgnoreCase) || p.Contains("termal", StringComparison.OrdinalIgnoreCase))
-                              ?? availablePrinters.FirstOrDefault();
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Yazıcı listesi alınamadı: {ex.Message}");
-        }
-    }
-
-    private async Task LoadCustomerData()
-    {
-        isLoading = true;
-
-        customer = await DatabaseService.GetCustomerAsync(CustomerId);
-        if (customer != null)
-        {
-            loadedTransactionsCount = new Dictionary<CurrencyType, int>();
-            allTransactions = await DatabaseService.GetCustomerTransactionsAsync(CustomerId) ?? new List<Transaction>();
-
-            // Emanetler ayrı gösterilir
-            depositTransactions = allTransactions.Where(t => t.IsDeposit).ToList();
-            transactions = allTransactions.Where(t => !t.IsDeposit).ToList();
-
-            await GroupTransactions();
-
-            previousCustomerId = await DatabaseService.GetPreviousCustomerIdAsync(CustomerId);
-            nextCustomerId = await DatabaseService.GetNextCustomerIdAsync(CustomerId);
-        }
-
-        isLoading = false;
-    }
-
-    private async Task GroupTransactions()
-    {
-        hasHiddenTransactions = transactions.Any(t => t.IsHidden);
-
-        if (transactions.Count == 0)
-        {
-            groupedTransactions = new List<TransactionGroup>();
-            return;
-        }
-
-        var filteredTransactions = showHiddenTransactions ? transactions : transactions.Where(t => !t.IsHidden).ToList();
-        var currencyTypes = filteredTransactions.Select(t => t.CurrencyType).Distinct().ToList();
-
-        foreach (var currencyType in currencyTypes)
-        {
-            if (!loadedTransactionsCount.ContainsKey(currencyType))
-                loadedTransactionsCount[currencyType] = PAGE_SIZE;
-        }
-
-        var groups = new List<TransactionGroup>();
-        foreach (var currencyType in currencyTypes)
-        {
-            // Bu para biriminin en yeni N işlemi
-            var page = await DatabaseService.GetCustomerTransactionsByCurrencyPaginatedAsync(
-                CustomerId, currencyType, 0, loadedTransactionsCount[currencyType]);
-            if (!showHiddenTransactions)
-                page = page.Where(t => !t.IsHidden).ToList();
-
-            // Toplam bakiye sayfalamadan bağımsız hesaplanır
-            var allForCurrency = filteredTransactions.Where(t => t.CurrencyType == currencyType).ToList();
-            var balance = allForCurrency.Where(t => t.Type == TransactionType.CustomerDebt).Sum(t => t.Amount) -
-                          allForCurrency.Where(t => t.Type == TransactionType.StoreDebt).Sum(t => t.Amount);
-
-            // Kümülatif kalan tüm geçmiş üzerinden kronolojik sırayla hesaplanır;
-            // böylece ekranda kaç işlem yüklenmiş olursa olsun her satırdaki kalan doğrudur.
-            var runningBalances = new Dictionary<int, decimal>();
-            decimal running = 0m;
-            foreach (var t in allForCurrency.OrderBy(x => x.Date).ThenBy(x => x.Id))
-            {
-                running += t.Type == TransactionType.CustomerDebt ? t.Amount : -t.Amount;
-                runningBalances[t.Id] = running;
-            }
-
-            groups.Add(new TransactionGroup
-            {
-                Key = currencyType,
-                Transactions = page.OrderBy(x => x.Date).ThenBy(x => x.Id).ToList(),
-                Balance = balance,
-                RunningBalances = runningBalances
-            });
-        }
-
-        groupedTransactions = groups.OrderBy(g => g.Key.ToString()).ToList();
-    }
-
-    private async Task ToggleHiddenTransactions()
-    {
-        if (!hasHiddenTransactions)
+        if (!ledger.HasHiddenTransactions)
             return;
 
         showHiddenTransactions = !showHiddenTransactions;
-        await GroupTransactions();
+        RebuildLedger();
     }
+
+    // ---------- Defter kartı ----------
 
     private static string GetCurrencyCardId(CurrencyType currencyType) => $"currency-card-{currencyType}";
+    private static string GetDepositCardId(CurrencyType currencyType) => $"deposit-card-{currencyType}";
 
-    private async Task ScrollToCurrencyCard(CurrencyType currencyType) =>
-        await JSRuntime.InvokeVoidAsync("kuyumcu.scrollIntoView", GetCurrencyCardId(currencyType));
-
-    private async Task ScrollToDepositSection() =>
-        await JSRuntime.InvokeVoidAsync("kuyumcu.scrollIntoView", DEPOSIT_SECTION_ID);
-
-    private async Task LoadMoreTransactions(CurrencyType currencyType, string buttonId)
+    private RenderFragment LedgerCard(TransactionGroup group, bool deposit)
     {
-        loadedTransactionsCount[currencyType] += PAGE_SIZE;
-        await GroupTransactions();
+        var cardId = deposit ? GetDepositCardId(group.Key) : GetCurrencyCardId(group.Key);
+        var lp = LedgerPage.From(group, shownCount.GetValueOrDefault(cardId, PAGE_SIZE));
+        // Normal hesapta 1. sütun Giden, 2. sütun Gelen; emanette 1. sütun bırakılan (Gelen), 2. sütun teslim (Giden)
+        var firstType = deposit ? TransactionType.StoreDebt : TransactionType.CustomerDebt;
+
+        return @<div class="kd-card kd-ledger @(deposit ? "is-emanet" : null)" id="@cardId">
+            <div class="kd-ledger-head">
+                <div style="min-width:0">
+                    <div class="kd-ledger-title">
+                        @if (deposit)
+                        {
+                            <MudIcon Icon="@Icons.Material.Filled.Lock" Style="font-size:1rem; vertical-align:-2px" />
+                            <span>@group.Key.GetDisplayName() · Emanet</span>
+                        }
+                        else
+                        {
+                            <span>@group.Key.GetDisplayName()</span>
+                        }
+                    </div>
+                    <div class="kd-ledger-balance">
+                        @if (deposit)
+                        {
+                            <span class="kd-num kd-strong">@DepositText(group.Balance, group.Key)</span>
+                        }
+                        else
+                        {
+                            <BalanceAmount Balance="group.Balance" Currency="group.Key" Class="kd-strong" />
+                        }
+                    </div>
+                </div>
+                <div class="kd-ledger-actions">
+                    @if (deposit)
+                    {
+                        <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Success" StartIcon="@Icons.Material.Filled.Add"
+                                   OnClick="@(() => ShowTransactionModal(TransactionType.StoreDebt, group.Key, deposit: true))">Bırakıldı</MudButton>
+                        <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Error" StartIcon="@Icons.Material.Filled.Add"
+                                   OnClick="@(() => ShowTransactionModal(TransactionType.CustomerDebt, group.Key, deposit: true))">Teslim</MudButton>
+                    }
+                    else
+                    {
+                        <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Error" StartIcon="@Icons.Material.Filled.Add"
+                                   OnClick="@(() => ShowTransactionModal(TransactionType.CustomerDebt, group.Key))">Giden</MudButton>
+                        <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Success" StartIcon="@Icons.Material.Filled.Add"
+                                   OnClick="@(() => ShowTransactionModal(TransactionType.StoreDebt, group.Key))">Gelen</MudButton>
+                    }
+                    @if (group.Balance != 0)
+                    {
+                        <MudTooltip Text="@(deposit ? "Emaneti teslim et (sıfırla)" : "Bu hesabı sıfırla")">
+                            <MudIconButton Icon="@Icons.Material.Filled.RestartAlt" Size="Size.Small"
+                                           OnClick="@(() => SettleOne(group.Key, group.Balance, deposit))" aria-label="Sıfırla" />
+                        </MudTooltip>
+                    }
+                </div>
+            </div>
+
+            <table class="kd-ledger-table">
+                <colgroup>
+                    <col style="width:108px" /><col /><col style="width:21%" /><col style="width:21%" /><col style="width:62px" />
+                </colgroup>
+                <thead>
+                    <tr>
+                        <th>Tarih</th>
+                        <th>Açıklama</th>
+                        <th class="kd-right">@(deposit ? "Bırakılan" : "Giden")</th>
+                        <th class="kd-right">@(deposit ? "Teslim" : "Gelen")</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (lp.OlderCount > 0)
+                    {
+                        <tr class="kd-ledger-carry" @onclick="@(() => ShowMore(cardId))" title="Daha eski işlemleri göster">
+                            <td colspan="2">
+                                <MudIcon Icon="@Icons.Material.Filled.ExpandLess" Style="font-size:1rem; vertical-align:-3px" />
+                                Önceki @lp.OlderCount işlem · devreden
+                            </td>
+                            <td colspan="2" class="kd-right">@BalanceText(lp.CarriedForward, group.Key, deposit)</td>
+                            <td></td>
+                        </tr>
+                    }
+                    @foreach (var row in lp.Rows)
+                    {
+                        var t = row.Transaction;
+                        var first = t.Type == firstType;
+                        <tr class="kd-ledger-row @(t.IsHidden ? "is-hidden" : null)">
+                            <td class="kd-num">
+                                @t.Date.ToString("dd.MM.yy")
+                                <span class="kd-ledger-time">@t.Date.ToString("HH:mm")</span>
+                            </td>
+                            <td class="kd-ledger-desc" title="@t.Description">@t.Description</td>
+                            <td class="kd-right kd-num">
+                                @if (first)
+                                {
+                                    <span class="@(deposit ? "" : "kd-giden") kd-strong">@FormatHelper.FormatPrice(t.Amount)</span>
+                                }
+                            </td>
+                            <td class="kd-right kd-num">
+                                @if (!first)
+                                {
+                                    <span class="@(deposit ? "" : "kd-gelen") kd-strong">@FormatHelper.FormatPrice(t.Amount)</span>
+                                }
+                            </td>
+                            <td class="kd-right kd-ledger-tools">
+                                <MudIconButton Icon="@Icons.Material.Outlined.Edit" Size="Size.Small" OnClick="@(() => EditTransaction(t))" aria-label="Düzenle" />
+                                <MudIconButton Icon="@Icons.Material.Outlined.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(() => DeleteTransaction(t))" aria-label="Sil" />
+                            </td>
+                        </tr>
+                        @if (row.ShowBalance)
+                        {
+                            <tr class="kd-ledger-sum">
+                                <td colspan="2"></td>
+                                <td colspan="2" class="kd-right"><span class="kd-ledger-sum-label">Kalan</span> @BalanceText(row.BalanceAfter, group.Key, deposit)</td>
+                                <td></td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>;
     }
+
+    private RenderFragment BalanceText(decimal balance, CurrencyType currency, bool deposit) => deposit
+        ? @<span class="kd-num kd-strong">@DepositText(balance, currency)</span>
+        : @<BalanceAmount Balance="balance" Currency="currency" Class="kd-strong" />;
+
+    private static string DepositText(decimal balance, CurrencyType currency) => balance switch
+    {
+        > 0 => $"{FormatHelper.FormatPrice(balance)} {currency.GetSymbol()} emanette",
+        < 0 => $"{FormatHelper.FormatPrice(-balance)} {currency.GetSymbol()} fazla teslim",
+        _ => "Teslim edildi",
+    };
+
+    private void ShowMore(string cardId) =>
+        shownCount[cardId] = shownCount.GetValueOrDefault(cardId, PAGE_SIZE) + MORE_STEP;
+
+    private async Task ScrollToCard(string id) =>
+        await JSRuntime.InvokeVoidAsync("kuyumcu.scrollIntoView", id);
+
+    private static string FormatRecentDate(DateTime date) =>
+        date.Date == DateTime.Today ? $"bugün {date:HH:mm}"
+        : date.Date == DateTime.Today.AddDays(-1) ? $"dün {date:HH:mm}"
+        : date.ToString("dd.MM.yy");
+
+    private static string DescribeInline(Transaction t) =>
+        $"{t.Date:dd.MM.yyyy HH:mm} · {TypeText(t)} {FormatHelper.FormatPrice(t.Amount)} {t.CurrencyType.GetDisplayName()}" +
+        (string.IsNullOrWhiteSpace(t.Description) ? "" : $" · {t.Description}");
+
+    /// <summary>"Kasaya işle: +2 Çeyrek" — Gelen kasaya girer, Giden çıkar.</summary>
+    private static string CashHint(Transaction t) =>
+        $"Kasaya işle: {(t.Type == TransactionType.StoreDebt ? "+" : "−")}{FormatHelper.FormatPrice(t.Amount)} {t.CurrencyType.GetShortName()}";
+
+    private static string TypeText(Transaction t) => t.IsDeposit
+        ? (t.Type == TransactionType.StoreDebt ? "Emanet" : "Emanet teslimi")
+        : (t.Type == TransactionType.CustomerDebt ? "Giden" : "Gelen");
+
+    // ---------- Hesap sıfırlama ----------
+
+    private Task SettleAll()
+    {
+        var items = ledger.Groups.Where(g => g.Balance != 0)
+            .Select(g => new SettleDialog.SettleItem(g.Key, g.Balance, false) { Selected = true })
+            .Concat(ledger.DepositGroups.Where(g => g.Balance != 0)
+                .Select(g => new SettleDialog.SettleItem(g.Key, g.Balance, true) { Selected = false }))
+            .ToList();
+        return Settle(items, "Hesap sıfırlandı");
+    }
+
+    private Task SettleOne(CurrencyType currency, decimal balance, bool deposit) =>
+        Settle([new SettleDialog.SettleItem(currency, balance, deposit) { Selected = true }],
+            deposit ? "Emanet teslim edildi" : "Hesap sıfırlandı");
+
+    private async Task Settle(List<SettleDialog.SettleItem> items, string defaultDescription)
+    {
+        if (customer == null || items.Count == 0)
+            return;
+
+        var result = await SettleDialog.ShowAsync(Dialog, $"Hesabı sıfırla · {customer.Name}", items, defaultDescription);
+        if (result == null)
+            return;
+
+        var now = DateTime.Now;
+        var toAdd = result.Items
+            .Select(i => CustomerLedger.Settlement(customer.Id, i.Currency, i.Balance, i.IsDeposit, now, result.Description))
+            .OfType<Transaction>()
+            .Select(t => { t.AffectsCash = !t.IsDeposit; return t; }) // sıfırlama da kasaya işlenir (kullanıcı kararı)
+            .ToList();
+
+        try
+        {
+            await DatabaseService.AddTransactionsAsync(toAdd);
+            await LoadCustomerData();
+            var names = string.Join(", ", result.Items.Select(i => i.Currency.GetDisplayName() + (i.IsDeposit ? " emanet" : "")));
+            Snackbar.Add($"Sıfırlandı: {names}", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Sıfırlanamadı: {ex.Message}", Severity.Error);
+        }
+    }
+
+    // ---------- Özet / yazdırma ----------
 
     /// <summary>
     /// Müşteri özetini (bakiyeler ve emanetler) görsel olarak panoya kopyalar;
@@ -576,7 +687,7 @@
         try
         {
             var settings = await DatabaseService.GetSettingsAsync();
-            var result = await CustomerSummaryImageService.CopySummaryAsync(customer, groupedTransactions, depositTransactions, settings?.BusinessName);
+            var result = await CustomerSummaryImageService.CopySummaryAsync(customer, ledger.Groups.ToList(), ledger.Deposits.ToList(), settings?.BusinessName);
 
             switch (result)
             {
@@ -604,15 +715,24 @@
         }
     }
 
-    private async Task PrintCustomerReceipt(string printer)
+    private async Task SelectPrinter(string printer)
     {
+        selectedPrinter = printer;
+        try { await JSRuntime.InvokeVoidAsync("kuyumcu.setPreference", PrinterPreferenceKey, printer); }
+        catch (JSDisconnectedException) { }
+        await PrintToSelected();
+    }
+
+    private async Task PrintToSelected()
+    {
+        if (customer == null || selectedPrinter == null)
+            return;
         try
         {
-            selectedPrinter = printer;
             var texts = ReceiptTexts.From(await DatabaseService.GetSettingsAsync());
-            PrintService.SetPrinterName(printer);
-            PrintService.PrintCustomerReceipt(customer!, groupedTransactions, texts);
-            Snackbar.Add($"Fiş yazıcıya gönderildi: {printer}", Severity.Success);
+            PrintService.SetPrinterName(selectedPrinter);
+            PrintService.PrintCustomerReceipt(customer, ledger.Groups.ToList(), texts);
+            Snackbar.Add($"Fiş yazıcıya gönderildi: {selectedPrinter}", Severity.Success);
         }
         catch (Exception ex)
         {
@@ -638,37 +758,41 @@
 
     private void GoToPreviousCustomer()
     {
-        if (previousCustomerId.HasValue)
-            NavigationManager.NavigateTo($"/customer/{previousCustomerId}");
+        if (PreviousId is { } id)
+            NavigateToCustomer(id);
     }
 
     private void GoToNextCustomer()
     {
-        if (nextCustomerId.HasValue)
-            NavigationManager.NavigateTo($"/customer/{nextCustomerId}");
+        if (NextId is { } id)
+            NavigateToCustomer(id);
     }
 
-    private void ShowTransactionModal(TransactionType type, CurrencyType? currencyType = null)
+    private void NavigateToCustomer(int id)
+    {
+        navTargetId = id;
+        navTargetAt = DateTime.UtcNow;
+        NavigationManager.NavigateTo($"/customer/{id}");
+    }
+
+    // ---------- İşlem penceresi ----------
+
+    private void ShowTransactionModal(TransactionType type, CurrencyType? currencyType = null, bool deposit = false)
     {
         currentTransaction = new Transaction
         {
             CustomerId = CustomerId,
             Type = type,
+            IsDeposit = deposit,
+            AffectsCash = !deposit, // yeni işlem kasaya işlenir (emanet hariç)
             // Para birimi seçilmediyse en son kullanılan cins önerilir
-            CurrencyType = currencyType ?? RecentTransactions.FirstOrDefault()?.CurrencyType ?? CurrencyType.TurkishLira,
+            CurrencyType = currencyType ?? recentTransactions.FirstOrDefault(t => !t.IsDeposit)?.CurrencyType ?? CurrencyType.TurkishLira,
             Date = DateTime.Now
         };
         currentTransactionDate = DateTime.Now.Date;
         currentTransactionTime = DateTime.Now.TimeOfDay;
         showTransactionModal = true;
         focusAmountInput = true;
-    }
-
-    private void SetTransactionType(TransactionType type)
-    {
-        currentTransaction.Type = type;
-        if (type == TransactionType.CustomerDebt)
-            currentTransaction.IsDeposit = false; // emanet sadece Gelen işlemlerde olur
     }
 
     private void EditTransaction(Transaction transaction)
@@ -683,7 +807,8 @@
             Date = transaction.Date,
             Description = transaction.Description,
             IsDeposit = transaction.IsDeposit,
-            IsHidden = transaction.IsHidden
+            IsHidden = transaction.IsHidden,
+            AffectsCash = transaction.AffectsCash
         };
         currentTransactionDate = transaction.Date.Date;
         currentTransactionTime = transaction.Date.TimeOfDay;
@@ -699,14 +824,8 @@
         currentTransactionTime = null;
     }
 
-    private static string DescribeTransaction(Transaction t)
-    {
-        var summary = $"{t.Date:dd.MM.yyyy HH:mm}\n{(t.Type == TransactionType.CustomerDebt ? "Giden" : "Gelen")}";
-        if (t.Type == TransactionType.StoreDebt && t.IsDeposit)
-            summary += " (Emanet)";
-        summary += $":\n{FormatHelper.FormatPrice(t.Amount)} {t.CurrencyType.GetSymbol()} {t.CurrencyType.GetDisplayName()}";
-        return summary;
-    }
+    private static string DescribeTransaction(Transaction t) =>
+        $"{t.Date:dd.MM.yyyy HH:mm}\n{TypeText(t)}:\n{FormatHelper.FormatPrice(t.Amount)} {t.CurrencyType.GetSymbol()} {t.CurrencyType.GetDisplayName()}";
 
     private async Task SaveTransaction()
     {
@@ -739,6 +858,8 @@
         var summary = DescribeTransaction(currentTransaction);
         if (!string.IsNullOrWhiteSpace(currentTransaction.Description))
             summary += $"\nAçıklama: {currentTransaction.Description}";
+        if (currentTransaction.AffectsCash && !currentTransaction.IsDeposit)
+            summary += "\n" + CashHint(currentTransaction);
 
         var confirm = await Dialog.ShowMessageBox(
             "Aşağıdaki işlemi kaydetmek istediğinize emin misiniz?",
@@ -771,9 +892,6 @@
             Snackbar.Add("İşlem silindi.", Severity.Info);
         }
     }
-
-    private Task ShowTransactionDescription(Transaction transaction) =>
-        Dialog.ShowMessageBox("Açıklama", transaction.Description, yesText: "Tamam");
 
     public void Dispose()
     {

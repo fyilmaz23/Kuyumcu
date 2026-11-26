@@ -133,8 +133,8 @@ public class StockService
         if (category.Name.Length == 0)
             throw new StockException("Kategori adı girin.");
         category.ShortName = string.IsNullOrWhiteSpace(category.ShortName) ? null : category.ShortName.Trim().ToUpper(Turkish);
-        if (category.LaborMilyem is < 0 or > 500)
-            throw new StockException("İşçilik milyemi 0 ile 0,500 arasında olmalı.");
+        if (category.LaborPerGram is < 0 or > 100_000)
+            throw new StockException("İşçilik (TL/gr) 0 ya da pozitif olmalı.");
 
         var db = await Db();
         var all = await db.Table<StockCategory>().ToListAsync();
@@ -585,7 +585,10 @@ public class StockService
             var existing = all.First(b => b.Id == product.Id);
             if (existing.Unit != product.Unit && existing.Amount != 0)
                 throw new StockException("Miktarı sıfır olmayan ürünün birimi değiştirilemez.");
+            if (existing.Unit != product.Unit && existing.LedgerCurrency != null)
+                throw new StockException("Müşteri defterine bağlı kasa ürününün birimi değiştirilemez.");
             product.Amount = existing.Amount;
+            product.LedgerCurrency = existing.LedgerCurrency; // bağlantı sadece açılışta kurulur
             await db.UpdateAsync(product);
         }
     }
@@ -676,7 +679,7 @@ public class StockService
         {
             var sale = await db.Table<StockMovement>().Where(m => m.Id == saleMovementId).FirstOrDefaultAsync()
                        ?? throw new StockException("Satış hareketi bulunamadı.");
-            if (sale.Type != StockMovementType.BulkOut || sale.CustomerId == null)
+            if (sale.Type != StockMovementType.BulkOut || sale.CustomerId == null || sale.FromLedger)
                 throw new StockException("Sadece müşteri hesabına yazılmış kasa satışı iade alınabilir.");
             if (await db.Table<StockMovement>().Where(m => m.RelatedMovementId == sale.Id).CountAsync() > 0)
                 throw new StockException("Bu satış zaten iade alınmış.");
@@ -721,9 +724,14 @@ public class StockService
             .OrderByDescending(m => m.Date).ThenByDescending(m => m.Id).Take(take).ToListAsync();
     }
 
-    /// <summary>Kasa miktarını birimine göre yazar: "12 adet" / "35,40 gr".</summary>
+    /// <summary>Kasa miktarını birimine göre yazar: "12 adet" / "35,40 gr" / "1.250 €".</summary>
     public static string FormatBulkAmount(BulkProduct product, long amount) =>
-        product.Unit == BulkUnit.Gram ? $"{WeightFormat.Gram(amount)} gr" : $"{amount:N0} adet";
+        product.Unit switch
+        {
+            BulkUnit.Gram => $"{WeightFormat.Gram(amount)} gr",
+            BulkUnit.Money => $"{Kuyumcu.Helpers.FormatHelper.FormatPrice(amount / 100m)} {LedgerCash.MoneySymbol(product)}",
+            _ => $"{amount:N0} adet",
+        };
 
     // ───────────────────────── Etiket yazıcısı ayarları ─────────────────────────
 
