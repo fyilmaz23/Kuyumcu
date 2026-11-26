@@ -214,6 +214,11 @@ iç adımların adları ile metinler okunamaz hale gelir. Bu, lisans kontrolün�
   kapalıdır. Sonradan modül alan müşteriye `--barkod` ile yeni anahtar verilir, eskisinin yerine geçer.
   Kilitli ekranlardaki "WhatsApp'tan bilgi al" düğmesi için numara `src/Kuyumcu.Core/Platform/SalesContact.cs`
   içindeki `WhatsAppNumber` sabitine yazılır (ör. `905321234567`). **Boş bırakılırsa düğme görünmez.**
+  Asıl kilit arayüzde değil Core'dadır: yeni ürün, satış, kasa hareketi, sayım ve etiket basma, kayıtlı anahtarı
+  her seferinde yeniden doğrular (karıştırılan internal metotlarla).
+- Uygulama, doğrulama anahtarının SHA-256 özetini ayrıca tutar (`LicenseService.VerifyKeyDigest`); biri açık anahtarı
+  kendi anahtarıyla değiştirirse hiçbir lisans geçmez. Anahtar çifti yenilenirse bu özet de güncellenmeli
+  (`LicenseFeatureTests.Dogrulama_anahtari_ozeti_guncel` testi hatırlatır).
 - Lisans cihaza (Windows kurulumunun MachineGuid'ine) bağlıdır. Windows yeniden kurulursa veya bilgisayar değişirse
   müşteri yeni cihaz kimliğini iletir, yeni anahtar üretilir.
 

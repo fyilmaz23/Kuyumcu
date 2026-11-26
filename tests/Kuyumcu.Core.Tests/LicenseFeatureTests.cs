@@ -62,6 +62,13 @@ public class LicenseFeatureTests
         Assert.Equal(LicenseKeyError.Expired, result.Error);
     }
 
+    [Fact]
+    public void Dogrulama_anahtari_ozeti_guncel()
+    {
+        // LicensePublicKey değiştiyse LicenseService.VerifyKeyDigest de güncellenmeli; yoksa hiçbir lisans geçmez
+        Assert.True(Kuyumcu.Services.LicenseService.IsGenuineVerifyKey());
+    }
+
     [Theory]
     [InlineData(LicenseStatus.Licensed, LicenseFeatures.Barcode, true)]
     [InlineData(LicenseStatus.Licensed, LicenseFeatures.None, false)]

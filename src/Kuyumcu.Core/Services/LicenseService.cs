@@ -171,18 +171,27 @@ namespace Kuyumcu.Services
         }
 
         /// <summary>
-        /// Barkodlu vitrin stoğu modülü açık mı? (Ek ücretli; deneme sürümünde kapalı.)
+        /// Ek ücretli modül (ör. barkod) bu lisansta açık mı? Stok/etiket servisleri yazma işlemlerinden önce çağırır.
+        ///
+        /// Bilerek internal ve metot (property değil): yayın derlemesinde Obfuscar adını karıştırır, böylece
+        /// "HasBarcodeModule" gibi bir adı aratıp tek yeri yamalamak işe yaramaz. Ekrandaki durumdan
+        /// (<see cref="GetLicenseStateAsync"/>) bağımsızdır: kayıtlı anahtarı her seferinde baştan doğrular.
         /// Hata olursa kapalı sayılır.
         /// </summary>
-        public async Task<bool> HasBarcodeModuleAsync()
+        internal async Task<bool> AllowsAsync(LicenseFeatures feature)
         {
             try
             {
-                return (await GetLicenseStateAsync()).HasBarcodeModule;
+                var info = await _databaseService.GetLicenseInfoAsync();
+                if (info == null || string.IsNullOrWhiteSpace(info.LicenseKey))
+                    return false;
+
+                var check = CheckStoredKey(info, await GetDeviceIdAsync(), out _);
+                return check is { IsValid: true } && (check.Payload!.Features & feature) == feature;
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"HasBarcodeModuleAsync hata: {ex.Message}");
+                Console.WriteLine($"Modül kontrolü hata: {ex.Message}");
                 return false;
             }
         }
@@ -219,8 +228,10 @@ namespace Kuyumcu.Services
 
                 // Anahtar, veritabanındaki (aktarılmış olabilecek) kimliğe değil bu bilgisayarın kimliğine göre doğrulanır
                 var deviceId = await GetDeviceIdAsync();
-                using var publicKey = LicensePublicKey.Create();
-                var result = LicenseCodec.Verify(key, deviceId, EffectiveToday(licenseInfo), publicKey);
+                using var publicKey = OpenVerifyKey();
+                var result = publicKey == null
+                    ? new LicenseCheckResult(LicenseKeyError.BadSignature, null)
+                    : LicenseCodec.Verify(key, deviceId, EffectiveToday(licenseInfo), publicKey);
                 if (!result.IsValid)
                     return (false, result.Message);
 
@@ -311,8 +322,42 @@ namespace Kuyumcu.Services
             if (string.IsNullOrWhiteSpace(licenseInfo.LicenseKey))
                 return null;
 
-            using var publicKey = LicensePublicKey.Create();
-            return LicenseCodec.Verify(licenseInfo.LicenseKey, deviceId, today, publicKey);
+            using var publicKey = OpenVerifyKey();
+            return publicKey == null
+                ? new LicenseCheckResult(LicenseKeyError.BadSignature, null)
+                : LicenseCodec.Verify(licenseInfo.LicenseKey, deviceId, today, publicKey);
+        }
+
+        // Doğrulama anahtarının SHA-256 özeti. LicensePublicKey değişirse bu da güncellenmeli
+        // (LicenseFeatureTests.Dogrulama_anahtari_ozeti_guncel kontrol eder).
+        private static readonly byte[] VerifyKeyDigest =
+        [
+            0x4F, 0x4B, 0x81, 0x39, 0x16, 0x8C, 0x44, 0x0A, 0xF5, 0x51, 0x40, 0x39, 0xD6, 0x75, 0x95, 0x72,
+            0x1F, 0xB0, 0xD3, 0x88, 0x5B, 0x8E, 0x13, 0xCB, 0xA5, 0x2B, 0x29, 0x3B, 0x99, 0xA0, 0x00, 0x19,
+        ];
+
+        /// <summary>
+        /// Lisans imzalarını doğrulayan açık anahtarı açar. Anahtar uygulamada yamalanıp değiştirilmişse
+        /// (biri kendi anahtar çiftiyle lisans üretmek için) null döner ve hiçbir lisans geçmez.
+        /// Not: Base64 bir const olduğu için derleyici değeri buraya kopyalar; LicensePublicKey'deki kopyayı
+        /// değiştirmek bu yolu etkilemez.
+        /// </summary>
+        private static ECDsa? OpenVerifyKey()
+        {
+            var raw = Convert.FromBase64String(LicensePublicKey.Base64);
+            if (!CryptographicOperations.FixedTimeEquals(SHA256.HashData(raw), VerifyKeyDigest))
+                return null;
+
+            var key = ECDsa.Create();
+            key.ImportSubjectPublicKeyInfo(raw, out _);
+            return key;
+        }
+
+        /// <summary>Testler için: uygulamadaki açık anahtar beklenen özetle eşleşiyor mu?</summary>
+        internal static bool IsGenuineVerifyKey()
+        {
+            using var key = OpenVerifyKey();
+            return key != null;
         }
 
         /// <summary>

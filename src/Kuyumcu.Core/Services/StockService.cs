@@ -42,10 +42,28 @@ public class StockService
     private static readonly CultureInfo Turkish = new("tr-TR");
     private readonly DatabaseService _database;
     private readonly SemaphoreSlim _writeLock = new(1, 1);
+    private readonly LicenseService? _license;
 
+    /// <summary>Lisans denetimi olmadan (testler, önizlemenin örnek verisi).</summary>
     public StockService(DatabaseService database)
     {
         _database = database;
+    }
+
+    /// <summary>Uygulamada kullanılan: yeni ürün, satış ve kasa hareketi barkod modülü ister (AddKuyumcuCore).</summary>
+    internal StockService(DatabaseService database, LicenseService license) : this(database)
+    {
+        _license = license;
+    }
+
+    /// <summary>
+    /// Barkod modülü (ek ücretli) yoksa yazma işlemini durdurur. Ekrandaki kilit sadece görünüştür; asıl kilit
+    /// burası ve etiket servisi (arayüz yamalansa bile kayıt yapılamaz). İade, düzeltme ve okuma serbesttir.
+    /// </summary>
+    internal async Task RequireModuleAsync()
+    {
+        if (_license != null && !await _license.AllowsAsync(LicenseFeatures.Barcode))
+            throw new StockException("Bu işlem için barkod modülü gerekli (Ayarlar → Lisans).");
     }
 
     private Task<SQLiteAsyncConnection> Db() => _database.GetConnectionAsync();
@@ -239,6 +257,7 @@ public class StockService
     /// <summary>Yeni ürün kaydeder: yeni kod üretir, "Giriş" hareketi yazar.</summary>
     public async Task<StockItem> CreateItemAsync(StockItemDraft draft, string? description = null)
     {
+        await RequireModuleAsync();
         await ValidateAsync(draft.CategoryId, draft.Karat, draft.WeightMg, draft.StoneWeightMg);
 
         var db = await Db();
@@ -309,8 +328,10 @@ public class StockService
     }
 
     /// <summary>Satıldı olarak işaretler. Fiyat ve müşteri isteğe bağlıdır.</summary>
-    public Task<StockItem> MarkSoldAsync(int itemId, decimal? price, int? customerId, int? transactionId, string? description = null) =>
-        WriteItemAsync(itemId, (item, now) =>
+    public async Task<StockItem> MarkSoldAsync(int itemId, decimal? price, int? customerId, int? transactionId, string? description = null)
+    {
+        await RequireModuleAsync();
+        return await WriteItemAsync(itemId, (item, now) =>
         {
             EnsureActive(item);
             if (item.Status == StockItemStatus.Sold)
@@ -330,6 +351,7 @@ public class StockService
             m.TransactionId = transactionId;
             return Task.FromResult<StockMovement?>(m);
         });
+    }
 
     /// <summary>Satılan ürünü iade alır, vitrine döner (aynı kodla).</summary>
     public Task<StockItem> ReturnAsync(int itemId, string? description = null) =>
@@ -591,6 +613,7 @@ public class StockService
             throw new ArgumentException("Müşteri ve fiyat sadece çıkışta (satış) verilir.");
         if (amount < 0 || (amount == 0 && type != StockMovementType.BulkAdjust))
             throw new StockException("Miktar 0'dan büyük olmalı.");
+        await RequireModuleAsync();
 
         var db = await Db();
         await _writeLock.WaitAsync();

@@ -78,7 +78,7 @@ public class LabelPrintService
     /// <summary>Belgeyi ayarlardaki yazıcıya gönderir.</summary>
     public async Task<LabelPrintResult> SendAsync(LabelPrinterSettings settings, LabelDocument document, string jobName)
     {
-        if (!await _license.HasBarcodeModuleAsync())
+        if (!await _license.AllowsAsync(LicenseFeatures.Barcode))
             return LabelPrintResult.Fail("Etiket basmak için barkod modülü gerekli (Ayarlar → Lisans).");
 
         if (!settings.IsConfigured)

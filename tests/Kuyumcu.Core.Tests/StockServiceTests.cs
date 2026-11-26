@@ -267,6 +267,35 @@ public sealed class StockServiceTests : IAsyncLifetime
         Assert.Equal("TSC TE210", (await _stock.GetLabelSettingsAsync()).PrinterName); // cihaz ayarı korunur
     }
 
+    [Fact]
+    public async Task Barkod_modulu_yoksa_yeni_urun_satis_kasa_ve_sayim_yapilamaz()
+    {
+        var license = new LicenseService(_db, new MemorySecureStore(), _env);
+        await license.InitializeTrialAsync(); // deneme sürümü: barkod modülü kapalı
+        var gated = new StockService(_db, license);
+        var gatedCount = new StockCountService(_db, gated);
+
+        var existing = await NewItem(); // denetimsiz servisle önceden girilmiş ürün
+        var ceyrek = (await _stock.GetBulkProductsAsync()).First(b => b.Name == "Çeyrek");
+
+        await Assert.ThrowsAsync<StockException>(() =>
+            gated.CreateItemAsync(new StockItemDraft { CategoryId = _bilezik, Karat = 22, WeightMg = 5_000 }));
+        await Assert.ThrowsAsync<StockException>(() => gated.MarkSoldAsync(existing.Id, null, null, null));
+        await Assert.ThrowsAsync<StockException>(() => gated.AddBulkMovementAsync(ceyrek.Id, StockMovementType.BulkIn, 1));
+        await Assert.ThrowsAsync<StockException>(() => gatedCount.StartAsync(0));
+
+        // Okuma serbest; kayıtlar değişmedi
+        Assert.Single(await gated.GetItemsAsync());
+        Assert.Equal(StockItemStatus.InStock, (await gated.GetItemAsync(existing.Id))!.Status);
+    }
+
+    private sealed class MemorySecureStore : ISecureStore
+    {
+        private readonly Dictionary<string, string> _values = [];
+        public Task<string?> GetAsync(string key) => Task.FromResult(_values.TryGetValue(key, out var v) ? v : null);
+        public Task SetAsync(string key, string value) { _values[key] = value; return Task.CompletedTask; }
+    }
+
     private sealed class TestEnvironment : IAppEnvironment, IDisposable
     {
         public TestEnvironment()

@@ -22,7 +22,8 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<CustomerSummaryImageService>();
 
         // Barkodlu vitrin stoğu, kasa, sayım ve etiket
-        services.AddSingleton<StockService>();
+        // Lisanslı kurucu: yeni ürün, satış, kasa hareketi ve sayım barkod modülü ister
+        services.AddSingleton(sp => new StockService(sp.GetRequiredService<DatabaseService>(), sp.GetRequiredService<LicenseService>()));
         services.AddSingleton<StockCountService>();
         services.AddSingleton<LabelPrintService>();
         services.AddSingleton<ReportExportService>();

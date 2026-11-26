@@ -36,8 +36,10 @@ var app = builder.Build();
 
 if (!startEmpty)
 {
-    await SampleData.SeedAsync(app.Services.GetRequiredService<DatabaseService>(), app.Services.GetRequiredService<LicenseService>(),
-        app.Services.GetRequiredService<StockService>(), FileLabelPrinter.FakePrinterName);
+    // Örnek stok, lisans denetimi olmayan StockService ile yazılır (deneme sürümünde barkod modülü kapalıdır)
+    var seedDb = app.Services.GetRequiredService<DatabaseService>();
+    await SampleData.SeedAsync(seedDb, app.Services.GetRequiredService<LicenseService>(),
+        new StockService(seedDb), FileLabelPrinter.FakePrinterName);
 }
 
 app.UseStaticFiles();

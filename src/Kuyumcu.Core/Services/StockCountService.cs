@@ -77,6 +77,7 @@ public class StockCountService
     /// <summary>Yeni sayım başlatır. Açık sayım varsa önce o bitirilmeli ya da iptal edilmeli.</summary>
     public async Task<StockCountSession> StartAsync(int locationId, string? note = null)
     {
+        await _stock.RequireModuleAsync();
         if (await GetOpenSessionAsync() != null)
             throw new StockException("Açık bir sayım var. Önce onu bitirin ya da iptal edin.");
 
