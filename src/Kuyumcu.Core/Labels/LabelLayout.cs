@@ -92,9 +92,13 @@ public static class LabelLayout
         var x = Dots(s, s.CodeXMm, s.OffsetXMm);
         var y = Dots(s, s.CodeYMm, s.OffsetYMm);
         var module = Math.Clamp(s.CodeModuleDots, 1, 10);
-        elements.Add(s.CodeType == LabelCodeType.QrCode
-            ? new LabelQrCode(x, y, module, code)
-            : new LabelDataMatrix(x, y, module, code));
+        elements.Add(s.CodeType switch
+        {
+            LabelCodeType.QrCode => new LabelQrCode(x, y, module, code),
+            LabelCodeType.Code128 => new LabelCode128(x, y, s.EffectiveBarcodeNarrowDots,
+                Math.Max(8, LabelUnits.ToDots(s.EffectiveBarcodeHeightMm, s.Dpi)), code),
+            _ => new LabelDataMatrix(x, y, module, code)
+        });
 
         if (s.CodeTextTwoLines && code.Length > 6)
         {

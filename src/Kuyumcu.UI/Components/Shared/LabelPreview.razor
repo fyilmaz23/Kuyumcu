@@ -1,6 +1,6 @@
 @using Kuyumcu.Labels
 @*
-    Etiketin ekrandaki yaklaşık görünümü (yazıcı noktası ölçeğinde SVG). 2D kod gerçek kod değil, yer tutucudur;
+    Etiketin ekrandaki yaklaşık görünümü (yazıcı noktası ölçeğinde SVG). 2D kod ve çizgi barkod gerçek kod değil, yer tutucudur;
     yazı fontu yazıcının yerleşik fontundan farklı görünebilir. Asıl kontrol test/hizalama etiketiyle yapılır.
 *@
 
@@ -34,6 +34,9 @@
                         break;
                     case LabelQrCode q:
                         @RenderPseudoCode(q.X, q.Y, q.ModuleDots, LabelUnits.CodeSymbolModules(true), q.Content, true)
+                        break;
+                    case LabelCode128 c:
+                        @RenderPseudoBarcode(c)
                         break;
                     case LabelBox b:
                         <rect x="@b.X" y="@b.Y" width="@(b.X2 - b.X)" height="@(b.Y2 - b.Y)" class="lbl-box" stroke-width="@b.Thickness" />
@@ -69,6 +72,34 @@
         }
         builder.AddContent(7, content);
         builder.CloseElement();
+    };
+
+    // Çizgi barkodun yerini ve gerçek genişliğini gösteren desen (okunabilir barkod değildir):
+    // başta ve sonda koyu çizgi, arada 1–3 modül genişliğinde rastgele çizgi/boşluk.
+    private static RenderFragment RenderPseudoBarcode(LabelCode128 c) => builder =>
+    {
+        var seq = 0;
+        var modules = LabelUnits.Code128Modules(c.Content);
+        var rnd = new Random(c.Content.Aggregate(17, (a, ch) => unchecked(a * 31 + ch)));
+        void Bar(int fromModule, int widthModules)
+        {
+            builder.OpenElement(seq++, "rect");
+            builder.AddAttribute(seq++, "x", c.X + fromModule * c.NarrowDots);
+            builder.AddAttribute(seq++, "y", c.Y);
+            builder.AddAttribute(seq++, "width", widthModules * c.NarrowDots);
+            builder.AddAttribute(seq++, "height", c.HeightDots);
+            builder.AddAttribute(seq++, "class", "lbl-ink");
+            builder.CloseElement();
+        }
+        Bar(0, 2);
+        var pos = 3;
+        while (pos < modules - 4)
+        {
+            var w = Math.Min(rnd.Next(1, 4), modules - 4 - pos);
+            Bar(pos, w);
+            pos += w + rnd.Next(1, 4);
+        }
+        Bar(modules - 2, 2);
     };
 
     // Kodun yerini ve boyunu göstermek için desen (okunabilir kod değildir)

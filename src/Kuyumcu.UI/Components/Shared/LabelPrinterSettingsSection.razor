@@ -13,7 +13,7 @@
     </div>
     <div class="kd-card-pad">
     <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-4 d-block">
-        Barkodlu vitrin etiketleri için (TSC TE210 vb., TSPL dili). Ölçüler milimetre. Değişiklikleri önce
+        Barkodlu vitrin etiketleri için (TSC: TSPL dili, Zebra: ZPL dili). Ölçüler milimetre. Değişiklikleri önce
         <b>Hizalama etiketi</b> ile deneyin, sonra kaydedin. Bu ayar bu bilgisayara özeldir; yedek geri yüklenince korunur.
     </MudText>
 
@@ -63,8 +63,9 @@
             }
             <MudItem xs="12" sm="6">
                 <MudSelect T="LabelPrinterLanguage" @bind-Value="s.Language" Label="Komut dili" Variant="Variant.Outlined" Margin="Margin.Dense"
-                           HelperText="ZPL ileride eklenebilir">
+                           HelperText="@(s.Language == LabelPrinterLanguage.Zpl ? "Zebra ve ZPL destekli yazıcılar" : "TSC yazıcılar (TE210 vb.)")">
                     <MudSelectItem Value="LabelPrinterLanguage.Tspl">TSPL (TSC)</MudSelectItem>
+                    <MudSelectItem Value="LabelPrinterLanguage.Zpl">ZPL (Zebra)</MudSelectItem>
                 </MudSelect>
             </MudItem>
             <MudItem xs="12" sm="6">
@@ -77,7 +78,7 @@
         <MudGrid Spacing="2" Class="mb-3">
             <MudItem xs="6" sm="3">@Mm("Genişlik", () => s.WidthMm, v => s.WidthMm = v, 1)</MudItem>
             <MudItem xs="6" sm="3">@Mm("Yükseklik", () => s.HeightMm, v => s.HeightMm = v, 1)</MudItem>
-            <MudItem xs="6" sm="3">@Mm("Boşluk (gap)", () => s.GapMm, v => s.GapMm = v, 0.5)</MudItem>
+            <MudItem xs="6" sm="3">@Mm("Boşluk (gap)", () => s.GapMm, v => s.GapMm = v, 0.5, s.Language == LabelPrinterLanguage.Zpl ? "ZPL'de yazıcı algılar" : null)</MudItem>
             <MudItem xs="6" sm="3">
                 <MudSelect T="int" @bind-Value="s.Direction" Label="Baskı yönü" Variant="Variant.Outlined" Margin="Margin.Dense">
                     <MudSelectItem Value="1">1 (normal)</MudSelectItem>
@@ -97,15 +98,27 @@
         <MudText Typo="Typo.subtitle2" Class="mb-2">1. kanat: kod</MudText>
         <MudGrid Spacing="2" Class="mb-3">
             <MudItem xs="6" sm="3">
-                <MudSelect T="LabelCodeType" @bind-Value="s.CodeType" Label="Kod tipi" Variant="Variant.Outlined" Margin="Margin.Dense">
+                <MudSelect T="LabelCodeType" Value="s.CodeType" ValueChanged="ChangeCodeType" Label="Kod tipi" Variant="Variant.Outlined" Margin="Margin.Dense">
                     <MudSelectItem Value="LabelCodeType.DataMatrix">DataMatrix</MudSelectItem>
                     <MudSelectItem Value="LabelCodeType.QrCode">QR</MudSelectItem>
+                    <MudSelectItem Value="LabelCodeType.Code128">Çizgi barkod (Code 128)</MudSelectItem>
                 </MudSelect>
             </MudItem>
-            <MudItem xs="6" sm="3">
-                <MudNumericField T="int" @bind-Value="s.CodeModuleDots" Label="Kare boyu (nokta)" Variant="Variant.Outlined" Margin="Margin.Dense" Min="1" Max="10" Immediate="true"
-                                 HelperText="@($"Kod ≈ {CodeSizeMm:0.#} mm")" />
-            </MudItem>
+            @if (s.CodeType == LabelCodeType.Code128)
+            {
+                <MudItem xs="6" sm="3">
+                    <MudNumericField T="int" @bind-Value="s.BarcodeNarrowDots" Label="İnce çizgi (nokta)" Variant="Variant.Outlined" Margin="Margin.Dense" Min="1" Max="4" Immediate="true"
+                                     HelperText="@($"Barkod ≈ {CodeSizeMm:0.#} mm genişlik")" />
+                </MudItem>
+                <MudItem xs="6" sm="3">@Mm("Barkod yüksekliği", () => s.BarcodeHeightMm, v => s.BarcodeHeightMm = v, 0.25)</MudItem>
+            }
+            else
+            {
+                <MudItem xs="6" sm="3">
+                    <MudNumericField T="int" @bind-Value="s.CodeModuleDots" Label="Kare boyu (nokta)" Variant="Variant.Outlined" Margin="Margin.Dense" Min="1" Max="10" Immediate="true"
+                                     HelperText="@($"Kod ≈ {CodeSizeMm:0.#} mm")" />
+                </MudItem>
+            }
             <MudItem xs="6" sm="3">@Mm("Kod X", () => s.CodeXMm, v => s.CodeXMm = v, 0.5)</MudItem>
             <MudItem xs="6" sm="3">@Mm("Kod Y", () => s.CodeYMm, v => s.CodeYMm = v, 0.25)</MudItem>
             <MudItem xs="6" sm="3">@Mm("Rakamlar X", () => s.CodeTextXMm, v => s.CodeTextXMm = v, 0.5)</MudItem>
@@ -115,6 +128,15 @@
                 <MudSwitch T="bool" @bind-Value="s.CodeTextTwoLines" Color="Color.Primary" Label="6+6 iki satır" />
             </MudItem>
         </MudGrid>
+
+        @if (s.CodeType == LabelCodeType.Code128)
+        {
+            <MudAlert Severity="Severity.Info" Dense="true" Class="mb-3">
+                Çizgi barkodu sadece 1D (lazer) okuyucu kullanıyorsanız seçin; 2D okuyucular (RH10 vb.) DataMatrix'i daha küçük
+                alanda okur. 72 × 10 mm etikette barkod 1 noktalık çizgiyle ≈ 12,6 mm'dir ve kanada ancak sığar. Okunmazsa
+                çizgiyi 2 nokta yapın (≈ 25 mm, daha geniş etiket gerekir).
+            </MudAlert>
+        }
 
         <MudText Typo="Typo.subtitle2" Class="mb-2">2. kanat: gram, ayar, kategori</MudText>
         <MudGrid Spacing="2" Class="mb-3">
@@ -175,7 +197,24 @@
         : previewKind == "align" ? LabelLayout.BuildAlignmentLabel(s) : LabelLayout.BuildItemLabel(s, PreviewContent);
 
     private double CodeSizeMm => s == null ? 0
-        : LabelUnits.ToMm(s.CodeModuleDots * LabelUnits.CodeSymbolModules(s.CodeType == LabelCodeType.QrCode), s.Dpi);
+        : s.CodeType == LabelCodeType.Code128
+            ? LabelUnits.ToMm(s.EffectiveBarcodeNarrowDots * LabelUnits.Code128Modules(LabelLayout.SampleCode), s.Dpi)
+            : LabelUnits.ToMm(s.CodeModuleDots * LabelUnits.CodeSymbolModules(s.CodeType == LabelCodeType.QrCode), s.Dpi);
+
+    // Kod tipi değişince kod ve rakam konumları o tipe uygun varsayılana gelir (2D kod küçük kare, barkod geniş)
+    private void ChangeCodeType(LabelCodeType type)
+    {
+        if (s == null || s.CodeType == type) return;
+        var wasBarcode = s.CodeType == LabelCodeType.Code128;
+        var isBarcode = type == LabelCodeType.Code128;
+        if (wasBarcode == isBarcode)
+        {
+            s.CodeType = type;  // DataMatrix ↔ QR: yerleşim aynı kalır
+            return;
+        }
+        s.ApplyCodeLayoutDefaults(type);
+        Snackbar.Add("Kod ve rakam konumları seçilen kod tipine göre ayarlandı (henüz kaydedilmedi).", Severity.Info);
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -187,8 +226,18 @@
     {
         printers = Labels.GetAvailablePrinters();
         if (s != null && string.IsNullOrEmpty(s.PrinterName))
-            s.PrinterName = printers.FirstOrDefault(p => p.Contains("TSC", StringComparison.OrdinalIgnoreCase) || p.Contains("TE2", StringComparison.OrdinalIgnoreCase));
+        {
+            s.PrinterName = printers.FirstOrDefault(p => p.Contains("TSC", StringComparison.OrdinalIgnoreCase) || p.Contains("TE2", StringComparison.OrdinalIgnoreCase))
+                ?? printers.FirstOrDefault(IsZebraName);
+            // Yazıcı ilk kez seçiliyorsa ve Zebra ise dili de ZPL yap (kaydetmeden önce görünür)
+            if (s.PrinterName != null && IsZebraName(s.PrinterName))
+                s.Language = LabelPrinterLanguage.Zpl;
+        }
     }
+
+    // Zebra sürücüleri "ZDesigner GK420t", "Zebra ZD220" gibi adlarla kurulur
+    private static bool IsZebraName(string name) =>
+        name.Contains("Zebra", StringComparison.OrdinalIgnoreCase) || name.Contains("ZDesigner", StringComparison.OrdinalIgnoreCase);
 
     private async Task Save()
     {
@@ -233,6 +282,7 @@
             Connection = s!.Connection, PrinterName = s.PrinterName, NetworkHost = s.NetworkHost, NetworkPort = s.NetworkPort,
             Language = s.Language, Dpi = s.Dpi
         };
+        d.ApplyCodeLayoutDefaults(s.CodeType);  // seçili kod tipi korunur, konumlar o tipin varsayılanı
         s = d;
         Snackbar.Add("Varsayılan yerleşim yüklendi (henüz kaydedilmedi).", Severity.Info);
     }

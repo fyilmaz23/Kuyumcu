@@ -161,7 +161,7 @@ koda gömülü değil, Ayarlar'dan değişir.
 - `Stock/`: `ProductCode` (kod üretimi/denetimi), `WeightFormat` (gram/milyem okuma-yazma), `StockCalculator`
   (toplam, has, fiyat önerisi, sayım karşılaştırması). Hepsi saf; birim testli.
 - `Labels/`: dilden bağımsız `LabelDocument` (nokta cinsinden öğeler) ← `LabelLayout` (ürün / test / hizalama
-  etiketi) → `ILabelLanguage` (`TsplLanguage`; ZPL eklemek için yeni bir uygulama + `LabelPrinterLanguage` değeri).
+  etiketi) → `ILabelLanguage` (`TsplLanguage`, `ZplLanguage` — bölüm 15; yeni dil = yeni uygulama + `LabelPrinterLanguage` değeri).
 - Platform: `ILabelPrinter`. Desktop `WindowsLabelPrinter` (winspool.drv P/Invoke, "RAW"; GDI yok), (eski Mobile)
   `UnsupportedLabelPrinter`, Preview `FileLabelPrinter` (`.preview-data/labels/*.tspl`). Ağ (TCP 9100) Core'da.
 
@@ -373,6 +373,33 @@ otomatik erişim (+ dosya seçici yedek yol).
 - Emülatörde örnek verilerle denendi: Özet kartı, 5 sekmeli alt menü, ayar süzme, kod ve metin araması, ürün detayı,
   Satılan ve Kasa sekmeleri. **Gerçek dükkân yedeğiyle denenmedi.**
 
+### 15. ZPL (Zebra) dili ve çizgi barkod (26.11.2026)
+- `Labels/ZplLanguage.cs`: aynı `LabelDocument`'ı ZPL II'ye çevirir. Ayarlar > Etiket Yazıcısı > Komut dili: "ZPL (Zebra)".
+  - Başlık: `~SD` koyuluk (TSPL 0–15 → ZPL 0–30, ×2), `^CI28` (UTF-8, BOM'suz), `^PW`/`^LL` (nokta), `^LH0,0`, `^MNY`
+    (boşluklu etiket; ayarlardaki gap ZPL'de kullanılmaz, yazıcı sensörü algılar), `^PR` hız, `^PON`/`^POI`
+    (DIRECTION 1 = normal, 0 = ters), sonda `^PQ` kopya.
+  - Yazı: ölçeklenebilir font 0, TSPL font hücresi boyunda (`^A0N,{yükseklik},{genişlik}`). Bütün alanlar `^FH_` ile;
+    `^`, `~`, `_` karakterleri `_5E/_7E/_5F` olarak gider (yazı komutu bozamaz).
+  - DataMatrix `^BXN,{modül},200`, QR `^BQN,2,{modül}` + `LA,` (TSPL'deki L/A gibi), çerçeve/çizgi `^GB`.
+  - Önizlemedeki sahte yazıcı ZPL işini `.zpl` uzantısıyla yazar.
+  - Ayarlarda yazıcı adı ilk kez seçilirken "Zebra"/"ZDesigner" geçiyorsa dil kendiliğinden ZPL olur.
+- **Çizgi barkod (Code 128)**: Kod tipi'ne üçüncü seçenek (`LabelCodeType.Code128`, `LabelCode128` öğesi). Sadece 1D
+  (lazer) okuyucu kullanan dükkânlar için; 2D okuyucuda DataMatrix daha küçük ve sağlam. Kod içeriği aynı 12 hane
+  (ürün kodu kuralları değişmedi); okuyucu aynı rakamları gönderir. 12 rakam C alt kümesiyle 101 modül.
+  - TSPL: `BARCODE x,y,"128",yükseklik,0,0,ince,ince,"kod"` (alt küme otomatik; insan okunur satır kapalı).
+    ZPL: `^BY{ince}^BCN,{yükseklik},N,N,N` + `>;` (C alt kümesi). Rakamlar her iki dilde ayrı yazı olarak basılır.
+  - Yeni kolonlar `BarcodeNarrowDots` (en ince çizgi, 1–4 nokta, varsayılan 1) ve `BarcodeHeightMm` (varsayılan 4,5).
+    Eski satırlarda 0 gelir → `EffectiveBarcode*` varsayılanı kullanır.
+  - `LabelPrinterSettings.ApplyCodeLayoutDefaults(tip)`: 2D ↔ barkod geçişinde 1. kanattaki kod/rakam konumları o tipin
+    varsayılanına gelir (barkod: X 33,7 / Y 1 mm, rakamlar altında tek satır X 34 / Y 6,2 mm font 1). DataMatrix ↔ QR
+    geçişinde yerleşim değişmez. "Varsayılan yerleşim" seçili kod tipini korur.
+  - 72 × 10 mm etikette 1 noktalık barkod ≈ 12,6 mm (sessiz bölgelerle kanada ancak sığar); 2 nokta ≈ 25 mm, sığmaz.
+    Ayarlarda bu uyarı gösteriliyor.
+- Testler: `ZplAndBarcodeTests` (ZPL ürün/QR/hizalama çıktısı, kaçış, UTF-8, barkod modül sayısı ve kanada sığma,
+  TSPL/ZPL barkod komutu, eski satır varsayılanları). 103 test geçiyor.
+- Önizlemede denendi: kod tipi barkoda geçince konumlar ve önizleme güncellendi, ZPL seçilip test etiketi `.zpl`
+  dosyasına yazıldı. **Gerçek Zebra yazıcıda ve TSC'de barkodla basılmadı; 1D okuyucuyla okunması denenmedi.**
+
 ## Kullanıcıya sunulan öneriler (karar bekleyen sıra)
 1. ~~Lisans~~ (yapıldı, bölüm 5), ~~Obfuscar ile kod karıştırma~~ (bölüm 13). Kalan (istenirse): çevrimiçi aktivasyon,
    dağıtık lisans kontrolü.
@@ -414,6 +441,11 @@ otomatik erişim (+ dosya seçici yedek yol).
   çift okutma ve hatalı kod uyarıları denendi.
 - Eski Android `ImportData` → Vitrin Stoku sekmesi denenmedi; eski `Kuyumcu.Mobile` projesi bölüm 9 ile kaldırıldı.
   Yeni uygulamadaki stok görünümü bölüm 14'te.
+- **ZPL (bölüm 15) gerçek yazıcıda denenmedi.** Bakılacaklar: font 0'ın Türkçe harfleri (bozuksa "sadeleştir"),
+  QR'ın `^FO`'ya göre birkaç nokta aşağıda başlaması (Zebra'da bilinen davranış; Y kaydırmayla düzeltilir),
+  `~SD` koyuluğunun yazıcı ayarını değiştirmesi (yazıcı kapanınca eski değere döner), `^PO` yönünün doğru olup olmadığı.
+- Code 128 1 noktalık çizgiyle (203 dpi ≈ 0,125 mm) termal baskıda okunabilirlik sınırda; gerçek okuyucuyla denenmeli.
+  TSC'nin `"128"` otomatik alt küme seçiminin rakamlarda C kullandığı varsayıldı (genişlik hesabı buna göre).
 - Canlı fiyat sitesi HTML'i değişirse `ElazigAltinFiyatlariSource.Parse` boş döner (test örneği 24.11.2026 sayfasından).
 
 ## Sıradaki işler
@@ -430,8 +462,8 @@ otomatik erişim (+ dosya seçici yedek yol).
    (bkz. `docs/YAYIN.md` bölüm 1 ve 3).
 6. Eski `ccr-325b955a-m9osww` uzak dalı silinecek (bulut oturumu silemedi).
 7. Barkod: TE210 ve RH10 ile `docs/ETIKET_VE_OKUYUCU_TESTI.md` adımları; çıkan kanat ölçüleri varsayılan yerleşime
-   işlenebilir. Sonra ZPL dili (başka dükkânlar için), kasa ürünlerinin satışta veresiyeye bağlanması, kullanıcı (kim
-   sattı) alanının doldurulması düşünülebilir.
+   işlenebilir. ~~ZPL dili~~ ve ~~çizgi barkod~~ (bölüm 15; gerçek Zebra ile denenmeli). Kalan: kasa ürünlerinin
+   satışta veresiyeye bağlanması, kullanıcı (kim sattı) alanının doldurulması.
 8. ~~Fiş yazıcısındaki dükkâna özel metinler~~ (bölüm 10). İlk müşteri geçişte bunları Ayarlar'a girmeli (YAYIN.md 4).
 
 ## Geliştirme komutları

@@ -6,7 +6,7 @@ namespace Kuyumcu.Labels;
 
 /// <summary>
 /// Yazıcı komut dili. Etiket belgesini yazıcıya gönderilecek ham baytlara çevirir.
-/// Yeni bir dil (ör. ZPL) eklemek için bu arayüz uygulanıp <see cref="LabelLanguages.Get"/>'e eklenir.
+/// Yeni bir dil eklemek için bu arayüz uygulanıp <see cref="LabelLanguages.Get"/>'e eklenir.
 /// </summary>
 public interface ILabelLanguage
 {
@@ -20,6 +20,7 @@ public static class LabelLanguages
     public static ILabelLanguage Get(LabelPrinterLanguage language) => language switch
     {
         LabelPrinterLanguage.Tspl => new TsplLanguage(),
+        LabelPrinterLanguage.Zpl => new ZplLanguage(),
         _ => throw new NotSupportedException($"Yazıcı dili desteklenmiyor: {language}")
     };
 }
@@ -69,6 +70,10 @@ public sealed class TsplLanguage : ILabelLanguage
                     break;
                 case LabelQrCode q:
                     Line($"QRCODE {q.X},{q.Y},L,{q.ModuleDots},A,0,\"{Escape(q.Content)}\"");
+                    break;
+                case LabelCode128 c:
+                    // "128": alt küme otomatik (rakamlar C ile); insan okunur satır kapalı (0), dönüş 0, ince = kalın çizgi
+                    Line($"BARCODE {c.X},{c.Y},\"128\",{c.HeightDots},0,0,{c.NarrowDots},{c.NarrowDots},\"{Escape(c.Content)}\"");
                     break;
                 case LabelBox b:
                     Line($"BOX {b.X},{b.Y},{b.X2},{b.Y2},{b.Thickness}");

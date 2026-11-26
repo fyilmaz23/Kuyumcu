@@ -59,7 +59,7 @@ public sealed class NoLegacyData : ILegacyDataLocator
 
 /// <summary>
 /// Önizlemede gerçek yazıcı yok: etiket komutları .preview-data/labels altına dosya olarak yazılır
-/// (TSPL çıktısını incelemek için). Yazıcı listesinde tek sahte yazıcı görünür.
+/// (.tspl / .zpl çıktısını incelemek için). Yazıcı listesinde tek sahte yazıcı görünür.
 /// </summary>
 public sealed class FileLabelPrinter : ILabelPrinter
 {
@@ -78,6 +78,8 @@ public sealed class FileLabelPrinter : ILabelPrinter
     {
         Directory.CreateDirectory(_directory);
         var safe = string.Concat(documentName.Select(c => char.IsLetterOrDigit(c) ? c : '_'));
-        await File.WriteAllBytesAsync(Path.Combine(_directory, $"{DateTime.Now:yyyyMMdd_HHmmss_fff}_{safe}.tspl"), data);
+        // ZPL işi "^XA" içerir (başta ~SD olabilir); diğerleri TSPL
+        var ext = System.Text.Encoding.ASCII.GetString(data, 0, Math.Min(data.Length, 32)).Contains("^XA") ? "zpl" : "tspl";
+        await File.WriteAllBytesAsync(Path.Combine(_directory, $"{DateTime.Now:yyyyMMdd_HHmmss_fff}_{safe}.{ext}"), data);
     }
 }
