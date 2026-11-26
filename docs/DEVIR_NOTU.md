@@ -494,7 +494,8 @@ Kullanıcı kararı: borç cinsi her satışta seçilsin. "Kim sattı" alanı ya
 5. Mağaza hazırlığı: ~~gizlilik politikası~~ (GitHub'daki `docs/GIZLILIK.md`), ~~Play kaydı~~. Kalan: GitHub
    Secrets/Variables (`ANDROID_*`, `GOOGLE_DESKTOP_*`, `STORE_*`), Microsoft Store (Partner Center) kaydı ve ilk MSIX
    (bkz. `docs/YAYIN.md` bölüm 1 ve 3).
-6. Eski `ccr-325b955a-m9osww` uzak dalı silinecek (bulut oturumu silemedi).
+6. ~~Eski `ccr-325b955a-m9osww` uzak dalı~~ (26.11.2026 silindi; içeriği `kuyumcudefteri`'deydi).
+   Lisans: çevrimiçi aktivasyon / dağıtık kontrol şimdilik yapılmayacak (kullanıcı kararı, 26.11.2026).
 7. Barkod: TE210 ve RH10 ile `docs/ETIKET_VE_OKUYUCU_TESTI.md` adımları; çıkan kanat ölçüleri varsayılan yerleşime
    işlenebilir. ~~ZPL dili~~ ve ~~çizgi barkod~~ (bölüm 15; gerçek Zebra ile denenmeli), ~~kasa satışını veresiyeye
    bağlama~~ ve iadesi (bölüm 16). "Kim sattı" alanı yapılmayacak (tek kullanıcı).
