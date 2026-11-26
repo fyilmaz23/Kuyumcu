@@ -261,6 +261,9 @@ otomatik erişim (+ dosya seçici yedek yol).
   (`Services/PriceShareService.cs`, Fiyatlar sayfasıyla ortak). Fiyatlar ekranında **Yazı konumu** (Yukarı/Aşağı, %3
   adım, %5–80, `Preferences` "fiyat_yazi_konumu"): ilk satırın üstten oranı, Core `CreateGoldPriceImageAsync(textTop)`.
   `FirstRowY` listeyi resmin dışına taşırmaz; varsayılan %25 olduğundan masaüstü çıktısı değişmedi (testli).
+- **Play kapalı test 102 (2.1.0), 26.11.2026:** yukarıdaki iki özellik + Google girişi hata mesajı. Etiketsiz
+  `release.yml` workflow_dispatch (version=2.1.0, çalıştırma #2 → sürüm kodu 102; GitHub Release/Store yok). 47 MB AAB'yi
+  kullanıcı elle yükledi; gizlilik URL değişikliğiyle birlikte **Google incelemesinde**.
 - **Drive bağlantısı (25.11.2026):** Cloud projesi **KuyumcuApp** (`kuyumcuapp-454423`, masaüstü istemcileriyle aynı;
   izin ekranı zaten "Üretim"de). Android istemcisi "Kuyumcu Defteri Android (gelistirme)": paket
   `com.kuyumcudefteri.app` + bu bilgisayarın debug SHA-1'i `1F:56:18:8F:5B:43:0A:7F:ED:DE:8E:0D:B0:43:86:C6:1C:D5:BF:03`.
