@@ -385,13 +385,20 @@ otomatik erişim (+ dosya seçici yedek yol).
 - `build/pack-msix.ps1` yerelde denendi (bölüm 11); CI'da ve gerçek Store kimliğiyle henüz denenmedi (ilk etikette görülecek).
 - Store sürümünde uygulama kaldırılırsa yerel veritabanı silinir (bölüm 11); veri Belgeler'deki yedeklerden ve Drive'dan
   kurulum ekranında geri yüklenir.
-- Hedef çerçeve değişti (`net10.0-windows10.0.19041.0`): CI'da Linux üzerinde Desktop derlemesi ilk push'ta kontrol edilmeli.
+- Hedef çerçeve değişti (`net10.0-windows10.0.19041.0`): CI'da Linux üzerinde Desktop derlemesi geçti (26.11.2026).
+- **CI birim testleri 25.11.2026'dan beri Linux'ta düşüyordu** (derlemeler geçiyordu). Nedenleri (26.11 düzeltildi):
+  test projesinde SkiaSharp'ın Linux yerel kütüphanesi yoktu (`SkiaSharp.NativeAssets.Linux.NoDependencies` eklendi;
+  fiyat görseli testleri) ve yedek temizliği dosya oluşturma zamanına bakıyordu (artık dosya adındaki tarih).
+  CI günlükleri oturum açmadan okunamadığı için neden çıkarımla bulundu; düzeltmenin CI'da geçtiği bir sonraki push'ta görülecek.
 - Özel lisans anahtarının yedeği kullanıcıda olmalı (kaybolursa yeni lisans üretilemez).
 - Süreli lisansta bilgisayar saati bir kez ileri (ör. 2030) ayarlanırsa "son kontrol" o tarihte kalır ve lisans bitmiş
   sayılabilir; müşteriye yeni anahtar vermek gerekir (bilinçli ödünleşim: saat geri alınarak uzatmayı engeller).
 - Yerel yedek `Environment.SpecialFolder.MyDocuments` altına gider; Belgeler OneDrive'a yönlendirilmişse
-  `OneDrive\Belgeler\Kuyumcu Defteri Yedekleri` olur. Her açılıştan 1 dk sonra yedek alınır (günde birkaç açılışta
-  birkaç dosya oluşur; 30 gün saklama). İstenirse "o gün yedek varsa atla" yapılabilir.
+  `OneDrive\Belgeler\Kuyumcu Defteri Yedekleri` olur. Otomatik yedek **günde bir** alınır (26.11.2026): açılıştan 1 dk
+  sonra ve açık kaldıkça 24 saatte bir denenir, o güne ait yedek (otomatik ya da elle) varsa atlanır
+  (`BackupService.BackupIfDueAsync`). "Şimdi Yedekle" ve geri yükleme öncesi güvenlik yedeği her zaman alınır.
+  Ödünleşim: sabah yedek alındıktan sonra gün içinde girilen kayıtlar yerel yedeğe ertesi gün girer (eskiden gün içinde
+  yeniden açılışta da yedek alınıyordu); Drive yedeği bundan etkilenmez (2 saatte bir ve kapanışta, değişiklik varsa yüklenir). 30 gün saklama.
 - Yeni işlemde varsayılan cins artık **son kullanılan cins** (eskiden TL). Kullanıcı istemezse geri alınacak.
 - Tutar girişinde Türkçe biçim: "12.5" → 125 okunur (nokta binlik). Eski sürümde de böyleydi.
   (Gram girişinde ise nokta ondalıktır: "12.5" → 12,5 gr; gramda binlik ayıracı kullanılmaz.)

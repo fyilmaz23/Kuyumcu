@@ -4,7 +4,7 @@ using Microsoft.Extensions.Logging;
 namespace Kuyumcu.Services
 {
     /// <summary>
-    /// Bilgisayar üzerinde günlük otomatik yerel yedek alır (internet gerektirmez).
+    /// Bilgisayar üzerinde günlük otomatik yerel yedek alır (internet gerektirmez; günde en fazla bir otomatik yedek).
     /// Yedekler <see cref="IAppEnvironment.BackupDirectory"/> klasörüne yazılır — son <see cref="DaysToKeep"/> gün saklanır.
     /// </summary>
     public class BackupService : IDisposable
@@ -31,13 +31,38 @@ namespace Kuyumcu.Services
         public string BackupDirectory => _backupDirectory;
 
         /// <summary>
-        /// Servisi başlatır: açılışta bir yedek alır, ardından her 24 saatte bir tekrarlar.
+        /// Servisi başlatır: açılıştan 1 dk sonra ve ardından her 24 saatte bir otomatik yedek dener
+        /// (<see cref="BackupIfDueAsync"/>: o gün yedek alınmışsa atlanır).
         /// </summary>
         public void Start()
         {
             Directory.CreateDirectory(_backupDirectory);
-            _backupTimer = new Timer(_ => _ = BackupNowAsync(), null, TimeSpan.FromMinutes(1), Interval);
+            _backupTimer = new Timer(_ => _ = BackupIfDueAsync(), null, TimeSpan.FromMinutes(1), Interval);
             _logger?.LogInformation("Yerel yedekleme servisi başlatıldı: {Dir}", _backupDirectory);
+        }
+
+        /// <summary>
+        /// Otomatik yedek: bugün alınmış bir yedek (otomatik ya da elle) varsa atlanır, yoksa <see cref="BackupNowAsync"/>.
+        /// Uygulama günde birkaç kez açılınca Belgeler'de aynı güne ait çok sayıda dosya birikmesin diye.
+        /// "Şimdi Yedekle" ve geri yükleme öncesi güvenlik yedeği bunu kullanmaz, her zaman yedek alır.
+        /// </summary>
+        public async Task<string?> BackupIfDueAsync()
+        {
+            try
+            {
+                var today = DateTime.Today;
+                if (GetBackupsList().Any(f => GetBackupTime(f).Date == today))
+                {
+                    _logger?.LogInformation("Bugün yedek zaten alınmış, otomatik yerel yedek atlandı");
+                    return null;
+                }
+            }
+            catch (Exception ex)
+            {
+                // Klasör okunamadıysa yedeği atlamak yerine almayı dene
+                _logger?.LogWarning(ex, "Mevcut yedekler okunamadı");
+            }
+            return await BackupNowAsync();
         }
 
         public void Stop()
@@ -122,7 +147,9 @@ namespace Kuyumcu.Services
                     .Skip(MinimumToKeep);
                 foreach (var file in candidates)
                 {
-                    if (File.GetCreationTime(file) < cutoff)
+                    // Yaş dosya adındaki tarihten: oluşturma zamanı kopyalanınca/OneDrive eşitleyince değişir
+                    // (Linux'ta da güvenilir değil)
+                    if (GetBackupTime(file) < cutoff)
                         File.Delete(file);
                 }
             }

@@ -17,6 +17,7 @@
     <PackageVersion Include="Xamarin.AndroidX.Lifecycle.Process" Version="2.11.0.1" />
     <PackageVersion Include="MudBlazor" Version="8.15.0" />
     <PackageVersion Include="SkiaSharp" Version="3.119.4" />
+    <PackageVersion Include="SkiaSharp.NativeAssets.Linux.NoDependencies" Version="3.119.4" />
     <PackageVersion Include="sqlite-net-pcl" Version="1.9.172" />
     <PackageVersion Include="SQLitePCLRaw.bundle_e_sqlite3" Version="2.1.14" />
     <PackageVersion Include="System.Security.Cryptography.ProtectedData" Version="10.0.15" />

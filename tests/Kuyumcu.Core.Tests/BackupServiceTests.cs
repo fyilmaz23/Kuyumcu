@@ -70,6 +70,32 @@ public sealed class BackupServiceTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Otomatik_yedek_ayni_gun_ikinci_kez_alinmaz_elle_yedek_alinir()
+    {
+        await _db.SaveSettingsAsync(new AppSettings { BusinessName = "X", IsSetupCompleted = true });
+
+        Assert.NotNull(await _backup.BackupIfDueAsync()); // günün ilk açılışı
+        Assert.Null(await _backup.BackupIfDueAsync());    // aynı gün yeniden açılış
+        Assert.Single(_backup.GetBackupsList());
+
+        await Task.Delay(1100); // dosya adı saniye içerir
+        Assert.NotNull(await _backup.BackupNowAsync()); // "Şimdi Yedekle" her zaman alır
+        Assert.Equal(2, _backup.GetBackupsList().Count);
+    }
+
+    [Fact]
+    public async Task Otomatik_yedek_onceki_gunun_yedegi_varsa_alinir()
+    {
+        await _db.SaveSettingsAsync(new AppSettings { BusinessName = "X", IsSetupCompleted = true });
+        Directory.CreateDirectory(_env.BackupDirectory);
+        var yesterday = DateTime.Today.AddDays(-1).AddHours(23).AddMinutes(59);
+        await File.WriteAllTextAsync(Path.Combine(_env.BackupDirectory, $"kuyumcu_backup_{yesterday:yyyyMMdd_HHmmss}.db3"), "dün");
+
+        Assert.NotNull(await _backup.BackupIfDueAsync());
+        Assert.Equal(2, _backup.GetBackupsList().Count);
+    }
+
+    [Fact]
     public async Task Gecersiz_dosyanin_ozeti_null()
     {
         var path = Path.Combine(_env.AppDataDirectory, "bozuk.db3");
