@@ -1,6 +1,6 @@
 # Kuyumcu Defteri – Gizlilik Politikası
 
-<!-- Bu dosya Google Play'deki gizlilik politikası adresidir (docs/YAYIN.md 2.3); yolunu/dalını değiştirmeyin. -->
+<!-- Yayındaki kopya: https://fyilmaz23.github.io/kuyumcudefteri/gizlilik/ (fyilmaz23/kuyumcudefteri deposu). Bu dosyayı değiştirince oradaki gizlilik/index.md'yi de güncelleyin (docs/YAYIN.md 2.3). -->
 
 Son güncelleme: 25.11.2026
 
