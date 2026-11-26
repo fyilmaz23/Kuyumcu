@@ -106,7 +106,7 @@ paket adı + imza sertifikasının SHA-1'i ile eşler.
 
    | Ne için | SHA-1 nereden |
    |---|---|
-   | Play'den kurulan sürümler (kapalı test, üretim) | Play Console → Uygulama bütünlüğü → **Uygulama imzalama anahtarı** SHA-1 |
+   | Play'den kurulan sürümler (kapalı test, üretim) | Play Console → Google Play ile korunanlar → **Uygulama imzalama** → "Tüm sertifika parmak izlerini kopyala → SHA-1". Anahtar yükseltildiyse (ör. "Kuantum uyumlu") **klasik, kuantum sonrası ve önceki anahtarların HER BİRİ** için ayrı istemci gerekir: cihaz Android sürümüne göre farklı sertifikayla görünür. |
    | CI'ın imzaladığı AAB'yi doğrudan kurmak (isteğe bağlı) | `keytool -list -v -keystore upload.keystore -alias upload` |
    | Geliştirme (Visual Studio / `dotnet build`) | `keytool -list -v -keystore "%LOCALAPPDATA%\Xamarin\Mono for Android\debug.keystore" -alias androiddebugkey -storepass android -keypass android` |
 

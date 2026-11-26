@@ -277,6 +277,13 @@ otomatik erişim (+ dosya seçici yedek yol).
     `BENIOKU-sifre.txt`'de; **yedeklenmeli**). Yükleme SHA-1 `0C:88:9A:88:D0:2B:BE:5A:3F:1D:DD:F8:45:18:66:A8:6C:22:F8:9B`.
   - Play uygulama imzalama (klasik) SHA-1 `2E:3A:A6:C7:1F:DA:B7:FB:AF:2E:9F:2C:C6:88:AC:9D:30:C0:AA:48` → Cloud'da
     "Kuyumcu Defteri Android (Google Play)" istemcisi açıldı (Play'den kurulan sürüm Drive'a bağlanabilsin).
+  - **26.11.2026:** Test kullanıcıları hesap seçtikten sonra bağlanamıyordu. Play'de imzalama anahtarı "Kuantum uyumlu
+    (Beta)" anahtara yükseltilmiş; 3 SHA-1 var: klasik `2E:3A…AA:48`, kuantum sonrası
+    `CD:2E:B2:5F:9B:5E:9A:66:1B:1E:B1:91:D8:62:CA:F2:84:BD:98:0E`, önceki anahtar
+    `98:70:15:84:0D:E2:C9:FF:E3:07:04:A0:0F:09:39:5C:18:DC:5D:A5`. Son ikisi için Cloud'da "(Google Play - kuantum
+    sonrasi)" ve "(Google Play - onceki anahtar)" istemcileri açıldı. Ayrıca `GoogleDriveAuthorizer.HandleActivityResult`
+    `RESULT_CANCELED` gelen hatayı (DEVELOPER_ERROR 10) "iptal" sayıp yutuyordu; artık intent'teki durum okunuyor ve
+    hata mesajı gösteriliyor (bu düzeltme bir sonraki AAB'de çıkacak).
   - AAB bu bilgisayarda derlendi (sürüm kodu 100). CI `100 + çalıştırma no` kullanır, yani sonraki CI sürümleri büyük
     olur. GitHub Secrets (`ANDROID_*`) henüz girilmedi.
   - 47 MB AAB, Chrome eklentisinin 10 MB dosya sınırını aştığı için Play'e kullanıcı elle yükledi.

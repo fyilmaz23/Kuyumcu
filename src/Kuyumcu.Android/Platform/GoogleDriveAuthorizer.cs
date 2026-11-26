@@ -135,18 +135,29 @@ public sealed class GoogleDriveAuthorizer : IGoogleDriveAuthorizer
         if (consent == null)
             return;
 
-        if (resultCode != Result.Ok || data == null)
+        if (data == null)
         {
             consent.TrySetCanceled();
             return;
         }
 
+        // Google, hesap seçildikten sonraki hataları da (ör. SHA-1 eşleşmeyince DEVELOPER_ERROR = 10) RESULT_CANCELED ile
+        // döndürür; gerçek durum intent'in içindedir. resultCode'a bakıp "iptal" saymak bu hatayı sessizce yutuyordu.
         try
         {
-            consent.TrySetResult(Identity.GetAuthorizationClient(activity).GetAuthorizationResultFromIntent(data));
+            var result = Identity.GetAuthorizationClient(activity).GetAuthorizationResultFromIntent(data);
+            if (resultCode != Result.Ok && string.IsNullOrEmpty(result.AccessToken))
+                consent.TrySetCanceled();
+            else
+                consent.TrySetResult(result);
+        }
+        catch (ApiException ex) when (ex.StatusCode is 16 or 12501)
+        {
+            consent.TrySetCanceled(); // kullanıcı gerçekten vazgeçti
         }
         catch (ApiException ex)
         {
+            Android.Util.Log.Warn("KuyumcuDefteri", $"Google yetkilendirme hatası (kod {ex.StatusCode}): {ex.Message}");
             consent.TrySetException(new GoogleAuthorizationFailedException(Describe(ex), ex));
         }
         catch (Exception ex)
