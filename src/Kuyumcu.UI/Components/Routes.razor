@@ -30,8 +30,18 @@ else
             return;
         }
 
-        <RouteView RouteData="@routeData" DefaultLayout="@typeof(Layout.MainLayout)" />
-        <FocusOnNavigate RouteData="@routeData" Selector="h1" />
+        @if (!AppState.HasBarcodeModule && BarcodeModuleLocked.IsBarcodePage(routeData.PageType))
+        {
+            @* Barkod modülü olmayan lisansta stok sayfalarının yerine tanıtım/iletişim ekranı (menü ve kısayollar aynı kalır) *@
+            <LayoutView Layout="@typeof(Layout.MainLayout)">
+                <BarcodeModuleLocked />
+            </LayoutView>
+        }
+        else
+        {
+            <RouteView RouteData="@routeData" DefaultLayout="@typeof(Layout.MainLayout)" />
+            <FocusOnNavigate RouteData="@routeData" Selector="h1" />
+        }
     </Found>
     <NotFound>
         <LayoutView Layout="@typeof(Layout.MainLayout)">
@@ -54,13 +64,13 @@ else
         try
         {
             AppState.IsSetupCompleted = await DatabaseService.IsSetupCompletedAsync();
-            var status = await LicenseService.GetLicenseStatusAsync();
-            AppState.IsLicenseExpired = status == Models.LicenseStatus.Expired;
+            AppState.ApplyLicense(await LicenseService.GetLicenseStateAsync());
         }
         catch (Exception ex)
         {
             Console.WriteLine($"Routes başlangıç kontrolü hata: {ex.Message}");
             AppState.IsLicenseExpired = false; // Hata durumunda engelleme
+            AppState.HasBarcodeModule = false; // ek ücretli modül: hata durumunda kapalı
         }
         finally
         {

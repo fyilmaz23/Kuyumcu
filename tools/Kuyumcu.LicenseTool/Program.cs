@@ -1,10 +1,11 @@
 using System.Globalization;
 using Kuyumcu.Licensing;
+using Kuyumcu.Models;
 
 // Kuyumcu Defteri lisans aracı (sadece geliştirici bilgisayarında).
 //
 //   dotnet run --project tools/Kuyumcu.LicenseTool -- anahtar-olustur
-//   dotnet run --project tools/Kuyumcu.LicenseTool -- uret 079FDBAA48F568BF [--gun 365 | --bitis 31.12.2027] [--not "Çarşı Kuyumculuk"]
+//   dotnet run --project tools/Kuyumcu.LicenseTool -- uret 079FDBAA48F568BF [--gun 365 | --bitis 31.12.2027] [--barkod] [--not "Çarşı Kuyumculuk"]
 //   dotnet run --project tools/Kuyumcu.LicenseTool -- coz KD1-XXXXX-...
 //   dotnet run --project tools/Kuyumcu.LicenseTool -- acik-anahtar
 
@@ -38,6 +39,7 @@ int Usage()
           uret <cihaz-kimligi> [seçenek]  Lisans anahtarı üretir.
               --gun <N>                   N gün geçerli (varsayılan: süresiz)
               --bitis <GG.AA.YYYY>        Bu tarih dahil geçerli
+              --barkod                    Barkod modülünü de açar (ek ücretli)
               --not "<metin>"             Kayıt dosyasına yazılacak not (ör. iş yeri adı)
           coz <anahtar>                   Anahtarın içeriğini gösterir ve imzasını doğrular.
           acik-anahtar                    LicensePublicKey.cs'e yazılacak açık anahtarı gösterir.
@@ -84,9 +86,10 @@ int Issue(string[] options)
     if (Option("--bitis") is { } until)
         expires = DateOnly.ParseExact(until, "dd.MM.yyyy", tr);
     var note = Option("--not") ?? string.Empty;
+    var features = HasFlag("--barkod") ? LicenseFeatures.Barcode : LicenseFeatures.None;
 
     using var key = LicenseSigningKey.Load();
-    var payload = new LicensePayload(LicenseCodec.NormalizeDeviceId(deviceId), today, expires);
+    var payload = new LicensePayload(LicenseCodec.NormalizeDeviceId(deviceId), today, expires, features);
     var license = LicenseCodec.Issue(payload, key);
 
     // Kendi kendini doğrula: hem bu özel anahtarın açık karşılığıyla hem uygulamadaki açık anahtarla
@@ -96,12 +99,12 @@ int Issue(string[] options)
     var matchesApp = LicenseSigningKey.ExportPublicKey(key) == LicensePublicKey.Base64;
 
     var logPath = Path.Combine(Path.GetDirectoryName(LicenseSigningKey.DefaultPath)!, "lisans-kayitlari.csv");
-    if (!File.Exists(logPath))
-        File.WriteAllText(logPath, "tarih;cihaz;bitis;not;anahtar" + Environment.NewLine);
-    File.AppendAllText(logPath, $"{DateTime.Now:dd.MM.yyyy HH:mm};{payload.DeviceId};{expires?.ToString("dd.MM.yyyy") ?? "süresiz"};{note.Replace(';', ',')};{license}{Environment.NewLine}");
+    PrepareLog(logPath);
+    File.AppendAllText(logPath, $"{DateTime.Now:dd.MM.yyyy HH:mm};{payload.DeviceId};{expires?.ToString("dd.MM.yyyy") ?? "süresiz"};{note.Replace(';', ',')};{license};{DescribeFeatures(features)}{Environment.NewLine}");
 
     Console.WriteLine($"Cihaz   : {payload.DeviceId}");
     Console.WriteLine($"Geçerli : {(expires is { } e ? e.ToString("dd.MM.yyyy") + " dahil" : "süresiz")}");
+    Console.WriteLine($"Modüller: {DescribeFeatures(features)}");
     if (note.Length > 0) Console.WriteLine($"Not     : {note}");
     Console.WriteLine();
     Console.WriteLine(license);
@@ -116,7 +119,30 @@ int Issue(string[] options)
         var index = Array.FindIndex(options, o => string.Equals(o, name, StringComparison.OrdinalIgnoreCase));
         return index >= 0 && index + 1 < options.Length ? options[index + 1] : null;
     }
+
+    bool HasFlag(string name) => options.Any(o => string.Equals(o, name, StringComparison.OrdinalIgnoreCase));
 }
+
+// Kayıt dosyası yoksa oluşturur; "moduller" sütunu eklenmeden önceki dosyanın başlığını günceller.
+void PrepareLog(string logPath)
+{
+    const string header = "tarih;cihaz;bitis;not;anahtar;moduller";
+    if (!File.Exists(logPath))
+    {
+        File.WriteAllText(logPath, header + Environment.NewLine);
+        return;
+    }
+
+    var lines = File.ReadAllLines(logPath);
+    if (lines.Length > 0 && lines[0] != header && lines[0].StartsWith("tarih;", StringComparison.Ordinal) && !lines[0].Contains("moduller"))
+    {
+        lines[0] = header;
+        File.WriteAllLines(logPath, lines);
+    }
+}
+
+string DescribeFeatures(LicenseFeatures features) =>
+    features.HasFlag(LicenseFeatures.Barcode) ? "barkod" : "temel";
 
 int Inspect(string license)
 {
@@ -127,6 +153,7 @@ int Inspect(string license)
         Console.WriteLine($"Cihaz   : {p.DeviceId}");
         Console.WriteLine($"Veriliş : {p.IssuedOn:dd.MM.yyyy}");
         Console.WriteLine($"Geçerli : {(p.ExpiresOn is { } e ? e.ToString("dd.MM.yyyy") + " dahil" : "süresiz")}");
+        Console.WriteLine($"Modüller: {DescribeFeatures(p.Features)}");
     }
     return result.IsValid ? 0 : 1;
 }

@@ -243,8 +243,15 @@
 
         @* ---- Barkodlu vitrin stoğu: bu bölümlerin kendi kaydet düğmeleri var ---- *@
         <div class="kd-settings-wide">
-            <LabelPrinterSettingsSection />
-            <StockDefinitionsSection />
+            @if (licenseState?.HasBarcodeModule == true)
+            {
+                <LabelPrinterSettingsSection />
+                <StockDefinitionsSection />
+            }
+            else
+            {
+                <BarcodeModuleLocked Compact="true" />
+            }
         </div>
     }
 </div>
@@ -306,7 +313,7 @@
         try
         {
             licenseState = await LicenseService.GetLicenseStateAsync();
-            AppState.IsLicenseExpired = licenseState.Status == LicenseStatus.Expired;
+            AppState.ApplyLicense(licenseState);
         }
         catch (Exception ex)
         {

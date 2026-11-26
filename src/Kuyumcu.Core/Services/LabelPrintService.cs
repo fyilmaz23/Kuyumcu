@@ -21,12 +21,14 @@ public class LabelPrintService
 {
     private readonly StockService _stock;
     private readonly ILabelPrinter _printer;
+    private readonly LicenseService _license;
     private readonly ILogger<LabelPrintService>? _logger;
 
-    public LabelPrintService(StockService stock, ILabelPrinter printer, ILogger<LabelPrintService>? logger = null)
+    public LabelPrintService(StockService stock, ILabelPrinter printer, LicenseService license, ILogger<LabelPrintService>? logger = null)
     {
         _stock = stock;
         _printer = printer;
+        _license = license;
         _logger = logger;
     }
 
@@ -76,6 +78,9 @@ public class LabelPrintService
     /// <summary>Belgeyi ayarlardaki yazıcıya gönderir.</summary>
     public async Task<LabelPrintResult> SendAsync(LabelPrinterSettings settings, LabelDocument document, string jobName)
     {
+        if (!await _license.HasBarcodeModuleAsync())
+            return LabelPrintResult.Fail("Etiket basmak için barkod modülü gerekli (Ayarlar → Lisans).");
+
         if (!settings.IsConfigured)
             return LabelPrintResult.Fail("Etiket yazıcısı ayarlanmamış (Ayarlar → Etiket Yazıcısı).");
 

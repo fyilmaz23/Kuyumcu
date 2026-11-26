@@ -1,0 +1,102 @@
+@* Barkod modülü (ek ücretli) lisansta yokken stok sayfalarının ve Ayarlar'daki etiket/stok bölümlerinin yerine
+   gösterilen tanıtım + iletişim. Satış dili yok: "detaylar için yazın". Yönlendirme: Routes.razor. *@
+@inject Services.LicenseService LicenseService
+
+@if (Compact)
+{
+    <section class="kd-card" id="etiket-yazicisi">
+        <div class="kd-card-header">
+            <div class="kd-card-title"><MudIcon Icon="@Icons.Material.Outlined.Lock" /> Barkod Modülü</div>
+        </div>
+        <div class="kd-card-pad kd-module-compact">
+            <div>
+                <MudText Typo="Typo.body2">
+                    Etiket yazıcısı ve stok tanımları barkod modülüyle birlikte açılır. Bu lisansta barkod modülü yok.
+                </MudText>
+                <MudText Typo="Typo.body2" Class="kd-muted mt-1">@ContactText</MudText>
+            </div>
+            <div class="kd-module-compact-actions">
+                <MudButton Variant="Variant.Text" Color="Color.Primary" Href="/stock">Ne işe yarar?</MudButton>
+                @ContactButton
+            </div>
+        </div>
+    </section>
+}
+else
+{
+    <div class="kd-page">
+        <div class="kd-card kd-gate kd-module-gate">
+            <div class="kd-gate-head">
+                <div class="kd-gate-icon is-brand"><MudIcon Icon="@Icons.Material.Outlined.QrCodeScanner" /></div>
+                <div>
+                    <MudText Typo="Typo.h5" Class="kd-strong">Barkod modülü bu lisansta yok</MudText>
+                    <MudText Typo="Typo.body2" Class="kd-muted">
+                        Vitrindeki her ürünü barkodlu etiketle takip etmek için ek modül.
+                    </MudText>
+                </div>
+            </div>
+
+            <ul class="kd-module-features">
+                <li><MudIcon Icon="@Icons.Material.Outlined.LocalPrintshop" /><span><b>Barkodlu etiket</b> · ürün girişinde gramı yazıp Enter'a basınca etiket çıkar</span></li>
+                <li><MudIcon Icon="@Icons.Material.Outlined.QrCodeScanner" /><span><b>Okutarak satış</b> · etiketi okutun; isterseniz müşterinin hesabına veresiye yazılır</span></li>
+                <li><MudIcon Icon="@Icons.Material.Outlined.FactCheck" /><span><b>Vitrin sayımı</b> · vitrini okutun, eksik ve fazla ürünler listelenir</span></li>
+                <li><MudIcon Icon="@Icons.Material.Outlined.Savings" /><span><b>Kasa ve stok raporları</b> · çeyrek, yarım, gram altın gibi etiketsiz mallar da dahil</span></li>
+            </ul>
+
+            <div class="kd-module-hardware">
+                <MudIcon Icon="@Icons.Material.Outlined.Handyman" Size="Size.Small" />
+                <span>Etiket yazıcısı, barkod okuyucu ve kurulum desteği de sağlanır.</span>
+            </div>
+
+            <MudText Typo="Typo.body1" Class="mt-5">@ContactText</MudText>
+            <div class="mt-3">@ContactButton</div>
+
+            <MudText Typo="Typo.caption" Class="kd-muted d-block mt-5">
+                Modül açıldığında size yeni bir lisans anahtarı gönderilir; <MudLink Href="/settings" Typo="Typo.caption">Ayarlar → Lisans</MudLink>
+                bölümüne yapıştırmanız yeterli. Verileriniz etkilenmez.
+            </MudText>
+        </div>
+    </div>
+}
+
+@code {
+    /// <summary>Ayarlar sayfasındaki kısa hali (tam sayfa yerine bir kart).</summary>
+    [Parameter] public bool Compact { get; set; }
+
+    private string deviceId = string.Empty;
+
+    /// <summary>Barkod modülüne ait sayfa mı? (Pages/Stok klasöründeki tüm sayfalar.)</summary>
+    public static bool IsBarcodePage(Type pageType) =>
+        pageType.Namespace?.EndsWith(".Pages.Stok", StringComparison.Ordinal) == true;
+
+    private static string ContactText => SalesContact.HasWhatsApp
+        ? "Fiyat ve detaylar için WhatsApp'tan bize yazabilirsiniz."
+        : "Fiyat ve detaylar için yetkilinizle iletişime geçin.";
+
+    private RenderFragment ContactButton => __builder =>
+    {
+        if (SalesContact.HasWhatsApp)
+        {
+            <MudButton Variant="Variant.Filled" Class="kd-whatsapp-btn" StartIcon="@Icons.Custom.Brands.WhatsApp"
+                       Href="@SalesContact.BarcodeInquiryUrl(deviceId)" Target="_blank" Disabled="@string.IsNullOrEmpty(deviceId)">
+                WhatsApp'tan bilgi al
+            </MudButton>
+        }
+        else if (!Compact && !string.IsNullOrEmpty(deviceId))
+        {
+            <MudText Typo="Typo.body2" Class="kd-muted">Cihaz kimliğiniz: <b class="kd-license-device-id">@deviceId</b></MudText>
+        }
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            deviceId = await LicenseService.GetDeviceIdAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"BarcodeModuleLocked cihaz kimliği hata: {ex.Message}");
+        }
+    }
+}

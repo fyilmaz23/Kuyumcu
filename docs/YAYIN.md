@@ -204,10 +204,16 @@ iç adımların adları ile metinler okunamaz hale gelir. Bu, lisans kontrolün�
   ```powershell
   dotnet run --project tools/Kuyumcu.LicenseTool -- uret 079FDBAA48F568BF --not "Çarşı Kuyumculuk"            # süresiz
   dotnet run --project tools/Kuyumcu.LicenseTool -- uret 079FDBAA48F568BF --gun 365 --not "Çarşı Kuyumculuk"  # 1 yıl
+  dotnet run --project tools/Kuyumcu.LicenseTool -- uret 079FDBAA48F568BF --barkod --not "Çarşı Kuyumculuk"   # süresiz + barkod modülü
   dotnet run --project tools/Kuyumcu.LicenseTool -- coz KD1-XXXXX-...                                          # anahtarı incele
   ```
 
   Üretilen her anahtar `%USERPROFILE%\.kuyumcu-lisans\lisans-kayitlari.csv` dosyasına da yazılır.
+- **Barkod modülü (ek ücretli):** vitrin stoğu, okutarak satış, ürün girişi/etiket, sayım, kasa ve stok raporları ile
+  Ayarlar'daki etiket yazıcısı ve stok tanımları. Sadece `--barkod` ile üretilen lisansta açılır; deneme sürümünde
+  kapalıdır. Sonradan modül alan müşteriye `--barkod` ile yeni anahtar verilir, eskisinin yerine geçer.
+  Kilitli ekranlardaki "WhatsApp'tan bilgi al" düğmesi için numara `src/Kuyumcu.Core/Platform/SalesContact.cs`
+  içindeki `WhatsAppNumber` sabitine yazılır (ör. `905321234567`). **Boş bırakılırsa düğme görünmez.**
 - Lisans cihaza (Windows kurulumunun MachineGuid'ine) bağlıdır. Windows yeniden kurulursa veya bilgisayar değişirse
   müşteri yeni cihaz kimliğini iletir, yeni anahtar üretilir.
 

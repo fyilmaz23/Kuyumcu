@@ -101,18 +101,19 @@
 
 @code {
     // Menü sırası Alt+1..4 kısayollarını da belirler (app.js, .kd-topnav-item sırasına bakar)
-    private sealed record NavEntry(string Title, string Href, string Icon, NavLinkMatch Match, string Shortcut);
+    private sealed record NavEntry(string Title, string Href, string Icon, NavLinkMatch Match, string Shortcut, bool Barcode = false);
 
     private static readonly NavEntry[] MainNavItems =
     [
         new("Ana Sayfa", "/", Icons.Material.Outlined.SpaceDashboard, NavLinkMatch.All, "Alt+1"),
         new("Müşteriler", "/customers", Icons.Material.Outlined.People, NavLinkMatch.Prefix, "Alt+2"),
         new("İşlemler", "/transactions", Icons.Material.Outlined.ReceiptLong, NavLinkMatch.Prefix, "Alt+3"),
-        // Barkodlu vitrin stoğu (Kasa ve Stok Raporları, Vitrin Stoku sayfasının üst düğmelerinde)
-        new("Vitrin Stoku", "/stock", Icons.Material.Outlined.Inventory2, NavLinkMatch.All, "Alt+4"),
-        new("Okut / Satış", "/stock/scan", Icons.Material.Outlined.QrCodeScanner, NavLinkMatch.Prefix, "Alt+5"),
-        new("Ürün Girişi", "/stock/entry", Icons.Material.Outlined.AddBox, NavLinkMatch.Prefix, "Alt+6"),
-        new("Sayım", "/stock/count", Icons.Material.Outlined.FactCheck, NavLinkMatch.Prefix, "Alt+7"),
+        // Barkodlu vitrin stoğu (Kasa ve Stok Raporları, Vitrin Stoku sayfasının üst düğmelerinde).
+        // Ek ücretli modül: lisansta yoksa kilit işaretiyle görünür, sayfada tanıtım/iletişim ekranı açılır.
+        new("Vitrin Stoku", "/stock", Icons.Material.Outlined.Inventory2, NavLinkMatch.All, "Alt+4", Barcode: true),
+        new("Okut / Satış", "/stock/scan", Icons.Material.Outlined.QrCodeScanner, NavLinkMatch.Prefix, "Alt+5", Barcode: true),
+        new("Ürün Girişi", "/stock/entry", Icons.Material.Outlined.AddBox, NavLinkMatch.Prefix, "Alt+6", Barcode: true),
+        new("Sayım", "/stock/count", Icons.Material.Outlined.FactCheck, NavLinkMatch.Prefix, "Alt+7", Barcode: true),
     ];
 
     private static readonly NavEntry SettingsNavItem =
@@ -121,14 +122,25 @@
     private RenderFragment NavItem(NavEntry item) =>
         @<MudTooltip Placement="Placement.Bottom" Delay="150">
             <ChildContent>
-                <NavLink href="@item.Href" Match="@item.Match" class="kd-topnav-item" ActiveClass="active" aria-label="@item.Title">
+                <NavLink href="@item.Href" Match="@item.Match" class="@(IsLocked(item) ? "kd-topnav-item is-locked" : "kd-topnav-item")"
+                         ActiveClass="active" aria-label="@(IsLocked(item) ? item.Title + " (barkod modülü)" : item.Title)">
                     <MudIcon Icon="@item.Icon" />
+                    @if (IsLocked(item))
+                    {
+                        <span class="kd-topnav-lock" aria-hidden="true"><MudIcon Icon="@Icons.Material.Filled.Lock" /></span>
+                    }
                 </NavLink>
             </ChildContent>
             <TooltipContent>
                 @item.Title <span class="kd-kbd">@item.Shortcut</span>
+                @if (IsLocked(item))
+                {
+                    <div class="kd-topnav-lock-note">Barkod modülü gerekli</div>
+                }
             </TooltipContent>
         </MudTooltip>;
+
+    private bool IsLocked(NavEntry item) => item.Barcode && !AppState.HasBarcodeModule;
 
     private bool isDarkMode;
     private string businessName = ProductInfo.Name;

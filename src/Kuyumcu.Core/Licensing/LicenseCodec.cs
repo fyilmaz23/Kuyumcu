@@ -1,6 +1,7 @@
 using System.Buffers.Binary;
 using System.Security.Cryptography;
 using System.Text;
+using Kuyumcu.Models;
 
 namespace Kuyumcu.Licensing;
 
@@ -8,7 +9,9 @@ namespace Kuyumcu.Licensing;
 /// <param name="DeviceId">Lisansın bağlı olduğu cihaz kimliği (16 onaltılık karakter).</param>
 /// <param name="IssuedOn">Veriliş tarihi.</param>
 /// <param name="ExpiresOn">Son geçerlilik günü; null ise süresiz.</param>
-internal sealed record LicensePayload(string DeviceId, DateOnly IssuedOn, DateOnly? ExpiresOn);
+/// <param name="Features">Ek ücretli modüller (ör. barkodlu stok). Lisansın süresi modüller için de geçerlidir.</param>
+internal sealed record LicensePayload(string DeviceId, DateOnly IssuedOn, DateOnly? ExpiresOn,
+    LicenseFeatures Features = LicenseFeatures.None);
 
 internal enum LicenseKeyError
 {
@@ -47,7 +50,7 @@ internal sealed record LicenseCheckResult(LicenseKeyError Error, LicensePayload?
 /// anahtar üretmeye yetmez.
 ///
 /// Biçim: "KD1-" + Crockford Base32( yük[14] + imza[64] ), 5'li gruplar halinde.
-///   yük: sürüm(1) · cihaz(8) · veriliş günü(2) · bitiş günü(2, 0 = süresiz) · bayraklar(1)
+///   yük: sürüm(1) · cihaz(8) · veriliş günü(2) · bitiş günü(2, 0 = süresiz) · modüller(1, bkz. LicenseFeatures)
 ///   günler 2024-01-01'den itibaren sayılır.
 /// </summary>
 internal static class LicenseCodec
@@ -139,7 +142,7 @@ internal static class LicenseCodec
         Convert.FromHexString(NormalizeDeviceId(payload.DeviceId)).CopyTo(data, 1);
         BinaryPrimitives.WriteUInt16BigEndian(data.AsSpan(9), ToDays(payload.IssuedOn));
         BinaryPrimitives.WriteUInt16BigEndian(data.AsSpan(11), payload.ExpiresOn is { } expires ? ToDays(expires) : (ushort)0);
-        data[13] = 0; // bayraklar: ileride sürüm/özellik ayrımı için ayrıldı
+        data[13] = (byte)payload.Features; // ek ücretli modüller (0 = sadece temel uygulama)
         return data;
     }
 
@@ -151,7 +154,7 @@ internal static class LicenseCodec
         var deviceId = Convert.ToHexString(data, 1, 8);
         var issued = Epoch.AddDays(BinaryPrimitives.ReadUInt16BigEndian(data.AsSpan(9)));
         var expiresDays = BinaryPrimitives.ReadUInt16BigEndian(data.AsSpan(11));
-        return new LicensePayload(deviceId, issued, expiresDays == 0 ? null : Epoch.AddDays(expiresDays));
+        return new LicensePayload(deviceId, issued, expiresDays == 0 ? null : Epoch.AddDays(expiresDays), (LicenseFeatures)data[13]);
     }
 
     private static ushort ToDays(DateOnly date)

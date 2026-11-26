@@ -71,6 +71,25 @@ namespace Kuyumcu.Models
 
         /// <summary>Süreli lisans bitmek üzere mi (uyarı gösterilir)?</summary>
         public bool IsLicenseExpiringSoon => DaysUntilLicenseExpiry is >= 0 and <= 15;
+
+        /// <summary>Lisansın açtığı ek ücretli modüller. Deneme sürümünde ve lisans yokken hiçbiri açık değildir.</summary>
+        public LicenseFeatures Features { get; init; }
+
+        /// <summary>Barkodlu vitrin stoğu (etiket basma, okutarak satış, sayım, kasa) kullanılabilir mi?</summary>
+        public bool HasBarcodeModule => Status == LicenseStatus.Licensed && Features.HasFlag(LicenseFeatures.Barcode);
+    }
+
+    /// <summary>
+    /// Lisans anahtarına imzayla gömülen ek ücretli modüller (anahtarda 1 bayt: en fazla 8 modül).
+    /// Bit değerleri ASLA değiştirilmez; değişirse daha önce verilmiş anahtarlar başka modül açar.
+    /// </summary>
+    [Flags]
+    public enum LicenseFeatures : byte
+    {
+        None = 0,
+
+        /// <summary>Barkodlu vitrin stoğu: etiket yazıcısı, okutarak satış, sayım, kasa ve stok raporları.</summary>
+        Barcode = 1 << 0,
     }
 
     public enum LicenseLockReason

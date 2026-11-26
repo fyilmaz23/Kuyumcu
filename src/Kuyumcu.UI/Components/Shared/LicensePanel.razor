@@ -19,6 +19,18 @@
     </div>
     }
 
+    @if (!HideStatus && State.Status != LicenseStatus.Expired)
+    {
+        <div class="kd-license-module mt-2">
+            <MudIcon Icon="@(State.HasBarcodeModule ? Icons.Material.Outlined.QrCodeScanner : Icons.Material.Outlined.Lock)" Size="Size.Small" />
+            <span>Barkod modülü: <b>@(State.HasBarcodeModule ? "açık" : "yok")</b></span>
+            @if (!State.HasBarcodeModule)
+            {
+                <MudLink Href="/stock" Typo="Typo.caption" Class="ml-auto">Ne işe yarar?</MudLink>
+            }
+        </div>
+    }
+
     @if (!string.IsNullOrEmpty(State.KeyProblem) && State.Status != LicenseStatus.Licensed)
     {
         <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Dense="true" Class="@(HideStatus ? null : "mt-3")">@State.KeyProblem</MudAlert>
@@ -137,7 +149,7 @@
             $"{e:dd.MM.yyyy} tarihinde bitiyor ({State.DaysUntilLicenseExpiry} gün). Yenilemek için yeni anahtar girin.",
         LicenseStatus.Licensed when State.LicenseExpiresOn is { } e => $"{e:dd.MM.yyyy} tarihine kadar (dahil) geçerli.",
         LicenseStatus.Licensed => "Süresiz lisans" + (State.ActivatedAtUtc is { } a ? $" · {a.ToLocalTime():dd.MM.yyyy} tarihinde etkinleştirildi." : "."),
-        LicenseStatus.Trial => "Deneme süresince tüm özellikler açıktır.",
+        LicenseStatus.Trial => "Deneme süresince barkod modülü dışındaki tüm özellikler açıktır.",
         _ when State.LockReason == LicenseLockReason.LicenseEnded && State.LicenseExpiresOn is { } e => $"Lisans {e:dd.MM.yyyy} tarihine kadar geçerliydi.",
         _ => "Uygulamayı kullanmaya devam etmek için lisans anahtarı girin.",
     };
@@ -155,7 +167,7 @@
                 return;
             }
 
-            AppState.IsLicenseExpired = false;
+            AppState.ApplyLicense(await LicenseService.GetLicenseStateAsync());
             AppState.NotifyLicenseChanged();
             licenseKey = string.Empty;
             showReplace = false;

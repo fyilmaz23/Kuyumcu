@@ -125,6 +125,7 @@ namespace Kuyumcu.Services
                     LicenseExpiresOn = expires,
                     DaysUntilLicenseExpiry = expires is { } e ? e.DayNumber - today.DayNumber : null,
                     ActivatedAtUtc = licenseInfo.LicenseActivationDate,
+                    Features = keyCheck.Payload.Features,
                 };
             }
 
@@ -166,6 +167,23 @@ namespace Kuyumcu.Services
             {
                 Console.WriteLine($"GetLicenseStatusAsync hata: {ex.Message}");
                 return LicenseStatus.Expired; // Hata durumunda güvenli tarafta kal
+            }
+        }
+
+        /// <summary>
+        /// Barkodlu vitrin stoğu modülü açık mı? (Ek ücretli; deneme sürümünde kapalı.)
+        /// Hata olursa kapalı sayılır.
+        /// </summary>
+        public async Task<bool> HasBarcodeModuleAsync()
+        {
+            try
+            {
+                return (await GetLicenseStateAsync()).HasBarcodeModule;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"HasBarcodeModuleAsync hata: {ex.Message}");
+                return false;
             }
         }
 
@@ -216,9 +234,13 @@ namespace Kuyumcu.Services
 
                 await _databaseService.SaveLicenseInfoAsync(licenseInfo);
 
-                return (true, result.Payload!.ExpiresOn is { } expires
+                var payload = result.Payload!;
+                var message = payload.ExpiresOn is { } expires
                     ? $"Lisans etkinleştirildi. {expires:dd.MM.yyyy} tarihine kadar (dahil) tam sürümü kullanabilirsiniz."
-                    : "Lisans etkinleştirildi. Uygulamanın tam sürümüne süresiz erişiminiz var.");
+                    : "Lisans etkinleştirildi. Uygulamanın tam sürümüne süresiz erişiminiz var.";
+                if (payload.Features.HasFlag(LicenseFeatures.Barcode))
+                    message += " Barkod modülü açıldı.";
+                return (true, message);
             }
             catch (Exception ex)
             {
