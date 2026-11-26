@@ -13,6 +13,22 @@ else
     <div class="kd-page">
         <SyncStatus Compact="true" />
 
+        @* En sık kullanılan iş: güncel fiyat listesini (Fiyatlar'daki arka planla) tek dokunuşla paylaş *@
+        <button class="kd-btn kd-btn-primary kd-btn-block kd-btn-lg" disabled="@_sharing" @onclick="SharePrices">
+            @if (_sharing)
+            {
+                <span class="kd-spinner"></span><span>Görsel hazırlanıyor…</span>
+            }
+            else
+            {
+                <Icon Name="share" /><span>Fiyat listesini paylaş</span>
+            }
+        </button>
+        @if (_shareError != null)
+        {
+            <div class="kd-alert is-error"><Icon Name="warning" /><span>@_shareError</span></div>
+        }
+
         <div class="kd-stats">
             <a class="kd-stat" href="musteriler" @onclick="() => SetFilter(CustomerFilter.All)">
                 <div class="kd-stat-value">@data.Customers.Count</div>
@@ -120,6 +136,33 @@ else
 
         // Masaüstü Ana Sayfa gibi: gizli işlemler son işlemlerde görünmez
         _recent = data.Transactions.Where(t => !t.IsHidden).Take(8).ToList();
+    }
+
+    [Inject] private PriceShareService PriceShare { get; set; } = default!;
+
+    private bool _sharing;
+    private string? _shareError;
+
+    private async Task SharePrices()
+    {
+        _sharing = true;
+        _shareError = null;
+        try
+        {
+            await PriceShare.ShareLatestAsync();
+        }
+        catch (PriceShareException ex)
+        {
+            _shareError = ex.Message;
+        }
+        catch (Exception ex)
+        {
+            _shareError = "Görsel oluşturulamadı: " + ex.Message;
+        }
+        finally
+        {
+            _sharing = false;
+        }
     }
 
     private void SetFilter(CustomerFilter filter)

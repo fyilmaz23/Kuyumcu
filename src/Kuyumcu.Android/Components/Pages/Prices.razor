@@ -2,7 +2,7 @@
 @inject BackupStore Store
 @inject GoldPriceExportService GoldPrices
 @inject PriceBackgroundStore Background
-@inject IShareService Share
+@inject PriceShareService PriceShare
 
 @if (Store.Snapshot is not { } data)
 {
@@ -162,18 +162,10 @@ else
     /// <summary>Fiyat listesini seçili arka plana yazar; görselin yolunu döndürür (önizlemeyi de günceller).</summary>
     private async Task<string?> RenderImage()
     {
-        if (_prices is not { Count: > 0 } || Store.Snapshot is not { } data)
+        if (_prices is not { Count: > 0 } || Store.Snapshot == null)
             return null;
 
-        var (background, _) = Background.Resolve(data.Settings.GoldPriceTemplateImage);
-        var prices = _prices;
-        var path = await Task.Run(() => GoldPrices.CreateGoldPriceImageAsync(prices, background, data.Settings.BusinessName, share: false));
-        if (string.IsNullOrEmpty(path))
-        {
-            _error = "Görsel oluşturulamadı.";
-            return null;
-        }
-
+        var path = await PriceShare.CreateImageAsync(_prices);
         _previewDataUrl = "data:image/jpeg;base64," + Convert.ToBase64String(await File.ReadAllBytesAsync(path));
         return path;
     }
@@ -183,6 +175,10 @@ else
         try
         {
             await RenderImage();
+        }
+        catch (PriceShareException ex)
+        {
+            _error = ex.Message;
         }
         catch (Exception ex)
         {
@@ -198,8 +194,12 @@ else
             // Her paylaşımda güncel fiyatlar seçili arka plana yeniden yazılır
             var path = await RenderImage();
             StateHasChanged();
-            if (path != null && !await Share.ShareFileAsync(path, "Altın Fiyatları"))
-                _error = "Paylaşım menüsü açılamadı.";
+            if (path != null)
+                await PriceShare.ShareAsync(path);
+        }
+        catch (PriceShareException ex)
+        {
+            _error = ex.Message;
         }
         catch (Exception ex)
         {
