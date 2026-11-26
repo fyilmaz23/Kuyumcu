@@ -25,6 +25,21 @@ public sealed class PriceBackgroundStore
 
     public bool HasPhoneBackground => File.Exists(_path);
 
+    private const string TextTopKey = "fiyat_yazi_konumu";
+    public const int DefaultTextTopPercent = (int)(GoldPriceExportService.DefaultTextTop * 100);
+    public const int MinTextTopPercent = 5;
+    public const int MaxTextTopPercent = 80;
+
+    /// <summary>
+    /// Fiyat listesinin ilk satırı resmin üstünden yüzde kaç aşağıda başlasın (arka plan resmine göre ayarlanır).
+    /// Bu telefonda saklanır; arka plan değişse de korunur.
+    /// </summary>
+    public int TextTopPercent
+    {
+        get => Math.Clamp(Preferences.Default.Get(TextTopKey, DefaultTextTopPercent), MinTextTopPercent, MaxTextTopPercent);
+        set => Preferences.Default.Set(TextTopKey, Math.Clamp(value, MinTextTopPercent, MaxTextTopPercent));
+    }
+
     /// <summary>Telefonda seçilen arka plan (hazırlanmış JPEG); yoksa null.</summary>
     public byte[]? GetPhoneBackground()
     {

@@ -257,6 +257,10 @@ otomatik erişim (+ dosya seçici yedek yol).
   Core `GoldPriceExportService.LoadTemplate/NormalizeTemplate`: telefon fotoğrafının EXIF yönü uygulanır, genişlik
   1080 px yapılır (yazı boyutu ve konumlar 1080 px şablona göre; 1080 px Çarşı şablonunun çıktısı değişmez). Birim
   testli (`GoldPriceTemplateTests`). Emülatörde Çarşı şablonu seçilip paylaşıldı, kapatıp açınca seçim korundu.
+- **Fiyat paylaşımı (26.11.2026, kullanıcı isteği):** "Fiyat listesini paylaş" Özet sayfasının en üstünde de var
+  (`Services/PriceShareService.cs`, Fiyatlar sayfasıyla ortak). Fiyatlar ekranında **Yazı konumu** (Yukarı/Aşağı, %3
+  adım, %5–80, `Preferences` "fiyat_yazi_konumu"): ilk satırın üstten oranı, Core `CreateGoldPriceImageAsync(textTop)`.
+  `FirstRowY` listeyi resmin dışına taşırmaz; varsayılan %25 olduğundan masaüstü çıktısı değişmedi (testli).
 - **Drive bağlantısı (25.11.2026):** Cloud projesi **KuyumcuApp** (`kuyumcuapp-454423`, masaüstü istemcileriyle aynı;
   izin ekranı zaten "Üretim"de). Android istemcisi "Kuyumcu Defteri Android (gelistirme)": paket
   `com.kuyumcudefteri.app` + bu bilgisayarın debug SHA-1'i `1F:56:18:8F:5B:43:0A:7F:ED:DE:8E:0D:B0:43:86:C6:1C:D5:BF:03`.

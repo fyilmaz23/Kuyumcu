@@ -76,6 +76,25 @@ else
             @if (_previewDataUrl != null)
             {
                 <h2 class="kd-section">Paylaşılacak görsel</h2>
+                @* Fiyatların resim üzerindeki yüksekliği: arka plan resmine göre yukarı/aşağı kaydırılır *@
+                <div class="kd-card kd-text-pos">
+                    <div class="kd-text-pos-label">
+                        <span>Yazı konumu</span>
+                        <small>@(Background.TextTopPercent == PriceBackgroundStore.DefaultTextTopPercent ? "varsayılan" : $"üstten %{Background.TextTopPercent}")</small>
+                    </div>
+                    <button class="kd-btn kd-btn-ghost small" aria-label="Yazıyı yukarı al"
+                            disabled="@(_busy || Background.TextTopPercent <= PriceBackgroundStore.MinTextTopPercent)" @onclick="() => MoveText(-TextStep)">
+                        <Icon Name="expand" Class="kd-flip" /><span>Yukarı</span>
+                    </button>
+                    <button class="kd-btn kd-btn-ghost small" aria-label="Yazıyı aşağı al"
+                            disabled="@(_busy || Background.TextTopPercent >= PriceBackgroundStore.MaxTextTopPercent)" @onclick="() => MoveText(TextStep)">
+                        <Icon Name="expand" /><span>Aşağı</span>
+                    </button>
+                    @if (Background.TextTopPercent != PriceBackgroundStore.DefaultTextTopPercent)
+                    {
+                        <button class="kd-btn kd-btn-ghost small kd-text-pos-reset" disabled="@_busy" @onclick="ResetText">Varsayılana dön</button>
+                    }
+                </div>
                 <img class="kd-preview" src="@_previewDataUrl" alt="Altın fiyatı görseli" />
             }
 
@@ -230,6 +249,26 @@ else
         catch (Exception ex)
         {
             _error = "Resim seçilemedi: " + ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private const int TextStep = 3; // her dokunuşta resim yüksekliğinin %3'ü
+
+    private Task MoveText(int delta) => SetTextTop(Background.TextTopPercent + delta);
+
+    private Task ResetText() => SetTextTop(PriceBackgroundStore.DefaultTextTopPercent);
+
+    private async Task SetTextTop(int percent)
+    {
+        _busy = true;
+        try
+        {
+            Background.TextTopPercent = percent;
+            await RenderPreview();
         }
         finally
         {

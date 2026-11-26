@@ -59,4 +59,23 @@ public class GoldPriceTemplateTests
         Assert.Equal(1080, check.Width);
         Assert.Equal(1080, check.Height);
     }
+
+    [Fact]
+    public void Varsayilan_yazi_konumu_eskisiyle_ayni()
+    {
+        // Çarşı şablonu (1080x1920) ve sade arka plan (1080x1350): ilk satır %25'te kalmalı
+        Assert.Equal(1920 * 0.25f, GoldPriceExportService.FirstRowY(1920, 8, 67 * 1.66f, GoldPriceExportService.DefaultTextTop));
+        Assert.Equal(1350 * 0.25f, GoldPriceExportService.FirstRowY(1350, 8, 67 * 1.66f, GoldPriceExportService.DefaultTextTop));
+    }
+
+    [Fact]
+    public void Yazi_asagi_alinabilir_ama_resimden_tasmaz()
+    {
+        const float row = 67 * 1.66f;
+        Assert.Equal(1920 * 0.4f, GoldPriceExportService.FirstRowY(1920, 8, row, 0.4f));
+
+        // %90 istense de son satır alt kenarın %3 yukarısında kalır
+        var y = GoldPriceExportService.FirstRowY(1920, 8, row, 0.9f);
+        Assert.Equal(1920 * 0.97f, y + 7 * row, 2);
+    }
 }

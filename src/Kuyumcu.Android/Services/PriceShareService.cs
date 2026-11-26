@@ -33,7 +33,8 @@ public sealed class PriceShareService(
     {
         var data = store.Snapshot ?? throw new PriceShareException("Önce yedek yüklenmeli.");
         var (image, _) = background.Resolve(data.Settings.GoldPriceTemplateImage);
-        var path = await Task.Run(() => goldPrices.CreateGoldPriceImageAsync(prices, image, data.Settings.BusinessName, share: false));
+        var textTop = background.TextTopPercent / 100f;
+        var path = await Task.Run(() => goldPrices.CreateGoldPriceImageAsync(prices, image, data.Settings.BusinessName, share: false, textTop));
         return string.IsNullOrEmpty(path) ? throw new PriceShareException("Görsel oluşturulamadı.") : path;
     }
 

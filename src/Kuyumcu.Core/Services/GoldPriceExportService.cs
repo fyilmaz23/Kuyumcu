@@ -72,7 +72,9 @@ public class GoldPriceExportService
     /// <returns>Kaydedilen görselin yolu</returns>
     /// <param name="templateImage">İşletmeye özel arka plan şablonu; null ise sade bir varsayılan arka plan üretilir</param>
     /// <param name="businessName">Varsayılan arka planda başlık olarak yazılacak işletme adı</param>
-    public async Task<string> CreateGoldPriceImageAsync(List<GoldPriceDto> goldPrices, byte[]? templateImage, string? businessName, bool share = false)
+    /// <param name="textTop">İlk satırın üstten konumu, resim yüksekliğine oranla (varsayılan <see cref="DefaultTextTop"/>)</param>
+    public async Task<string> CreateGoldPriceImageAsync(List<GoldPriceDto> goldPrices, byte[]? templateImage, string? businessName, bool share = false,
+        float textTop = DefaultTextTop)
     {
         try
         {
@@ -112,9 +114,7 @@ public class GoldPriceExportService
                 }
             }
 
-            // Fiyat verileri için başlangıç Y konumu - şablon görselin orta kısmı
             float startX = bitmap.Width * 0.2f; // Sol kenardan %20 içeride
-            float currentY = bitmap.Height * 0.25f; // Üst kenardan %33 aşağıda
             float rowHeight = textPaint.TextSize * 1.66f; // Line spacing 1.66 oranında (font büyüklüğüne göre)
 
             // Altın fiyatlarını ilgili isimleriyle eşleştirelim
@@ -190,7 +190,8 @@ public class GoldPriceExportService
                 }
             }
 
-            // Altın fiyatlarını istenen formatta yazdır
+            // Altın fiyatlarını istenen formatta yazdır (ilk satır istenen yükseklikte; liste resmin dışına taşmaz)
+            float currentY = FirstRowY(bitmap.Height, displayItems.Count, rowHeight, textTop);
             foreach (var (displayText, buyPrice, sellPrice) in displayItems)
             {
                 canvas.DrawText(FormatPriceLine(displayText, buyPrice, sellPrice), startX, currentY, textPaint);
@@ -238,6 +239,20 @@ public class GoldPriceExportService
     /// genişliğindeki şablona göredir. Bu yüzden her arka plan bu genişliğe getirilir.
     /// </summary>
     public const int TemplateWidth = 1080;
+
+    /// <summary>İlk fiyat satırının varsayılan konumu: resmin üstünden %25 aşağıda (masaüstü şablonları buna göre).</summary>
+    public const float DefaultTextTop = 0.25f;
+
+    /// <summary>
+    /// İlk satırın taban çizgisi (Y). <paramref name="textTop"/> resim yüksekliğine oranla istenen konumdur; liste
+    /// alttan taşacaksa (son satır alt kenarın %3 yakınına kadar) yukarı çekilir, %5'ten yukarı da çıkmaz.
+    /// </summary>
+    public static float FirstRowY(int imageHeight, int rowCount, float rowHeight, float textTop)
+    {
+        float y = imageHeight * Math.Clamp(textTop, 0.05f, 0.95f);
+        float maxY = imageHeight * 0.97f - Math.Max(0, rowCount - 1) * rowHeight;
+        return Math.Max(imageHeight * 0.05f, Math.Min(y, maxY));
+    }
 
     /// <summary>
     /// Arka plan resmini çizime hazırlar: telefon fotoğraflarındaki EXIF yönü uygulanır ve en-boy oranı korunarak
