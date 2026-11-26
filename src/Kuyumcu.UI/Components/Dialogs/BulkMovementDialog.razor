@@ -1,26 +1,65 @@
 @using Kuyumcu.Stock
 @inject StockService Stock
+@inject DatabaseService Database
+@inject GoldPriceExportService GoldPrices
+@inject IDialogService Dialogs
 @inject ISnackbar Snackbar
-@* Kasa ürünü hareketi: giriş, çıkış ya da sayım düzeltmesi *@
+@*
+    Kasa ürünü hareketi: giriş, çıkış ya da sayım düzeltmesi.
+    Çıkışta "Müşteri hesabına yaz (veresiye)" seçilirse defterde Giden (müşteri borçlu) işlem açılır. Borç cinsi her satışta
+    seçilir: ürünün kendi cinsi (çeyrek adet, gram…), TL ya da 22 ayar gram (bkz. BulkSale). Defterin kuralları aynen
+    uygulanır: aynı gün mükerrer kontrolü ve kaydetmeden önce onay.
+*@
 
 <MudDialog>
     <DialogContent>
         <div class="kd-type-toggle mb-3" style="grid-template-columns: 1fr 1fr 1fr">
-            <div class="kd-type-option @(type == StockMovementType.BulkIn ? "selected gelen" : "")" @onclick="@(() => type = StockMovementType.BulkIn)">Giriş</div>
-            <div class="kd-type-option @(type == StockMovementType.BulkOut ? "selected giden" : "")" @onclick="@(() => type = StockMovementType.BulkOut)">Çıkış</div>
-            <div class="kd-type-option @(type == StockMovementType.BulkAdjust ? "selected gelen" : "")" @onclick="@(() => type = StockMovementType.BulkAdjust)">Sayım</div>
+            <div class="kd-type-option @(type == StockMovementType.BulkIn ? "selected gelen" : "")" @onclick="@(() => SetType(StockMovementType.BulkIn))">Giriş</div>
+            <div class="kd-type-option @(type == StockMovementType.BulkOut ? "selected giden" : "")" @onclick="@(() => SetType(StockMovementType.BulkOut))">Çıkış</div>
+            <div class="kd-type-option @(type == StockMovementType.BulkAdjust ? "selected gelen" : "")" @onclick="@(() => SetType(StockMovementType.BulkAdjust))">Sayım</div>
         </div>
         <MudText Typo="Typo.caption" Class="kd-muted d-block mb-2">
             Mevcut: <b>@StockService.FormatBulkAmount(Product, Product.Amount)</b>
             @(type == StockMovementType.BulkAdjust ? " · Sayımda bulunan miktarı yazın; fark hareket olarak kaydedilir." : "")
         </MudText>
-        <MudTextField @bind-Value="amount" Label="@(Product.Unit == BulkUnit.Gram ? "Gram" : "Adet")" Variant="Variant.Outlined"
+        <MudTextField T="string" Value="amount" ValueChanged="OnAmount" Label="@(Product.Unit == BulkUnit.Gram ? "Gram" : "Adet")" Variant="Variant.Outlined"
                       AutoFocus="true" Immediate="true" Class="kd-amount-input" OnKeyDown="OnKeyDown" />
+
+        @if (type == StockMovementType.BulkOut)
+        {
+            <div class="kd-credit mt-3 @(onCredit ? "is-on" : "")">
+                <MudSwitch T="bool" Value="onCredit" ValueChanged="OnCreditChanged" Color="Color.Error" Label="Müşteri hesabına yaz (veresiye)" />
+                @if (onCredit)
+                {
+                    <MudGrid Spacing="2" Class="mt-1">
+                        <MudItem xs="12">
+                            <MudAutocomplete T="Customer" @bind-Value="customer" Label="Müşteri" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                             SearchFunc="SearchCustomers" ToStringFunc="@(c => c?.Name)" MinCharacters="1" MaxItems="10"
+                                             ShowProgressIndicator="false" Clearable="true" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <MudSelect T="CurrencyType" Value="creditCurrency" ValueChanged="OnCreditCurrency" Label="Borç cinsi" Variant="Variant.Outlined" Margin="Margin.Dense">
+                                @foreach (var c in currencies)
+                                {
+                                    <MudSelectItem Value="c">@CurrencyLabel(c)</MudSelectItem>
+                                }
+                            </MudSelect>
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <MudNumericField T="decimal?" @bind-Value="creditAmount" Label="@($"Borç ({creditCurrency.GetSymbol()})")" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                             Format="#,##0.##" HideSpinButtons="true" Min="0" HelperText="@CreditHint" />
+                        </MudItem>
+                    </MudGrid>
+                    <MudText Typo="Typo.caption" Class="kd-muted">Müşterinin hesabına <b class="kd-giden">Giden</b> (müşteri borçlu) işlem olarak yazılır.</MudText>
+                }
+            </div>
+        }
+
         <MudTextField @bind-Value="description" Label="Açıklama (isteğe bağlı)" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mt-3" MaxLength="200" />
     </DialogContent>
     <DialogActions>
         <MudButton Variant="Variant.Text" OnClick="@(() => MudDialog.Cancel())">Vazgeç</MudButton>
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Save" Disabled="saving">Kaydet</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Save" Disabled="saving">@(IsCreditSale ? "Satışı kaydet" : "Kaydet")</MudButton>
     </DialogActions>
 </MudDialog>
 
@@ -33,33 +72,162 @@
     private string? amount, description;
     private bool saving;
 
-    protected override void OnInitialized() => type = InitialType;
+    // Veresiye
+    private bool onCredit;
+    private Customer? customer;
+    private IReadOnlyList<CurrencyType> currencies = Array.Empty<CurrencyType>();
+    private CurrencyType creditCurrency;
+    private decimal? creditAmount;
+    private int milyem, milyem22;
+    private List<GoldPriceDto>? prices;
+    private bool pricesLoaded;
+
+    private bool IsCreditSale => type == StockMovementType.BulkOut && onCredit;
+
+    private string CreditHint => creditCurrency == BulkSale.OwnCurrency(Product)
+        ? "satılan miktar"
+        : creditCurrency == CurrencyType.Gold22K
+            ? "ağırlık × milyem / 22 ayar milyemi"
+            : !pricesLoaded ? "Fiyatlar alınıyor…"
+            : prices is { Count: > 0 } ? $"öneri: {GoldPrices.SourceName} satış fiyatı" : "Canlı fiyat alınamadı, elle girin";
+
+    protected override async Task OnInitializedAsync()
+    {
+        type = InitialType;
+        currencies = BulkSale.CreditCurrencies(Product);
+        creditCurrency = currencies[0];
+        var karats = await Stock.GetKaratsAsync(true);
+        milyem = karats.FirstOrDefault(k => k.Karat == Product.Karat)?.Milyem ?? StockCalculator.DefaultMilyem(Product.Karat);
+        milyem22 = karats.FirstOrDefault(k => k.Karat == 22)?.Milyem ?? StockCalculator.DefaultMilyem(22);
+    }
+
+    // Birim, yandaki "Borç (…)" alanında yazıyor; dar pencerede kesilmesin diye burada sadece ad
+    private static string CurrencyLabel(CurrencyType c) => c.GetDisplayName();
+
+    private void SetType(StockMovementType value)
+    {
+        type = value;
+        if (type != StockMovementType.BulkOut)
+            onCredit = false;
+    }
+
+    private void OnAmount(string? value)
+    {
+        amount = value;
+        UpdateCreditSuggestion();
+    }
+
+    private async Task OnCreditChanged(bool value)
+    {
+        onCredit = value;
+        UpdateCreditSuggestion();
+        if (onCredit && !pricesLoaded)
+        {
+            prices = await GoldPrices.GetGoldPricesAsync();
+            pricesLoaded = true;
+            UpdateCreditSuggestion();
+        }
+    }
+
+    private void OnCreditCurrency(CurrencyType value)
+    {
+        creditCurrency = value;
+        UpdateCreditSuggestion();
+    }
+
+    private void UpdateCreditSuggestion()
+    {
+        if (!IsCreditSale)
+            return;
+        var qty = TryParseAmount(out var v, out _) ? v : 0;
+        var suggestion = BulkSale.SuggestCredit(Product, qty, creditCurrency, milyem, milyem22, prices);
+        creditAmount = suggestion > 0 ? suggestion : null;
+    }
 
     private async Task OnKeyDown(KeyboardEventArgs e)
     {
         if (e.Key == "Enter") await Save();
     }
 
-    private async Task Save()
+    private bool TryParseAmount(out long value, out string error)
     {
-        long value;
+        error = string.Empty;
         if (Product.Unit == BulkUnit.Gram)
         {
-            if (type == StockMovementType.BulkAdjust && amount?.Trim() == "0") value = 0;
-            else if (WeightFormat.TryParseGram(amount, out var mg, out var error)) value = mg;
-            else { Snackbar.Add(error, Severity.Warning); return; }
+            if (type == StockMovementType.BulkAdjust && amount?.Trim() == "0") { value = 0; return true; }
+            if (WeightFormat.TryParseGram(amount, out var mg, out error)) { value = mg; return true; }
+            value = 0;
+            return false;
         }
-        else if (!long.TryParse(amount?.Trim(), out value) || value < 0 || (value == 0 && type != StockMovementType.BulkAdjust))
+        if (!long.TryParse(amount?.Trim(), out value) || value < 0 || (value == 0 && type != StockMovementType.BulkAdjust))
         {
-            Snackbar.Add("Adet tam sayı olmalı.", Severity.Warning);
+            error = "Adet tam sayı olmalı.";
+            return false;
+        }
+        return true;
+    }
+
+    private async Task<IEnumerable<Customer>> SearchCustomers(string value, CancellationToken token) =>
+        await Database.GetCustomersPaginationAsync(0, 10, null, null, string.IsNullOrWhiteSpace(value) ? null : value);
+
+    private async Task Save()
+    {
+        if (saving)
             return;
+        if (!TryParseAmount(out var value, out var error))
+        {
+            Snackbar.Add(error, Severity.Warning);
+            return;
+        }
+
+        Transaction? transaction = null;
+        if (IsCreditSale)
+        {
+            if (customer == null) { Snackbar.Add("Müşteri seçin.", Severity.Warning); return; }
+            if (creditAmount is not > 0) { Snackbar.Add("Borç 0'dan büyük olmalı.", Severity.Warning); return; }
+            // Deftere yazmadan önce kasada yeterli mal var mı (servis de ayrıca denetler)
+            if (value > Product.Amount)
+            {
+                Snackbar.Add($"Kasada yeterli {Product.Name} yok (mevcut: {StockService.FormatBulkAmount(Product, Product.Amount)}).", Severity.Warning);
+                return;
+            }
+
+            transaction = new Transaction
+            {
+                CustomerId = customer.Id,
+                Amount = Math.Round(creditAmount.Value, 2),
+                Type = TransactionType.CustomerDebt,
+                CurrencyType = creditCurrency,
+                Date = DateTime.Now,
+                Description = BulkSale.Description(Product, value, description)
+            };
+            if (!await LedgerConfirm.ConfirmNewAsync(Dialogs, Database, customer, transaction))
+                return;
         }
 
         saving = true;
         try
         {
-            var saved = await Stock.AddBulkMovementAsync(Product.Id, type, value, description);
-            MudDialog.Close(DialogResult.Ok(saved));
+            if (transaction != null)
+                await Database.SaveTransactionAsync(transaction);
+
+            try
+            {
+                var movementText = transaction == null
+                    ? description
+                    : $"Veresiye satış: {customer!.Name}" + (string.IsNullOrWhiteSpace(description) ? "" : " - " + description.Trim());
+                var saved = await Stock.AddBulkMovementAsync(Product.Id, type, value, movementText,
+                    transaction?.CustomerId, transaction?.Id,
+                    transaction?.CurrencyType == CurrencyType.TurkishLira ? transaction.Amount : null);
+                MudDialog.Close(DialogResult.Ok(saved));
+            }
+            catch
+            {
+                // Kasadan düşülemediyse müşteri hesabına yazılan işlem geri alınır
+                if (transaction != null)
+                    await Database.DeleteTransactionAsync(transaction);
+                throw;
+            }
         }
         catch (StockException ex)
         {

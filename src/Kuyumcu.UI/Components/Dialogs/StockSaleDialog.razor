@@ -207,23 +207,9 @@
                 Description = SaleText()
             };
 
-            // Defterin kuralı: aynı gün mükerrer kontrolü
-            var existing = await Database.GetCustomerTransactionsAsync(customer.Id);
-            var duplicate = existing.FirstOrDefault(t => t.Date.Date == transaction.Date.Date && t.Type == transaction.Type
-                && t.CurrencyType == transaction.CurrencyType && t.Amount == transaction.Amount && !t.IsDeposit);
-            if (duplicate != null)
-            {
-                var dup = await Dialogs.ShowMessageBox("Mükerrer işlem uyarısı",
-                    $"Bunu bugün saat {duplicate.Date:HH:mm}'de zaten eklemiştiniz, yine de eklenmesini ister misiniz?",
-                    yesText: "Evet, yine de ekle", noText: "Hayır, iptal et");
-                if (dup != true) return;
-            }
-
-            // Defterin kuralı: kaydetmeden önce onay
-            var confirm = await Dialogs.ShowMessageBox("Aşağıdaki işlemi kaydetmek istediğinize emin misiniz?",
-                $"{customer.Name}\n{transaction.Date:dd.MM.yyyy HH:mm}\nGiden: {FormatHelper.FormatPrice(transaction.Amount)} {creditCurrency.GetSymbol()} {creditCurrency.GetDisplayName()}\n{transaction.Description}",
-                yesText: "Evet, kaydet", noText: "Hayır");
-            if (confirm != true) return;
+            // Defterin kuralları: aynı gün mükerrer kontrolü ve kaydetmeden önce onay
+            if (!await LedgerConfirm.ConfirmNewAsync(Dialogs, Database, customer, transaction))
+                return;
         }
 
         saving = true;

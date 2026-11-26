@@ -195,6 +195,10 @@ Vitrin Stoku sayfasının üst düğmelerinde)
   elle değiştirilebilir), 10 TL'ye yuvarlanır. **Veresiye**: defterde müşteriye **Giden** işlem (TL ya da 22 ayar gram;
   22 ayar karşılığı = net × (milyem + işçilik) / 22 ayar milyemi); defterin **mükerrer kontrolü ve onay penceresi**
   aynen uygulanır. İadede bu işlem isteğe bağlı silinir.
+- **Kasa satışı veresiye** (bölüm 16): Kasa → Çıkış'ta "Müşteri hesabına yaz" → defterde **Giden** işlem; borç cinsi
+  **her satışta seçilir** (ürünün kendi cinsi / TL / 22 ayar gram). Aynı mükerrer kontrolü ve onay penceresi.
+  Kasa hareketinde müşteri ve işlem kimliği saklanır. Kasa için iade akışı yok (giriş + defterden silme elle).
+- **Kim sattı:** dükkânda tek kullanıcı (kullanıcı kararı, 26.11.2026); `StockMovement.UserName` boş kalır.
 - **Cihaza özel:** `LabelPrinterSettings` geri yüklemede bu bilgisayarınki korunur.
 - **Android:** salt okunur ayrı uygulama (bölüm 9); stokta etiket basma ve stok değiştirme yok.
 - **Lisans:** modül normal lisansın parçası; ayrı özellik bayrağı yok (imzalı lisans, bölüm 5;
@@ -400,6 +404,28 @@ otomatik erişim (+ dosya seçici yedek yol).
 - Önizlemede denendi: kod tipi barkoda geçince konumlar ve önizleme güncellendi, ZPL seçilip test etiketi `.zpl`
   dosyasına yazıldı. **Gerçek Zebra yazıcıda ve TSC'de barkodla basılmadı; 1D okuyucuyla okunması denenmedi.**
 
+### 16. Kasa satışını veresiyeye bağlama (26.11.2026)
+Kullanıcı kararı: borç cinsi her satışta seçilsin. "Kim sattı" alanı yapılmayacak (tek kullanıcı).
+- `Stock/BulkSale.cs` (Core, saf, birim testli):
+  - `OwnCurrency`: ürünün defterdeki kendi cinsi. Adetliler **ada göre** (kelime olarak "çeyrek" → Çeyrek Altın,
+    "yarım" → Yarım, "tam" → Tam); gramla tutulanlar ayarına göre (24/22/14 → o ayarın gramı). Ata Lira ve
+    tanınmayan adların kendi cinsi yok → TL ya da 22 ayar seçilir.
+  - `CreditCurrencies`: seçenekler, kendi cinsi (varsa) önce, sonra TL ve 22 Ayar (gr).
+  - `SuggestCredit`: kendi cinsi = satılan adet/gram; 22 ayar = ağırlık × milyem / 22 ayar milyemi (işçiliksiz);
+    TL = `SuggestPrice`: fiyat listesinde ürünün satırı varsa (Çeyrek, Yarım, "Tam (Ata)" — Tam ve Ata Lira için,
+    "Gram Altın" — 24 ayar gram için) miktar × satış, yoksa has × 24 ayar satış; 10 TL'ye yuvarlanır. Hepsi
+    değiştirilebilir öneri; deftere 2 ondalıkla yazılır.
+  - `Description`: defter açıklaması "Kasa satışı: 2 adet Çeyrek[ - not]".
+- `StockService.AddBulkMovementAsync(..., customerId, transactionId, price)`: sadece Çıkış'ta; hareketle aynı satırda saklanır.
+- `UI/Services/LedgerConfirm.cs`: deftere stok ekranından yazarken **mükerrer kontrolü + onay** tek yerde; etiketli ürün
+  satış penceresi de artık bunu kullanıyor (davranış aynı; müşteri detayındaki işlem penceresine dokunulmadı).
+- `BulkMovementDialog`: Çıkış seçiliyken "Müşteri hesabına yaz (veresiye)" anahtarı; müşteri, borç cinsi, borç (öneri).
+  Sıra: miktar kasada var mı → mükerrer/onay → defter işlemi → kasa hareketi (başarısızsa defter işlemi silinir).
+  Hareket açıklaması "Veresiye satış: {müşteri}[ - not]"; TL'de fiyat da harekete yazılır.
+- Testler: `BulkSaleTests` (7) + `StockServiceTests` kasa veresiye testi. 111 test geçiyor.
+- Önizlemede denendi: 2 Çeyrek → TL (canlı fiyattan 20.840 öneri) → onay → kasa 24 → 22, hareket geçmişinde müşteri adı,
+  müşterinin defterinde 20.840 TL Giden. **Kendi cinsiyle (adet) ve 22 ayar seçenekleri önizlemede kaydedilmedi** (birim testli).
+
 ## Kullanıcıya sunulan öneriler (karar bekleyen sıra)
 1. ~~Lisans~~ (yapıldı, bölüm 5), ~~Obfuscar ile kod karıştırma~~ (bölüm 13). Kalan (istenirse): çevrimiçi aktivasyon,
    dağıtık lisans kontrolü.
@@ -462,8 +488,8 @@ otomatik erişim (+ dosya seçici yedek yol).
    (bkz. `docs/YAYIN.md` bölüm 1 ve 3).
 6. Eski `ccr-325b955a-m9osww` uzak dalı silinecek (bulut oturumu silemedi).
 7. Barkod: TE210 ve RH10 ile `docs/ETIKET_VE_OKUYUCU_TESTI.md` adımları; çıkan kanat ölçüleri varsayılan yerleşime
-   işlenebilir. ~~ZPL dili~~ ve ~~çizgi barkod~~ (bölüm 15; gerçek Zebra ile denenmeli). Kalan: kasa ürünlerinin
-   satışta veresiyeye bağlanması, kullanıcı (kim sattı) alanının doldurulması.
+   işlenebilir. ~~ZPL dili~~ ve ~~çizgi barkod~~ (bölüm 15; gerçek Zebra ile denenmeli), ~~kasa satışını veresiyeye
+   bağlama~~ (bölüm 16). "Kim sattı" alanı yapılmayacak (tek kullanıcı). İstenirse: kasa veresiye satışı için iade akışı.
 8. ~~Fiş yazıcısındaki dükkâna özel metinler~~ (bölüm 10). İlk müşteri geçişte bunları Ayarlar'a girmeli (YAYIN.md 4).
 
 ## Geliştirme komutları

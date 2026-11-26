@@ -580,11 +580,15 @@ public class StockService
     /// <summary>
     /// Kasa hareketi. Giriş/Çıkış: <paramref name="amount"/> eklenir/çıkarılır.
     /// Düzeltme: miktar <paramref name="amount"/> değerine ayarlanır (sayım). Birim adetse adet, gramsa mg.
+    /// Veresiye satışta (sadece Çıkış) müşteri ve defterdeki işlem hareketle birlikte saklanır; işlemi çağıran açar.
     /// </summary>
-    public async Task<BulkProduct> AddBulkMovementAsync(int productId, StockMovementType type, long amount, string? description = null)
+    public async Task<BulkProduct> AddBulkMovementAsync(int productId, StockMovementType type, long amount, string? description = null,
+        int? customerId = null, int? transactionId = null, decimal? price = null)
     {
         if (type is not (StockMovementType.BulkIn or StockMovementType.BulkOut or StockMovementType.BulkAdjust))
             throw new ArgumentOutOfRangeException(nameof(type));
+        if (type != StockMovementType.BulkOut && (customerId.HasValue || transactionId.HasValue || price.HasValue))
+            throw new ArgumentException("Müşteri ve fiyat sadece çıkışta (satış) verilir.");
         if (amount < 0 || (amount == 0 && type != StockMovementType.BulkAdjust))
             throw new StockException("Miktar 0'dan büyük olmalı.");
 
@@ -618,7 +622,10 @@ public class StockService
                 AmountDelta = delta,
                 Description = Truncate(string.IsNullOrWhiteSpace(description)
                     ? type switch { StockMovementType.BulkIn => "Giriş", StockMovementType.BulkOut => "Çıkış", _ => "Düzeltme (sayım)" }
-                    : description.Trim(), 255)
+                    : description.Trim(), 255),
+                CustomerId = customerId,
+                TransactionId = transactionId,
+                Price = price
             };
 
             await db.RunInTransactionAsync(conn =>

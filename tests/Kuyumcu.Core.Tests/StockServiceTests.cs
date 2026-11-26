@@ -143,6 +143,25 @@ public sealed class StockServiceTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Kasa_veresiye_satisi_musteri_ve_islemi_harekette_saklar()
+    {
+        var ceyrek = (await _stock.GetBulkProductsAsync()).First(b => b.Name == "Çeyrek");
+        await _stock.AddBulkMovementAsync(ceyrek.Id, StockMovementType.BulkIn, 5);
+        await _stock.AddBulkMovementAsync(ceyrek.Id, StockMovementType.BulkOut, 2, "Veresiye satış: Ali", customerId: 7, transactionId: 42, price: 21_000m);
+
+        var sale = (await _stock.GetBulkMovementsAsync(ceyrek.Id)).First();
+        Assert.Equal(-2, sale.AmountDelta);
+        Assert.Equal(7, sale.CustomerId);
+        Assert.Equal(42, sale.TransactionId);
+        Assert.Equal(21_000m, sale.Price);
+        Assert.Equal("Veresiye satış: Ali", sale.Description);
+
+        // Müşteri bağlantısı sadece çıkışta
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            _stock.AddBulkMovementAsync(ceyrek.Id, StockMovementType.BulkIn, 1, customerId: 7));
+    }
+
+    [Fact]
     public async Task Sayim_eksik_fazla_tekrar_ve_kayip_adimi()
     {
         var a = await NewItem();
