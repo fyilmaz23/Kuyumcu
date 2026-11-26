@@ -34,7 +34,9 @@ public enum StockMovementType
     BulkIn = 10,
     BulkOut = 11,
     /// <summary>Kasa sayımı / düzeltme: miktar yeni değere ayarlandı.</summary>
-    BulkAdjust = 12
+    BulkAdjust = 12,
+    /// <summary>Kasa veresiye satışının iadesi: mal kasaya geri girer (<see cref="StockMovement.RelatedMovementId"/> = satış).</summary>
+    BulkReturn = 13
 }
 
 /// <summary>Kasa ürününün birimi.</summary>
@@ -150,6 +152,9 @@ public class StockMovement
     public int? CustomerId { get; set; }
     public int? TransactionId { get; set; }
     public int? CountSessionId { get; set; }
+
+    /// <summary>İade hareketinde iade edilen satış hareketinin Id'si (aynı satış iki kez iade alınamaz).</summary>
+    public int? RelatedMovementId { get; set; }
 
     /// <summary>İşlemi yapan kişi. Şimdilik tek kullanıcı; ileride doldurulacak.</summary>
     [MaxLength(50)]

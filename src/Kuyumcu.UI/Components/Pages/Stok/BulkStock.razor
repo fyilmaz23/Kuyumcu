@@ -1,6 +1,7 @@
 @page "/stock/bulk"
 @using Kuyumcu.Stock
 @inject StockService Stock
+@inject DatabaseService Database
 @inject IDialogService Dialogs
 @inject ISnackbar Snackbar
 
@@ -60,9 +61,20 @@
                         }
                         @foreach (var m in history)
                         {
-                            <div class="d-flex justify-space-between gap-3 py-1">
+                            <div class="d-flex justify-space-between align-center gap-3 py-1">
                                 <span class="kd-muted kd-num" style="font-size:.8rem; width:120px">@m.Date.ToString("dd.MM.yyyy HH:mm")</span>
-                                <span style="flex:1">@m.Description</span>
+                                <span style="flex:1">
+                                    @m.Description
+                                    @if (IsReturned(m))
+                                    {
+                                        <span class="kd-muted" style="font-size:.8rem"> · iade alındı</span>
+                                    }
+                                </span>
+                                @if (IsReturnable(m))
+                                {
+                                    <MudButton Size="Size.Small" Variant="Variant.Text" StartIcon="@Icons.Material.Filled.AssignmentReturn"
+                                               OnClick="@(() => ReturnSale(p, m))">İade al</MudButton>
+                                }
                                 <span class="kd-num kd-strong @(m.AmountDelta >= 0 ? "kd-gelen" : "kd-giden")">
                                     @(m.AmountDelta >= 0 ? "+" : "−")@StockService.FormatBulkAmount(p, Math.Abs(m.AmountDelta))
                                 </span>
@@ -97,6 +109,45 @@
             return;
         Snackbar.Add($"{saved.Name}: {StockService.FormatBulkAmount(saved, saved.Amount)}", Severity.Success);
         await Reload();
+    }
+
+    // Müşteri hesabına yazılmış (veresiye) kasa satışı, henüz iade alınmadıysa iade alınabilir
+    private bool IsReturned(StockMovement m) => history.Any(r => r.RelatedMovementId == m.Id);
+    private bool IsReturnable(StockMovement m) =>
+        m.Type == StockMovementType.BulkOut && m.CustomerId.HasValue && !IsReturned(m);
+
+    private async Task ReturnSale(BulkProduct product, StockMovement sale)
+    {
+        var hasTransaction = sale.TransactionId.HasValue && sale.CustomerId.HasValue;
+        var prompt = await TextPromptDialog.ShowAsync(Dialogs, "İade al",
+            $"{StockService.FormatBulkAmount(product, Math.Abs(sale.AmountDelta))} {product.Name} kasaya geri alınacak.",
+            label: "İade açıklaması", confirmText: "İade al",
+            checkboxText: hasTransaction ? "Müşteri hesabına yazılan satış işlemini de sil" : null, checkboxValue: hasTransaction);
+        if (prompt == null)
+            return;
+
+        try
+        {
+            var saved = await Stock.ReturnBulkSaleAsync(sale.Id, string.IsNullOrWhiteSpace(prompt.Text) ? null : prompt.Text);
+            var deleted = false;
+            if (prompt.Checked && hasTransaction)
+            {
+                var transaction = (await Database.GetCustomerTransactionsAsync(sale.CustomerId!.Value))
+                    .FirstOrDefault(t => t.Id == sale.TransactionId!.Value);
+                if (transaction != null)
+                {
+                    await Database.DeleteTransactionAsync(transaction);
+                    deleted = true;
+                }
+            }
+            Snackbar.Add($"İade alındı. {saved.Name}: {StockService.FormatBulkAmount(saved, saved.Amount)}"
+                + (deleted ? " Müşteri hesabındaki satış işlemi silindi." : ""), Severity.Success);
+            await Reload();
+        }
+        catch (StockException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Warning);
+        }
     }
 
     private async Task ToggleHistory(int id)

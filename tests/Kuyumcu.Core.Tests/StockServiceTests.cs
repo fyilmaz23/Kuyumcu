@@ -162,6 +162,42 @@ public sealed class StockServiceTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Kasa_veresiye_satisi_iade_alinir_bir_kez()
+    {
+        var gram = (await _stock.GetBulkProductsAsync()).First(b => b.Unit == BulkUnit.Gram);
+        await _stock.AddBulkMovementAsync(gram.Id, StockMovementType.BulkIn, 20_000);
+        await _stock.AddBulkMovementAsync(gram.Id, StockMovementType.BulkOut, 2_500, "Veresiye satış: Ali", customerId: 7, transactionId: 42);
+        var sale = (await _stock.GetBulkMovementsAsync(gram.Id)).First();
+
+        var after = await _stock.ReturnBulkSaleAsync(sale.Id, "bozuk");
+        Assert.Equal(20_000, after.Amount);
+
+        var ret = (await _stock.GetBulkMovementsAsync(gram.Id)).First();
+        Assert.Equal(StockMovementType.BulkReturn, ret.Type);
+        Assert.Equal(2_500, ret.AmountDelta);
+        Assert.Equal(sale.Id, ret.RelatedMovementId);
+        Assert.Equal(7, ret.CustomerId);
+        Assert.Equal(42, ret.TransactionId);
+        Assert.Equal("İade - bozuk", ret.Description);
+
+        // İkinci kez iade alınamaz
+        await Assert.ThrowsAsync<StockException>(() => _stock.ReturnBulkSaleAsync(sale.Id));
+        Assert.Equal(20_000, (await _stock.GetBulkProductsAsync()).First(b => b.Id == gram.Id).Amount);
+    }
+
+    [Fact]
+    public async Task Musteriye_bagli_olmayan_cikis_iade_alinamaz()
+    {
+        var ceyrek = (await _stock.GetBulkProductsAsync()).First(b => b.Name == "Çeyrek");
+        await _stock.AddBulkMovementAsync(ceyrek.Id, StockMovementType.BulkIn, 5);
+        await _stock.AddBulkMovementAsync(ceyrek.Id, StockMovementType.BulkOut, 1);
+        var plainOut = (await _stock.GetBulkMovementsAsync(ceyrek.Id)).First();
+
+        await Assert.ThrowsAsync<StockException>(() => _stock.ReturnBulkSaleAsync(plainOut.Id));
+        await Assert.ThrowsAsync<StockException>(() => _stock.ReturnBulkSaleAsync(999_999));
+    }
+
+    [Fact]
     public async Task Sayim_eksik_fazla_tekrar_ve_kayip_adimi()
     {
         var a = await NewItem();

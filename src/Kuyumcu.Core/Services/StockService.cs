@@ -641,6 +641,56 @@ public class StockService
         }
     }
 
+    /// <summary>
+    /// Kasa veresiye satışının iadesi: satılan miktar kasaya geri girer, müşteri ve defter işlemi iade hareketine de yazılır.
+    /// Sadece müşteriye bağlı çıkış iade alınır; aynı satış ikinci kez iade alınamaz. Defterdeki işlemi silmek çağırana aittir.
+    /// </summary>
+    public async Task<BulkProduct> ReturnBulkSaleAsync(int saleMovementId, string? description = null)
+    {
+        var db = await Db();
+        await _writeLock.WaitAsync();
+        try
+        {
+            var sale = await db.Table<StockMovement>().Where(m => m.Id == saleMovementId).FirstOrDefaultAsync()
+                       ?? throw new StockException("Satış hareketi bulunamadı.");
+            if (sale.Type != StockMovementType.BulkOut || sale.CustomerId == null)
+                throw new StockException("Sadece müşteri hesabına yazılmış kasa satışı iade alınabilir.");
+            if (await db.Table<StockMovement>().Where(m => m.RelatedMovementId == sale.Id).CountAsync() > 0)
+                throw new StockException("Bu satış zaten iade alınmış.");
+
+            var product = await db.Table<BulkProduct>().Where(b => b.Id == sale.BulkProductId).FirstOrDefaultAsync()
+                          ?? throw new StockException("Ürün bulunamadı.");
+            if (product.IsDeleted)
+                throw new StockException("Bu kasa ürünü silinmiş.");
+
+            var delta = -sale.AmountDelta;
+            product.Amount += delta;
+            var movement = new StockMovement
+            {
+                BulkProductId = product.Id,
+                Type = StockMovementType.BulkReturn,
+                Date = DateTime.Now,
+                AmountDelta = delta,
+                Description = Truncate(string.IsNullOrWhiteSpace(description) ? "İade" : "İade - " + description.Trim(), 255),
+                CustomerId = sale.CustomerId,
+                TransactionId = sale.TransactionId,
+                Price = sale.Price,
+                RelatedMovementId = sale.Id
+            };
+
+            await db.RunInTransactionAsync(conn =>
+            {
+                conn.Update(product);
+                conn.Insert(movement);
+            });
+            return product;
+        }
+        finally
+        {
+            _writeLock.Release();
+        }
+    }
+
     public async Task<List<StockMovement>> GetBulkMovementsAsync(int productId, int take = 100)
     {
         var db = await Db();

@@ -197,7 +197,9 @@ Vitrin Stoku sayfasının üst düğmelerinde)
   aynen uygulanır. İadede bu işlem isteğe bağlı silinir.
 - **Kasa satışı veresiye** (bölüm 16): Kasa → Çıkış'ta "Müşteri hesabına yaz" → defterde **Giden** işlem; borç cinsi
   **her satışta seçilir** (ürünün kendi cinsi / TL / 22 ayar gram). Aynı mükerrer kontrolü ve onay penceresi.
-  Kasa hareketinde müşteri ve işlem kimliği saklanır. Kasa için iade akışı yok (giriş + defterden silme elle).
+  Kasa hareketinde müşteri ve işlem kimliği saklanır. **İade:** kasa geçmişinde veresiye satışın yanında "İade al";
+  mal kasaya geri girer (`BulkReturn`), defterdeki işlem isteğe bağlı silinir (varsayılan işaretli, etiketli ürün
+  iadesiyle aynı). Sadece müşteriye bağlı çıkış iade alınır; aynı satış iki kez iade alınamaz.
 - **Kim sattı:** dükkânda tek kullanıcı (kullanıcı kararı, 26.11.2026); `StockMovement.UserName` boş kalır.
 - **Cihaza özel:** `LabelPrinterSettings` geri yüklemede bu bilgisayarınki korunur.
 - **Android:** salt okunur ayrı uygulama (bölüm 9); stokta etiket basma ve stok değiştirme yok.
@@ -425,6 +427,12 @@ Kullanıcı kararı: borç cinsi her satışta seçilsin. "Kim sattı" alanı ya
 - Testler: `BulkSaleTests` (7) + `StockServiceTests` kasa veresiye testi. 111 test geçiyor.
 - Önizlemede denendi: 2 Çeyrek → TL (canlı fiyattan 20.840 öneri) → onay → kasa 24 → 22, hareket geçmişinde müşteri adı,
   müşterinin defterinde 20.840 TL Giden. **Kendi cinsiyle (adet) ve 22 ayar seçenekleri önizlemede kaydedilmedi** (birim testli).
+- **İade (aynı gün eklendi):** `StockMovementType.BulkReturn = 13` ("İade"), `StockMovement.RelatedMovementId` (yeni
+  kolon; iade → satış hareketi). `StockService.ReturnBulkSaleAsync(satışHareketiId, not)`: sadece müşteriye bağlı
+  `BulkOut`, daha önce iade alınmamışsa; satılan miktar geri girer, müşteri/işlem/fiyat iade hareketine kopyalanır.
+  Defter işlemini silmek UI'da (`BulkStock.razor`, onay penceresindeki kutu). Geçmişte iade edilen satışın yanında
+  "iade alındı" yazar. Testler: 2 yeni servis testi (113 test). Önizlemede: 2 Çeyrek iade → kasa 22 → 24, defterdeki
+  20.840 TL işlem silindi.
 
 ## Kullanıcıya sunulan öneriler (karar bekleyen sıra)
 1. ~~Lisans~~ (yapıldı, bölüm 5), ~~Obfuscar ile kod karıştırma~~ (bölüm 13). Kalan (istenirse): çevrimiçi aktivasyon,
@@ -489,7 +497,7 @@ Kullanıcı kararı: borç cinsi her satışta seçilsin. "Kim sattı" alanı ya
 6. Eski `ccr-325b955a-m9osww` uzak dalı silinecek (bulut oturumu silemedi).
 7. Barkod: TE210 ve RH10 ile `docs/ETIKET_VE_OKUYUCU_TESTI.md` adımları; çıkan kanat ölçüleri varsayılan yerleşime
    işlenebilir. ~~ZPL dili~~ ve ~~çizgi barkod~~ (bölüm 15; gerçek Zebra ile denenmeli), ~~kasa satışını veresiyeye
-   bağlama~~ (bölüm 16). "Kim sattı" alanı yapılmayacak (tek kullanıcı). İstenirse: kasa veresiye satışı için iade akışı.
+   bağlama~~ ve iadesi (bölüm 16). "Kim sattı" alanı yapılmayacak (tek kullanıcı).
 8. ~~Fiş yazıcısındaki dükkâna özel metinler~~ (bölüm 10). İlk müşteri geçişte bunları Ayarlar'a girmeli (YAYIN.md 4).
 
 ## Geliştirme komutları

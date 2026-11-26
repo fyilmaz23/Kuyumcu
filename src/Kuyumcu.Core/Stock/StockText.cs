@@ -24,6 +24,7 @@ public static class StockText
         StockMovementType.BulkIn => "Giriş",
         StockMovementType.BulkOut => "Çıkış",
         StockMovementType.BulkAdjust => "Sayım düzeltmesi",
+        StockMovementType.BulkReturn => "İade",
         _ => type.ToString()
     };
 }
