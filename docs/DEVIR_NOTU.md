@@ -389,7 +389,7 @@ otomatik erişim (+ dosya seçici yedek yol).
 - **CI birim testleri 25.11.2026'dan beri Linux'ta düşüyordu** (derlemeler geçiyordu). Nedenleri (26.11 düzeltildi):
   test projesinde SkiaSharp'ın Linux yerel kütüphanesi yoktu (`SkiaSharp.NativeAssets.Linux.NoDependencies` eklendi;
   fiyat görseli testleri) ve yedek temizliği dosya oluşturma zamanına bakıyordu (artık dosya adındaki tarih).
-  CI günlükleri oturum açmadan okunamadığı için neden çıkarımla bulundu; düzeltmenin CI'da geçtiği bir sonraki push'ta görülecek.
+  CI günlükleri oturum açmadan okunamadığı için neden çıkarımla bulundu; düzeltmeden sonra CI #17 (c6ddb5c) yeşil.
 - Özel lisans anahtarının yedeği kullanıcıda olmalı (kaybolursa yeni lisans üretilemez).
 - Süreli lisansta bilgisayar saati bir kez ileri (ör. 2030) ayarlanırsa "son kontrol" o tarihte kalır ve lisans bitmiş
   sayılabilir; müşteriye yeni anahtar vermek gerekir (bilinçli ödünleşim: saat geri alınarak uzatmayı engeller).
