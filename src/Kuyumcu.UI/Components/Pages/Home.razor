@@ -4,6 +4,7 @@
 @inject NavigationManager NavigationManager
 @inject GoldPriceExportService GoldPrices
 @inject CustomerBrowseContext Browse
+@inject IDialogService DialogService
 
 <div class="kd-page">
     <PageHeader Title="@greeting" Subtitle="@DateTime.Now.ToString("dd MMMM yyyy, dddd")">
@@ -219,9 +220,15 @@
                 <section class="kd-card">
                     <div class="kd-card-header">
                         <div class="kd-card-title"><MudIcon Icon="@Icons.Material.Outlined.ShowChart" /> Altın Fiyatları</div>
-                        <MudTooltip Text="@($"Yenile · {GoldPrices.SourceName}")">
-                            <MudIconButton Icon="@Icons.Material.Filled.Refresh" Size="Size.Small" OnClick="@(() => LoadPrices(true))" Disabled="pricesLoading" aria-label="Fiyatları yenile" />
-                        </MudTooltip>
+                        <div class="d-flex align-center">
+                            <MudTooltip Text="Fiyat görselini paylaş (şablonlu)">
+                                <MudIconButton Icon="@Icons.Material.Outlined.Share" Size="Size.Small" Disabled="@(pricesLoading || prices is not { Count: > 0 })"
+                                               OnClick="@(() => GoldPriceShareDialog.ShowAsync(DialogService, prices))" aria-label="Fiyat görselini paylaş" />
+                            </MudTooltip>
+                            <MudTooltip Text="@($"Yenile · {GoldPrices.SourceName}")">
+                                <MudIconButton Icon="@Icons.Material.Filled.Refresh" Size="Size.Small" OnClick="@(() => LoadPrices(true))" Disabled="pricesLoading" aria-label="Fiyatları yenile" />
+                            </MudTooltip>
+                        </div>
                     </div>
                     @if (pricesLoading && prices == null)
                     {

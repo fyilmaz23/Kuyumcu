@@ -1,0 +1,145 @@
+@* Altın fiyatı görseli: güncel fiyatlar Ayarlar'daki şablonun (yoksa sade arka planın) üzerine yazılır.
+   Masaüstünde "paylaş" = panoya kopyala (WhatsApp vb. yapıştırılır) veya dosyayı klasörde göster. *@
+@inject GoldPriceExportService GoldPrices
+@inject DatabaseService DatabaseService
+@inject IClipboardService Clipboard
+@inject IShareService Share
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        @if (isWorking && imageUrl == null)
+        {
+            <div class="d-flex flex-column align-center pa-6 gap-3">
+                <MudProgressCircular Indeterminate="true" />
+                <MudText Typo="Typo.body2" Class="kd-muted">Görsel hazırlanıyor…</MudText>
+            </div>
+        }
+        else if (error != null)
+        {
+            <MudAlert Severity="Severity.Error" Dense="true">@error</MudAlert>
+        }
+        else if (imageUrl != null)
+        {
+            <div style="text-align:center">
+                <img src="@imageUrl" alt="Altın fiyatları görseli"
+                     style="max-width:100%; max-height:60vh; border-radius:8px; box-shadow:0 1px 4px rgba(0,0,0,.2)" />
+            </div>
+            <MudText Typo="Typo.caption" Class="kd-muted d-block mt-2">
+                @(hasTemplate ? "Ayarlar'daki şablon kullanıldı." : "Şablon yüklenmediği için sade tasarım kullanıldı (Ayarlar → Altın Fiyatı Görseli).")
+                Kaydedildi: @filePath
+            </MudText>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" OnClick="@(() => MudDialog.Close())">Kapat</MudButton>
+        <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Outlined.FolderOpen" Disabled="@(filePath == null || isWorking)"
+                   OnClick="ShowInFolder">Klasörde Göster</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.ContentCopy" Disabled="@(filePath == null || isWorking)"
+                   OnClick="CopyToClipboard">Panoya Kopyala</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    /// <summary>Görsele yazılacak fiyatlar; verilmezse güncel fiyatlar getirilir.</summary>
+    [Parameter] public List<GoldPriceDto>? Prices { get; set; }
+
+    /// <summary>
+    /// Kullanılacak şablon (ör. Ayarlar'da seçilip henüz kaydedilmemiş olan). Verilmezse kayıtlı ayarlardaki şablon kullanılır.
+    /// </summary>
+    [Parameter] public byte[]? TemplateImage { get; set; }
+    [Parameter] public bool UseTemplateParameter { get; set; }
+    [Parameter] public string? BusinessName { get; set; }
+
+    private bool isWorking = true;
+    private bool hasTemplate;
+    private string? error;
+    private string? filePath;
+    private string? imageUrl;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var prices = Prices is { Count: > 0 } ? Prices : await GoldPrices.GetGoldPricesAsync();
+            if (prices is not { Count: > 0 })
+            {
+                error = $"Fiyatlar alınamadı ({GoldPrices.SourceName}). İnternet bağlantısını kontrol edip tekrar deneyin.";
+                return;
+            }
+
+            var template = TemplateImage;
+            var businessName = BusinessName;
+            if (!UseTemplateParameter)
+            {
+                var settings = await DatabaseService.GetSettingsAsync();
+                template = settings.GoldPriceTemplateImage;
+                businessName ??= settings.BusinessName;
+            }
+            hasTemplate = template is { Length: > 0 };
+
+            filePath = await Task.Run(() => GoldPrices.CreateGoldPriceImageAsync(prices, template, businessName));
+            if (string.IsNullOrEmpty(filePath))
+            {
+                error = "Görsel oluşturulamadı.";
+                return;
+            }
+
+            var bytes = await File.ReadAllBytesAsync(filePath);
+            imageUrl = "data:image/jpeg;base64," + Convert.ToBase64String(bytes);
+        }
+        catch (Exception ex)
+        {
+            error = $"Görsel oluşturulamadı: {ex.Message}";
+        }
+        finally
+        {
+            isWorking = false;
+        }
+    }
+
+    private async Task CopyToClipboard()
+    {
+        if (filePath == null)
+            return;
+        isWorking = true;
+        try
+        {
+            if (await Clipboard.TrySetImageAsync(filePath))
+                Snackbar.Add("Fiyat görseli panoya kopyalandı. WhatsApp gibi uygulamalara yapıştırabilirsiniz (Ctrl+V).", Severity.Success);
+            else
+                Snackbar.Add("Görsel panoya kopyalanamadı. \"Klasörde Göster\" ile dosyayı açabilirsiniz.", Severity.Warning);
+        }
+        finally
+        {
+            isWorking = false;
+        }
+    }
+
+    private async Task ShowInFolder()
+    {
+        if (filePath == null)
+            return;
+        if (!await Share.ShareFileAsync(filePath, "Altın Fiyatları"))
+            Snackbar.Add($"Klasör açılamadı. Dosya: {filePath}", Severity.Warning);
+    }
+
+    /// <summary>Kayıtlı ayarlardaki şablonla açar.</summary>
+    public static Task ShowAsync(IDialogService dialogs, List<GoldPriceDto>? prices = null) =>
+        dialogs.ShowAsync<GoldPriceShareDialog>("Altın Fiyatları Görseli",
+            new DialogParameters<GoldPriceShareDialog> { { x => x.Prices, prices } }, Options);
+
+    /// <summary>Verilen şablonla açar (Ayarlar'da kaydetmeden önizleme için).</summary>
+    public static Task ShowWithTemplateAsync(IDialogService dialogs, byte[]? template, string? businessName) =>
+        dialogs.ShowAsync<GoldPriceShareDialog>("Altın Fiyatları Görseli",
+            new DialogParameters<GoldPriceShareDialog>
+            {
+                { x => x.TemplateImage, template },
+                { x => x.UseTemplateParameter, true },
+                { x => x.BusinessName, businessName },
+            }, Options);
+
+    private static readonly DialogOptions Options = new() { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true };
+}

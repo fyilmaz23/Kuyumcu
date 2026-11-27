@@ -70,7 +70,7 @@
                     </div>
                     <div class="kd-card-pad">
                         <MudText Typo="Typo.body2" Class="kd-muted mb-3">
-                            Mobil uygulamadaki "Altın fiyatlarını paylaş" özelliği için. Fiyatlar @GoldPriceExportService.SourceName
+                            Ana sayfadaki ve mobil uygulamadaki "fiyat görselini paylaş" özelliği için. Fiyatlar @GoldPriceExportService.SourceName
                             adresinden alınır; üyelik veya şifre gerekmez. Şablon görseli yedekle birlikte telefonunuza aktarılır.
                         </MudText>
 
@@ -90,6 +90,10 @@
                             {
                                 <MudText Typo="Typo.caption" Class="kd-muted">Şablon yüklenmezse sade bir tasarım kullanılır.</MudText>
                             }
+                            <MudButton Variant="Variant.Text" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Visibility"
+                                       OnClick="@(() => GoldPriceShareDialog.ShowWithTemplateAsync(DialogService, settings.GoldPriceTemplateImage, settings.BusinessName))">
+                                Önizle / Paylaş
+                            </MudButton>
                         </div>
                     </div>
                 </section>
