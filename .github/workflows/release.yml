@@ -1,5 +1,5 @@
 # Sürüm yayını: "v2.1.0" gibi bir etiket gönderildiğinde
-#  - Windows: Microsoft Store'a yüklenecek MSIX paketi
+#  - Windows: Microsoft Store'a yüklenecek MSIX paket demeti (.msixbundle: x64 + x86 + arm64)
 #  - Android: Google Play'e yüklenecek imzalı AAB paketi
 # üretilir ve GitHub Release'e eklenir. Store/Play'e yükleme Partner Center / Play Console'dan yapılır.
 #
@@ -60,37 +60,55 @@ jobs:
           GOOGLE_DESKTOP_CLIENT_SECRET: ${{ secrets.GOOGLE_DESKTOP_CLIENT_SECRET }}
         run: ./build/write-secrets.ps1
 
-      - name: Yayın çıktısını oluştur
-        run: >
-          dotnet publish src/Kuyumcu.Desktop/Kuyumcu.Desktop.csproj
-          -c Release -r win-x64 --self-contained true
-          -p:Version=${{ needs.version.outputs.semver }}
-          -p:DebugType=none
-          -o artifacts/desktop-publish
+      # Üç mimari için ayrı yayın çıktısı: x64 (çoğu bilgisayar), x86 (32-bit Windows 10) ve arm64
+      # (Snapdragon dizüstüler, Windows 10 ARM). Yalnızca x64 gönderilirse 32-bit / ARM Windows 10'da Store
+      # "Windows sürümü en düşük gereksinimleri karşılamıyor" hatası verir.
+      - name: Yayın çıktılarını oluştur (x64, x86, arm64)
+        shell: pwsh
+        run: |
+          foreach ($arch in 'x64', 'x86', 'arm64') {
+            dotnet publish src/Kuyumcu.Desktop/Kuyumcu.Desktop.csproj `
+              -c Release -r "win-$arch" --self-contained true `
+              -p:Version=${{ needs.version.outputs.semver }} `
+              -p:DebugType=none `
+              -o "artifacts/desktop-publish/$arch"
+            if ($LASTEXITCODE -ne 0) { throw "dotnet publish başarısız: $arch" }
+          }
 
       # Kuyumcu.Core.dll karıştırılır (lisans kodunu okumayı/yamamayı zorlaştırır). Eşleme dosyası bilerek
       # artifact olarak YÜKLENMEZ: depo herkese açıksa karıştırmayı geri çözmeye yarar.
       - name: Lisans kodunu karıştır (Obfuscar)
         shell: pwsh
-        run: ./build/obfuscate.ps1 -PublishDir artifacts/desktop-publish -MappingPath "$env:RUNNER_TEMP/obfuscar-mapping.txt"
+        run: |
+          foreach ($arch in 'x64', 'x86', 'arm64') {
+            ./build/obfuscate.ps1 -PublishDir "artifacts/desktop-publish/$arch" -MappingPath "$env:RUNNER_TEMP/obfuscar-mapping-$arch.txt"
+          }
 
-      - name: MSIX paketi oluştur
+      - name: MSIX paketlerini ve paket demetini oluştur
         shell: pwsh
         env:
           STORE_PACKAGE_NAME: ${{ vars.STORE_PACKAGE_NAME }}
           STORE_PUBLISHER: ${{ vars.STORE_PUBLISHER }}
           STORE_PUBLISHER_DISPLAY_NAME: ${{ vars.STORE_PUBLISHER_DISPLAY_NAME }}
-        run: >
-          ./build/pack-msix.ps1
-          -PublishDir artifacts/desktop-publish
-          -PackagingDir src/Kuyumcu.Desktop/Packaging
-          -Version "${{ needs.version.outputs.semver }}.0"
-          -OutputPath "artifacts/KuyumcuDefteri_${{ needs.version.outputs.semver }}_x64.msix"
+        run: |
+          $semver = '${{ needs.version.outputs.semver }}'
+          foreach ($arch in 'x64', 'x86', 'arm64') {
+            ./build/pack-msix.ps1 `
+              -PublishDir "artifacts/desktop-publish/$arch" `
+              -PackagingDir src/Kuyumcu.Desktop/Packaging `
+              -Version "$semver.0" `
+              -Architecture $arch `
+              -OutputPath "artifacts/msix/KuyumcuDefteri_${semver}_$arch.msix"
+          }
+          ./build/bundle-msix.ps1 `
+            -PackagesDir artifacts/msix `
+            -Version "$semver.0" `
+            -OutputPath "artifacts/KuyumcuDefteri_$semver.msixbundle"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: windows-msix
-          path: artifacts/*.msix
+          name: windows-msixbundle
+          path: artifacts/*.msixbundle
 
   android-play:
     needs: version
@@ -173,6 +191,6 @@ jobs:
           body: |
             ## Kuyumcu Defteri v${{ needs.version.outputs.semver }}
 
-            - **Windows:** `.msix` dosyasını Partner Center'da yeni gönderime yükleyin.
+            - **Windows:** `.msixbundle` dosyasını (x64 + x86 + arm64) Partner Center'da yeni gönderime yükleyin.
             - **Android:** `.aab` dosyasını Play Console'da yeni sürüme yükleyin.
           files: dist/*

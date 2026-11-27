@@ -3,6 +3,9 @@
   Microsoft Store MSIX paket bildirimi.
   __PACKAGE_NAME__, __PUBLISHER__, __PUBLISHER_DISPLAY_NAME__ ve __VERSION__ değerleri CI tarafından
   Partner Center > Ürün kimliği sayfasındaki bilgilerle doldurulur (bkz. .github/workflows/release.yml).
+  __ARCH__ her mimari paketi için (x64, x86, arm64) build/pack-msix.ps1 tarafından doldurulur; üç paket
+  tek bir .msixbundle içinde Store'a gönderilir. Yalnızca x64 gönderilirse 32-bit Windows 10 ve Windows 10 ARM
+  bilgisayarlarda Store "Windows sürümü en düşük gereksinimleri karşılamıyor" hatası verir.
 -->
 <Package
   xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
@@ -14,7 +17,7 @@
     Name="__PACKAGE_NAME__"
     Publisher="__PUBLISHER__"
     Version="__VERSION__"
-    ProcessorArchitecture="x64" />
+    ProcessorArchitecture="__ARCH__" />
 
   <Properties>
     <DisplayName>Kuyumcu Defteri</DisplayName>

@@ -19,12 +19,13 @@ dönüştürmek ve arayüzünü yenilemek.
 ```
 src/Kuyumcu.Core      Modeller + servisler (SQLite, lisans, yedek, Drive, görsel üretimi). net10.0, platformdan bağımsız
 src/Kuyumcu.UI        Ortak Blazor arayüzü (Razor Class Library): sayfalar, tema, bileşenler, app.css, app.js
-src/Kuyumcu.Desktop   WPF kabuğu (net10.0-windows10.0.19041.0, self-contained, win-x64) + Packaging/AppxManifest.xml
+src/Kuyumcu.Desktop   WPF kabuğu (net10.0-windows10.0.19041.0, self-contained; Store için win-x64/x86/arm64) + Packaging/AppxManifest.xml
 src/Kuyumcu.Android   Android uygulaması (MAUI + BlazorWebView, net10.0-android), salt okunur; kendi telefon arayüzü
                       (Components/), Kuyumcu.UI'yi KULLANMAZ. Kök ad alanı Kuyumcu.Droid, derleme adı KuyumcuDefteri
 src/Kuyumcu.Preview   Blazor Server tarayıcı önizlemesi (Mac/Linux'ta arayüz geliştirmek için, örnek verili) — dağıtılmaz
 tests/Kuyumcu.Core.Tests  xUnit birim testleri (kod üretimi, TSPL, toplamlar, fiyat sitesi, stok servisi, yedek/geri yükleme)
-build/                CI betikleri: write-secrets.ps1 (gizli dosyaları üretir), pack-msix.ps1 (makeappx ile MSIX)
+build/                CI betikleri: write-secrets.ps1 (gizli dosyaları üretir), pack-msix.ps1 (makeappx ile mimari başına MSIX),
+                      bundle-msix.ps1 (üç MSIX'i Store'a gidecek .msixbundle'da birleştirir), windows-sdk.ps1 (ortak SDK bulucu)
 tools/Kuyumcu.LicenseTool  Lisans anahtarı üretme aracı (geliştirici bilgisayarında; bkz. docs/YAYIN.md "Lisans anahtarları")
 docs/YAYIN.md         Partner Center, Play Console (OAuth Android istemcisi, Veri güvenliği, kapalı test), GitHub Secrets
 docs/GIZLILIK.md      Gizlilik politikası taslağı (yayınlanıp URL'si mağazalara girilecek)

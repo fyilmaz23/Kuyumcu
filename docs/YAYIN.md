@@ -12,7 +12,7 @@ GitHub Actions (`.github/workflows/release.yml`) iki dosya üretir ve GitHub Rel
 
 | Dosya | Nereye yüklenir |
 |---|---|
-| `KuyumcuDefteri_X.Y.Z_x64.msix` | Partner Center → uygulama → yeni gönderim → Paketler |
+| `KuyumcuDefteri_X.Y.Z.msixbundle` (x64 + x86 + arm64) | Partner Center → uygulama → yeni gönderim → Paketler |
 | `com.kuyumcudefteri.app-Signed.aab` | Play Console → uygulama → Üretim (veya Test) → yeni sürüm |
 
 ---
@@ -37,6 +37,14 @@ GitHub Actions (`.github/workflows/release.yml`) iki dosya üretir ve GitHub Rel
    - **Fiyat:** Ücretsiz. Lisans uygulama içinde satılır (oyun olmayan uygulamalarda Microsoft komisyon almaz).
    - `runFullTrust` yeteneği için açıklama: *"Masaüstü uygulamasıdır (WPF); yerel veritabanı, yazıcı ve dosya erişimi gerekir."*
 5. MSIX'i Microsoft imzalar; sizin sertifika almanıza gerek yoktur.
+   - **Mimari:** CI üç paket üretir (x64, x86, arm64) ve bunları tek `.msixbundle` içinde birleştirir; Store her
+     bilgisayara uygun olanı kurar. Yalnızca x64 gönderilirse 32-bit Windows 10 ve Windows 10 ARM bilgisayarlarda
+     Store *"Bilgisayarınızdaki Windows sürümü bu ürün için en düşük gereksinimleri karşılamıyor"* hatası verir.
+   - Gönderime `.msixbundle` yüklerken önceki gönderimin tek `.msix` paketini **Paketler** listesinden kaldırın.
+     Bir kez demet gönderildikten sonra sonraki gönderimler de demet olmalıdır.
+   - Bu hatayı veren bilgisayarda en düşük gereksinim Windows 10 1809'dur (sürüm 10.0.17763). Sorun mimari değilse
+     PowerShell'de `Get-CimInstance Win32_OperatingSystem | Select-Object Caption, Version, OSArchitecture` ile
+     sürüme bakın; 17763'ten küçükse o bilgisayarda Windows Update çalıştırılmalıdır.
 6. **Yerelde deneme (isteğe bağlı):** Windows Ayarlar'da Geliştirici Modu açıkken, gönderimden önce paket kurulup
    denenebilir (imzasız, deneme kimliğiyle; Windows SDK gerekmez, araçlar NuGet önbelleğinden bulunur):
 
@@ -44,7 +52,7 @@ GitHub Actions (`.github/workflows/release.yml`) iki dosya üretir ve GitHub Rel
    dotnet publish src/Kuyumcu.Desktop/Kuyumcu.Desktop.csproj -c Release -r win-x64 --self-contained true -p:Version=2.0.0 -p:DebugType=none -o artifacts/desktop-publish
    ./build/obfuscate.ps1 -PublishDir artifacts/desktop-publish -MappingPath artifacts/obfuscar-mapping.txt   # CI'daki gibi karıştır
    $env:STORE_PACKAGE_NAME = "KuyumcuDefteri.YerelDeneme"; $env:STORE_PUBLISHER = "CN=KuyumcuDefteriYerelDeneme"; $env:STORE_PUBLISHER_DISPLAY_NAME = "Yerel Deneme"
-   ./build/pack-msix.ps1 -PublishDir artifacts/desktop-publish -PackagingDir src/Kuyumcu.Desktop/Packaging -Version 2.0.0.0 -OutputPath artifacts/KuyumcuDefteri_test.msix -LayoutDir artifacts/msix-layout
+   ./build/pack-msix.ps1 -PublishDir artifacts/desktop-publish -PackagingDir src/Kuyumcu.Desktop/Packaging -Version 2.0.0.0 -Architecture x64 -OutputPath artifacts/KuyumcuDefteri_test.msix -LayoutDir artifacts/msix-layout
    Add-AppxPackage -Register artifacts/msix-layout/AppxManifest.xml     # Başlat menüsünde "Kuyumcu Defteri"
    Get-AppxPackage KuyumcuDefteri.YerelDeneme | Remove-AppxPackage      # kaldırmak için
    ```
