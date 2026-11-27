@@ -16,7 +16,7 @@ src/
   Kuyumcu.Preview   Tarayıcı önizlemesi (Mac/Linux'ta arayüzü görmek için, örnek verilerle) — dağıtılmaz
 build/              CI yardımcı betikleri (gizli dosya üretimi, MSIX paketleme)
 tools/              Geliştirici araçları: Kuyumcu.LicenseTool (lisans anahtarı üretir; özel anahtar depoda değil)
-branding/           Uygulama simgesi kaynakları
+branding/           Uygulama simgesi kaynakları (Windows PNG/ICO dosyaları build/simgeleri-uret.ps1 ile üretilir)
 docs/YAYIN.md       Mağaza ve GitHub Secrets kurulumu; docs/GIZLILIK.md gizlilik politikası taslağı
 musteri-varliklari/ Müşteriye özel dosyalar (ürüne gömülmez)
 ```
