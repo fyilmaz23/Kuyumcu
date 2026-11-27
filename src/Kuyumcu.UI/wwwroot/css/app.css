@@ -702,3 +702,18 @@ span.kd-topbar-icon { display: inline-flex; width: 40px; height: 40px; align-ite
 .kd-seg.is-small .kd-seg-btn { height: 28px; padding: 0 9px; font-size: .78rem; }
 .kd-feed.is-compact .kd-card-header { flex-wrap: wrap; padding-top: 10px; padding-bottom: 10px; }
 .kd-filter-date { max-width: 170px; margin: 0 !important; }
+
+/* Sol menü başı: marka + geri/ileri düğmeleri (dar menüde alt alta) */
+.kd-side-head { display: flex; align-items: center; gap: 6px; }
+.kd-side-head .kd-side-brand { flex: 1; min-width: 0; }
+.kd-side-history { display: flex; gap: 2px; flex-shrink: 0; }
+.kd-history-btn {
+    display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0;
+    border: 0; border-radius: 8px; background: rgba(255, 255, 255, 0.06); color: rgba(255, 255, 255, 0.78); cursor: pointer;
+}
+.kd-history-btn .mud-icon-root { font-size: 1.05rem; }
+.kd-history-btn:hover:not(:disabled) { background: rgba(255, 255, 255, 0.14); color: #fff; }
+.kd-history-btn:disabled { opacity: .3; cursor: default; }
+.kd-shell.is-collapsed:not(.is-peek) .kd-side-head { flex-direction: column; align-items: center; gap: 6px; }
+.kd-shell.is-collapsed:not(.is-peek) .kd-side-brand { flex: none; }
+.kd-shell.is-collapsed:not(.is-peek) .kd-history-btn { width: 21px; }

@@ -74,6 +74,16 @@
         catch (JSDisconnectedException) { }
     }
 
+    /// <summary>
+    /// Alandaki değeri Enter'a basılmış gibi gönderir (başka bir alanda Enter'a basıldığında). Alan boşsa sadece
+    /// odaklanır ve false döner.
+    /// </summary>
+    public async Task<bool> SubmitAsync()
+    {
+        try { return await JS.InvokeAsync<bool>("kuyumcu.submitScanInput", Id); }
+        catch (JSDisconnectedException) { return false; }
+    }
+
     public async Task SetValueAsync(string value)
     {
         try { await JS.InvokeVoidAsync("kuyumcu.setInputValue", Id, value); }

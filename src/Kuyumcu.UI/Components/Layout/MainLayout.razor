@@ -24,6 +24,18 @@
                 <BrandLogo Class="kd-brand-logo" />
                 <span class="kd-side-text kd-brand-name">@businessName</span>
             </a>
+            <div class="kd-side-history">
+                <MudTooltip Text="Geri (Alt+← ya da faredeki geri tuşu)" Placement="Placement.Right">
+                    <button type="button" class="kd-history-btn" disabled="@(!canGoBack)" @onclick="GoBack" aria-label="Geri">
+                        <MudIcon Icon="@Icons.Material.Filled.ArrowBack" />
+                    </button>
+                </MudTooltip>
+                <MudTooltip Text="İleri (Alt+→ ya da faredeki ileri tuşu)" Placement="Placement.Right">
+                    <button type="button" class="kd-history-btn" disabled="@(!canGoForward)" @onclick="GoForward" aria-label="İleri">
+                        <MudIcon Icon="@Icons.Material.Filled.ArrowForward" />
+                    </button>
+                </MudTooltip>
+            </div>
         </div>
 
         <div class="kd-side-tools">
@@ -200,6 +212,7 @@
     protected override async Task OnInitializedAsync()
     {
         AppState.LicenseChanged += OnLicenseChanged;
+        NavigationManager.LocationChanged += OnLocationChanged;
 
         var settings = await DatabaseService.GetSettingsAsync();
         if (!string.IsNullOrWhiteSpace(settings.BusinessName))
@@ -229,6 +242,7 @@
                 shortcutRef = DotNetObjectReference.Create(Shortcuts);
                 layoutRef = DotNetObjectReference.Create(this);
                 await JS.InvokeVoidAsync("kuyumcu.registerShortcuts", shortcutRef, layoutRef);
+                await UpdateNavStateAsync();
                 StateHasChanged();
             }
             catch (JSDisconnectedException) { }
@@ -255,6 +269,31 @@
     }
 
     private void ClosePeek() => peek = false;
+
+    // ---------- Geri / ileri ----------
+    private bool canGoBack, canGoForward;
+
+    private async Task GoBack() { peek = false; await JS.InvokeVoidAsync("kuyumcu.goBack"); }
+    private async Task GoForward() { peek = false; await JS.InvokeVoidAsync("kuyumcu.goForward"); }
+
+    // Her sayfa değişiminde düğmelerin açık/kapalı durumu tarayıcı geçmişinden okunur
+    private async void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
+    {
+        try
+        {
+            await UpdateNavStateAsync();
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (JSDisconnectedException) { }
+        catch (InvalidOperationException) { }
+    }
+
+    private async Task UpdateNavStateAsync()
+    {
+        var state = await JS.InvokeAsync<bool[]>("kuyumcu.navState");
+        canGoBack = state.Length > 0 && state[0];
+        canGoForward = state.Length > 1 && state[1];
+    }
 
     private async Task ToggleCollapsed()
     {
@@ -310,6 +349,7 @@
     public void Dispose()
     {
         AppState.LicenseChanged -= OnLicenseChanged;
+        NavigationManager.LocationChanged -= OnLocationChanged;
         shortcutRef?.Dispose();
         layoutRef?.Dispose();
     }

@@ -60,7 +60,7 @@
                     </div>
 
                     <div class="kd-cd-nav">
-                        <MudTooltip Text="Önceki müşteri (Alt+←)">
+                        <MudTooltip Text="Önceki müşteri (Ctrl+←)">
                             <MudIconButton Icon="@Icons.Material.Filled.ChevronLeft" Variant="Variant.Outlined" Size="Size.Small"
                                            Disabled="@(PreviousId == null)" OnClick="GoToPreviousCustomer" aria-label="Önceki müşteri" />
                         </MudTooltip>
@@ -68,7 +68,7 @@
                             <div class="kd-num">@(navIndex + 1) / @navIds.Count</div>
                             <div class="kd-cd-nav-label" title="@NavLabel">@NavLabel</div>
                         </div>
-                        <MudTooltip Text="Sonraki müşteri (Alt+→)">
+                        <MudTooltip Text="Sonraki müşteri (Ctrl+→)">
                             <MudIconButton Icon="@Icons.Material.Filled.ChevronRight" Variant="Variant.Outlined" Size="Size.Small"
                                            Disabled="@(NextId == null)" OnClick="GoToNextCustomer" aria-label="Sonraki müşteri" />
                         </MudTooltip>
@@ -772,7 +772,8 @@
     {
         navTargetId = id;
         navTargetAt = DateTime.UtcNow;
-        NavigationManager.NavigateTo($"/customer/{id}");
+        // Geçmişe tek tek eklenmez: müşteriler arasında gezdikten sonra Geri, gelinen sayfaya (ör. liste) döner
+        NavigationManager.NavigateTo($"/customer/{id}", replace: true);
     }
 
     // ---------- İşlem penceresi ----------

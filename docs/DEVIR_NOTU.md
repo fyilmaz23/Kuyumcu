@@ -484,7 +484,7 @@ Kullanıcı kararı: borç cinsi her satışta seçilsin. "Kim sattı" alanı ya
     alınabiliyordu. Artık yüklemeler sıra numaralı (eski sonuç atılır), defter bellekte tek seferde kurulur
     (cins başına ayrı sorgu yok), komşu müşteri sıralı kimlik listesinden hesaplanır ve art arda basışta gidilmekte
     olan müşteriden devam edilir. Gezinti listesi Müşteriler sayfasının süzgecini (ya da ana sayfadaki bakiye
-    listesini) izler: "3 / 5 · Euro · Gelen"; listede değilse alfabetik tüm müşteriler. Kısayol **Alt+← / Alt+→**.
+    listesini) izler: "3 / 5 · Euro · Gelen"; listede değilse alfabetik tüm müşteriler. Kısayol **Ctrl+← / Ctrl+→** (bölüm 19).
 - Özet görseli emanetleri net (bırakılan − teslim) yazar; Android `TypeBadge` "Emanet iadesi"ni ayırt eder.
 - Testler: `CustomerLedgerTests` (defter çizgileri, devir, emanet iadesi, sıfırlama) ve `CustomerDirectoryTests`. 144 test.
 - Önizlemede denendi (1366×768): sol menü geniş/dar, Ctrl+K geçici açılış, Alt+kısayollar, ana sayfa tablo/yan liste/
@@ -534,6 +534,20 @@ Kullanıcı kararı: borç cinsi her satışta seçilsin. "Kim sattı" alanı ya
   (19,60 gr × 22 Ayar satış = 117.600 ₺), satış penceresinde 150 TL/gr işçilik → 120.540 ₺, İşlemler süzgeçleri,
   ana sayfa bileşeni. **Etiketli ürün / kasa satışında alınan TL nakit kasaya otomatik girmiyor** (sadece defter
   işlemleri işleniyor; istenirse eklenebilir).
+
+### 19. Geri/İleri ve ürün girişinde taş gramı (27.11.2026, kullanıcı isteği)
+- **Geri / İleri**: sol menünün başında ← → düğmeleri (geçmişin başında/sonunda pasif; `kuyumcu.navState`,
+  Navigation API), **Alt+← / Alt+→** ve **faredeki yan tuşlar** (`app.js`: tarayıcının kendi işlemi engellenip
+  `history.back/forward` yapılır; açık pencere varken sayfa değişmez). 26.11'de Alt+ok önceki/sonraki müşteriye
+  verilmişti ve WebView'in geri/ileri kısayolunu engelliyordu; müşteri gezintisi **Ctrl+← / Ctrl+→**'ya taşındı
+  (yazı alanındayken çalışmaz, orada imleç kelime atlar). Önceki/sonraki müşteri geçmişe `replace` ile yazılır:
+  müşteriler arasında gezdikten sonra Geri, gelinen sayfaya (ör. süzülmüş liste) döner.
+- **Ürün girişi**: taş gramı alanında Enter da ürünü kaydedip etiketi basar (eskiden sadece gram alanında Enter
+  çalışıyordu; taşta Enter'a basınca hiçbir şey olmuyordu). Gram alanı boşsa sadece gram alanına geçer.
+  `ScanInput.SubmitAsync()` → `kuyumcu.submitScanInput` alanda Enter'a basılmış gibi aynı akışı çalıştırır.
+- Önizlemede denendi: 12,40 gr + taş 0,25 → taşta Enter → kaydedildi (net 12,15), etiket basıldı (dosyaya),
+  odak gram alanına döndü; Alt+←/→, menü düğmeleri, fare geri tuşu (sahte olayla). **Gerçek farenin yan tuşu ve
+  WPF uygulamasındaki WebView2 davranışı denenmedi.**
 
 ## Kullanıcıya sunulan öneriler (karar bekleyen sıra)
 1. ~~Lisans~~ (yapıldı, bölüm 5), ~~Obfuscar ile kod karıştırma~~ (bölüm 13). Kalan (istenirse): çevrimiçi aktivasyon,

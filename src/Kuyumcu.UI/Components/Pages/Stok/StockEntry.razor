@@ -77,11 +77,13 @@
                                OnSubmit="SaveAsync" />
                     <div class="d-flex align-center gap-3 mt-3 flex-wrap">
                         <div style="width:180px">
+                            @* Taş gramında da Enter ürünü kaydeder (gram alanı boşsa gram alanına geçer) *@
                             <MudTextField @bind-Value="stoneGram" Label="Taş gramı (varsa)" Variant="Variant.Outlined" Margin="Margin.Dense"
-                                          Placeholder="0" HelperText="Bir sonraki üründe sıfırlanır" />
+                                          Placeholder="0" HelperText="Bir sonraki üründe sıfırlanır" Immediate="true"
+                                          OnKeyDown="OnStoneKeyDown" />
                         </div>
                         <MudText Typo="Typo.caption" Class="kd-muted" Style="flex:1; min-width:200px">
-                            Gram yazıp <span class="kd-kbd">Enter</span>: ürün kaydedilir@(printLabel && CanPrint ? " ve etiketi basılır" : "").
+                            Gram (ve varsa taş gramı) yazıp hangi alanda olursanız <span class="kd-kbd">Enter</span>: ürün kaydedilir@(printLabel && CanPrint ? " ve etiketi basılır" : "").
                             Virgül ya da nokta kullanılabilir, en çok 3 ondalık.
                         </MudText>
                     </div>
@@ -258,6 +260,14 @@
         {
             StateHasChanged();
         }
+    }
+
+    private async Task OnStoneKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key is not ("Enter" or "NumpadEnter") || gramInput == null)
+            return;
+        // Gram alanındaki değer, orada Enter'a basılmış gibi gönderilir (aynı kayıt + etiket akışı)
+        await gramInput.SubmitAsync();
     }
 
     private async Task Print(Entry entry)

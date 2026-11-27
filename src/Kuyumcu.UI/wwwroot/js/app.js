@@ -27,10 +27,20 @@ window.kuyumcu = (function () {
                     if (target) { e.preventDefault(); target.click(); }
                     return;
                 }
-                // Alt+ok: tarayıcının geri/ileri gitmesi yerine önceki/sonraki müşteri
+                // Alt+← / Alt+→ → sayfalar arasında geri / ileri (tarayıcıdaki gibi). WebView'in kendi kısayolu yerine
+                // burada yapılır: açık pencere varken sayfa değişmesin.
                 if (e.altKey && !e.ctrlKey && !e.metaKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
                     e.preventDefault();
                     if (dialogOpen()) return;
+                    if (e.key === 'ArrowLeft') history.back(); else history.forward();
+                    return;
+                }
+                // Ctrl+← / Ctrl+→ → önceki / sonraki müşteri (müşteri sayfasında). Yazı alanındayken imleç kelime atlar.
+                if (e.ctrlKey && !e.altKey && !e.metaKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+                    const a = document.activeElement;
+                    if (a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.isContentEditable)) return;
+                    if (dialogOpen()) return;
+                    e.preventDefault();
                     dotnetRef.invokeMethodAsync('OnShortcut', e.key === 'ArrowLeft' ? 'PrevCustomer' : 'NextCustomer');
                     return;
                 }
@@ -42,7 +52,31 @@ window.kuyumcu = (function () {
                 }
             };
             document.addEventListener('keydown', shortcutHandler);
+
+            // Faredeki yan tuşlar (geri = 3, ileri = 4). Tarayıcının kendi işlemi engellenip burada yapılır:
+            // böylece tek adım gidilir ve açık pencere varken sayfa değişmez.
+            if (!window.kuyumcu._mouseNav) {
+                window.kuyumcu._mouseNav = true;
+                const isSide = function (e) { return e.button === 3 || e.button === 4; };
+                document.addEventListener('mousedown', function (e) { if (isSide(e)) e.preventDefault(); }, true);
+                document.addEventListener('mouseup', function (e) {
+                    if (!isSide(e)) return;
+                    e.preventDefault();
+                    if (dialogOpen()) return;
+                    if (e.button === 3) history.back(); else history.forward();
+                }, true);
+            }
         },
+
+        // Geri / ileri gidilebilir mi (menüdeki düğmeler için). Navigation API yoksa ikisi de açık sayılır.
+        navState: function () {
+            const n = window.navigation;
+            return n && typeof n.canGoBack === 'boolean'
+                ? [n.canGoBack, n.canGoForward]
+                : [history.length > 1, true];
+        },
+        goBack: function () { history.back(); },
+        goForward: function () { history.forward(); },
 
         isNarrowScreen: function () { return window.innerWidth < 1280; },
 
@@ -110,6 +144,17 @@ window.kuyumcu = (function () {
             };
             setTimeout(focusIfFree, 0);
             setTimeout(focusIfFree, 150);
+        },
+
+        // Okutma alanını başka bir alandan (ör. taş gramı) gönderir: alanda Enter'a basılmış gibi.
+        // Alan boşsa gönderilmez, sadece odaklanır (önce gram yazılsın). Gönderildiyse true.
+        submitScanInput: function (id) {
+            const el = document.getElementById(id);
+            if (!el || el.disabled) return false;
+            if (!el.value.trim()) { el.focus(); return false; }
+            el.focus();
+            el.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true, cancelable: true }));
+            return true;
         },
 
         detachScanInput: function (id) {
