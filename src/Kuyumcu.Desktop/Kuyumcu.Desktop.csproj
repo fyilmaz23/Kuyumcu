@@ -17,7 +17,17 @@
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <!-- Müşteri bilgisayarına ayrıca .NET kurulumu gerekmesin -->
     <SelfContained>true</SelfContained>
+    <!-- Uygulama yalnızca Türkçe: .NET/WPF'in ru, ja, ko… kaynak klasörleri pakete girmesin -->
+    <SatelliteResourceLanguages>tr</SatelliteResourceLanguages>
   </PropertyGroup>
+
+  <!-- NuGet paketlerinden gelen hazır .pdb dosyaları (ör. 80 MB'lık libSkiaSharp.pdb) yayın çıktısına
+       ve dolayısıyla MSIX'e girmesin. -p:DebugType=none yalnızca kendi derlemelerimizin .pdb'sini kapatır. -->
+  <Target Name="PdbDosyalariniYayindanCikar" AfterTargets="ComputeResolvedFilesToPublishList">
+    <ItemGroup>
+      <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)" Condition="'%(Extension)' == '.pdb'" />
+    </ItemGroup>
+  </Target>
 
   <ItemGroup>
     <!-- WPF projelerinde System.IO örtük olarak eklenmez -->
