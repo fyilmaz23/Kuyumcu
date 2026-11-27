@@ -68,13 +68,13 @@
                                     <MudIconButton Icon="@Icons.Material.Filled.Refresh" Size="Size.Small" OnClick="RefreshPrices" Disabled="pricesLoading" aria-label="Fiyatları yenile" />
                                 </MudTooltip>
                             </div>
-                            @if (pricesLoading && quote == null)
+                            @if (pricesLoading)
                             {
-                                <MudProgressLinear Color="Color.Primary" Indeterminate="true" />
+                                <MudProgressLinear Color="Color.Primary" Indeterminate="true" Class="mb-1" />
                             }
-                            else
+                            @if (!pricesLoading || quote != null)
                             {
-                                <PriceQuoteView Quote="quote" PriceTime="priceTime" Large="true" />
+                                <PriceQuoteView Quote="quote" PriceTime="priceTime" Large="true" Warning="@(pricesLoading ? null : priceWarning)" />
                             }
                         </div>
                     }
@@ -142,11 +142,14 @@
     private StockLookup? lookup;
     private ScanResult? result;
 
-    // Okutulan ürünün güncel fiyatı (fiyat listesi 5 dk önbellekte; yenile düğmesi zorla çeker)
+    // Okutulan ürünün güncel fiyatı: her okutmada ve yenile düğmesinde kaynaktan yeniden çekilir
+    private static readonly TimeSpan PriceTimeout = TimeSpan.FromSeconds(8);
     private List<GoldPriceDto>? prices;
     private SalePrice.Quote? quote;
     private DateTime? priceTime;
+    private string? priceWarning;
     private bool pricesLoading;
+    private int quoteVersion;
     private readonly List<HistoryRow> history = new();
     private bool autoSell;
     private StockActions? actions;
@@ -187,32 +190,50 @@
         }
 
         await ShowItem(item);
-        await UpdateQuote(false);
+        await UpdateQuote(true);
         AddHistory(item.Code, $"{lookup!.Title(item)} · {WeightFormat.Gram(item.WeightMg)} gr · {StatusText(item)}", item.Id);
 
-        if (autoSell && item is { IsDeleted: false, Status: StockItemStatus.InStock })
+        // Fiyat beklenirken başka ürün okutulduysa bu ürünün satış penceresi açılmaz
+        if (autoSell && result?.Item?.Id == item.Id && item is { IsDeleted: false, Status: StockItemStatus.InStock })
         {
             StateHasChanged();
             await Sell();
         }
     }
 
-    /// <summary>Son fiyat = net gram × listedeki aynı ayarın satışı + gram × kategori işçiliği (bkz. SalePrice).</summary>
+    /// <summary>
+    /// Son fiyat = net gram × listedeki aynı ayarın satışı + gram × kategori işçiliği (bkz. SalePrice).
+    /// Her okutmada fiyat kaynaktan yeniden çekilir (<paramref name="force"/>); beklerken son bilinen fiyat gösterilir.
+    /// Çekilemezse son alınan fiyat "güncel olmayabilir" uyarısıyla gösterilir.
+    /// </summary>
     private async Task UpdateQuote(bool force)
     {
+        var version = ++quoteVersion;
         quote = null;
+        priceWarning = null;
         var item = result?.Item;
         if (item is not { IsDeleted: false, Status: StockItemStatus.InStock } || lookup == null)
+        {
+            pricesLoading = false;
             return;
+        }
 
+        ApplyPrices(item, GoldPrices.GetLastKnown());
         pricesLoading = true;
         StateHasChanged();
-        try { prices = await GoldPrices.GetGoldPricesAsync(force); }
-        catch (Exception ex) { Console.WriteLine($"Fiyatlar alınamadı: {ex.Message}"); }
+        var snapshot = await GoldPrices.GetLatestPricesAsync(force, PriceTimeout);
+        if (version != quoteVersion)
+            return; // bu arada başka ürün okutuldu; onun fiyatı gösterilir
         pricesLoading = false;
+        ApplyPrices(item, snapshot);
+    }
 
+    private void ApplyPrices(StockItem item, GoldPriceSnapshot? snapshot)
+    {
+        prices = snapshot?.Prices;
         priceTime = prices?.FirstOrDefault()?.UpdateTime;
-        quote = SalePrice.Calculate(item.NetWeightMg, item.Karat, lookup.Milyem(item.Karat), lookup.LaborPerGram(item.CategoryId), prices);
+        priceWarning = snapshot?.Warning(DateTime.Now);
+        quote = SalePrice.Calculate(item.NetWeightMg, item.Karat, lookup!.Milyem(item.Karat), lookup.LaborPerGram(item.CategoryId), prices);
         if (quote != null)
             quote = quote with { Source = $"{quote.Source} · {GoldPrices.SourceName}" };
     }

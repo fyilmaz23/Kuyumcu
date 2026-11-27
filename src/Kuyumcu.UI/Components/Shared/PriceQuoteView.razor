@@ -13,7 +13,7 @@ else
     <div class="kd-quote @(Large ? "is-large" : null)">
         <div class="kd-quote-line">
             <span class="kd-num">@FormatHelper.FormatPrice(Quote.Gram) gr × @FormatHelper.FormatPrice(Quote.UnitPrice) ₺</span>
-            <span class="kd-quote-src @(Quote.FromList ? null : "is-warn")">@Quote.Source@(PriceTime is { } t ? $" · {t:HH:mm}" : "")</span>
+            <span class="kd-quote-src @(Quote.FromList && Warning == null ? null : "is-warn")">@Quote.Source@(PriceTime is { } t ? $" · {t:HH:mm}" : "")</span>
             <span class="kd-num kd-quote-sub">@FormatHelper.FormatPrice(Math.Round(Quote.GoldValue)) ₺</span>
         </div>
         @if (Quote.Labor > 0)
@@ -23,6 +23,10 @@ else
                 <span></span>
                 <span class="kd-num kd-quote-sub">@FormatHelper.FormatPrice(Quote.Labor) ₺</span>
             </div>
+        }
+        @if (Warning != null)
+        {
+            <div class="kd-quote-warn"><MudIcon Icon="@Icons.Material.Outlined.WifiOff" Size="Size.Small" /><span>@Warning</span></div>
         }
         <div class="kd-quote-total">
             <span>Son fiyat</span>
@@ -36,4 +40,6 @@ else
     [Parameter] public DateTime? PriceTime { get; set; }
     [Parameter] public bool Large { get; set; }
     [Parameter] public string? EmptyText { get; set; }
+    /// <summary>Fiyat eski olabilir (internet yok, son alınan fiyat): kutunun içinde uyarı olarak yazılır.</summary>
+    [Parameter] public string? Warning { get; set; }
 }

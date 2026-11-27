@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Kuyumcu.Models;
 using Kuyumcu.Platform;
 using Microsoft.Extensions.Logging;
@@ -16,6 +17,9 @@ public class GoldPriceExportService
 
     private List<GoldPriceDto>? _cache;
     private DateTime _cacheTime;
+    private bool _diskChecked;
+    private DateTime _lastFailure = DateTime.MinValue;
+    private static readonly TimeSpan RetryAfterFailure = TimeSpan.FromSeconds(30);
 
     public GoldPriceExportService(ILogger<GoldPriceExportService> logger, IAppEnvironment environment, IShareService share, IGoldPriceSource source)
     {
@@ -40,12 +44,107 @@ public class GoldPriceExportService
         _logger.LogInformation("Altın fiyatları çekiliyor: {Source}", _source.DisplayName);
         var prices = await _source.FetchAsync();
         if (prices is { Count: > 0 })
-        {
-            _cache = prices;
-            _cacheTime = DateTime.Now;
-        }
+            Remember(prices);
         return prices;
     }
+
+    /// <summary>
+    /// Fiyatları kaynaktan çeker (<paramref name="forceRefresh"/> = false ise son 5 dakikadakini kullanır).
+    /// Çekilemezse (internet yok, kaynak cevap vermiyor) son başarıyla alınan fiyatları <see cref="GoldPriceSnapshot.IsStale"/>
+    /// işaretiyle döndürür. Son fiyatlar diskte de tutulur; uygulama internetsiz açılsa da kullanılır. Hiç fiyat alınmamışsa null.
+    /// </summary>
+    /// <param name="timeout">Kaynak en çok ne kadar beklenir (okutma ekranı uzun beklemesin diye).</param>
+    public async Task<GoldPriceSnapshot?> GetLatestPricesAsync(bool forceRefresh = true, TimeSpan? timeout = null)
+    {
+        if (!forceRefresh && GetLastKnown() is { } known)
+        {
+            // Son deneme başarısızsa elimizdeki fiyat güncel sayılmaz; az önce denendiyse (örn. okutmanın hemen
+            // ardından açılan satış penceresi) yeniden beklenmez
+            var failedSince = _lastFailure > known.FetchedAt;
+            if (failedSince && DateTime.Now - _lastFailure < RetryAfterFailure)
+                return known with { IsStale = true };
+            if (!failedSince && DateTime.Now - known.FetchedAt < CacheDuration)
+                return known;
+        }
+
+        List<GoldPriceDto>? prices = null;
+        try
+        {
+            using var cts = new CancellationTokenSource();
+            if (timeout is { } t)
+                cts.CancelAfter(t);
+            _logger.LogInformation("Altın fiyatları çekiliyor: {Source}", _source.DisplayName);
+            prices = await _source.FetchAsync(cts.Token);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Altın fiyatları alınamadı");
+        }
+
+        if (prices is { Count: > 0 })
+        {
+            Remember(prices);
+            return new GoldPriceSnapshot(prices, _cacheTime, false);
+        }
+
+        _lastFailure = DateTime.Now;
+        return GetLastKnown() is { } last ? last with { IsStale = true } : null;
+    }
+
+    /// <summary>Son başarıyla alınan fiyatlar (bellekten, yoksa diskten); hiç alınmamışsa null. Kaynağa gitmez.</summary>
+    public GoldPriceSnapshot? GetLastKnown()
+    {
+        if (_cache != null)
+            return new GoldPriceSnapshot(_cache, _cacheTime, false);
+        if (_diskChecked)
+            return null;
+        _diskChecked = true;
+
+        try
+        {
+            var path = LastPricesPath;
+            if (!File.Exists(path))
+                return null;
+            var saved = JsonSerializer.Deserialize<SavedPrices>(File.ReadAllText(path));
+            if (saved?.Prices is not { Count: > 0 })
+                return null;
+            // Alınma zamanı korunur: 5 dakikalık önbellek süresi geçmişse bir sonraki istekte yeniden çekilir
+            _cache = saved.Prices;
+            _cacheTime = saved.FetchedAt;
+            return new GoldPriceSnapshot(_cache, _cacheTime, false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Son altın fiyatları okunamadı");
+            return null;
+        }
+    }
+
+    private void Remember(List<GoldPriceDto> prices)
+    {
+        _cache = prices;
+        _cacheTime = DateTime.Now;
+        _diskChecked = true;
+        try
+        {
+            var path = LastPricesPath;
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            var temp = path + ".tmp";
+            File.WriteAllText(temp, JsonSerializer.Serialize(new SavedPrices(_cacheTime, prices)));
+            File.Move(temp, path, overwrite: true);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Son altın fiyatları kaydedilemedi");
+        }
+    }
+
+    /// <summary>İnternet yokken gösterilecek son fiyatların dosyası (uygulama veri klasöründe).</summary>
+    public const string LastPricesFileName = "son-altin-fiyatlari.json";
+
+    private string LastPricesPath => Path.Combine(_environment.AppDataDirectory, LastPricesFileName);
+
+    private sealed record SavedPrices(DateTime FetchedAt, List<GoldPriceDto> Prices);
 
     /// <summary>Has altın (24 ayar, gram) satış fiyatı. Satış fiyatı önerisinde kullanılır.</summary>
     public async Task<GoldPriceDto?> GetHasGoldPriceAsync(bool forceRefresh = false)
@@ -348,4 +447,20 @@ public class GoldPriceExportService
 
         return bitmap;
     }
+}
+
+/// <summary>Bir fiyat listesi ve ne zaman alındığı.</summary>
+/// <param name="IsStale">Canlı fiyat alınamadı; bunlar son başarıyla alınan fiyatlar, güncel olmayabilir.</param>
+public sealed record GoldPriceSnapshot(List<GoldPriceDto> Prices, DateTime FetchedAt, bool IsStale)
+{
+    /// <summary>"bugün 14:32", "dün 09:10", "24.11.2026 16:47"</summary>
+    public static string When(DateTime time, DateTime now) =>
+        time.Date == now.Date ? $"bugün {time:HH:mm}"
+        : time.Date == now.Date.AddDays(-1) ? $"dün {time:HH:mm}"
+        : time.ToString("dd.MM.yyyy HH:mm");
+
+    /// <summary>Eski fiyat gösterilirken ekrana yazılan uyarı; fiyat güncelse null.</summary>
+    public string? Warning(DateTime now) => IsStale
+        ? $"Güncel fiyat alınamadı (internet bağlantısını kontrol edin). {When(FetchedAt, now)} alınan son fiyat gösteriliyor, güncel olmayabilir."
+        : null;
 }

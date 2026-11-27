@@ -687,6 +687,8 @@ span.kd-topbar-icon { display: inline-flex; width: 40px; height: 40px; align-ite
 .kd-quote-line { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: baseline; padding: 2px 0; }
 .kd-quote-src { font-size: .74rem; color: var(--mud-palette-text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .kd-quote-src.is-warn { color: var(--mud-palette-warning-darken); }
+.kd-quote-warn { display: flex; gap: .4rem; align-items: flex-start; margin: .35rem 0; padding: .4rem .55rem; border-radius: 6px; font-size: .78rem; line-height: 1.3; background: rgba(var(--mud-palette-warning-rgb), 0.12); color: var(--mud-palette-warning-darken); }
+.kd-quote-warn .mud-icon-root { flex: none; margin-top: 1px; }
 .kd-quote-sub { color: var(--mud-palette-text-secondary); }
 .kd-quote-total { display: flex; justify-content: space-between; align-items: baseline; margin-top: 4px; padding-top: 6px; border-top: 2px solid var(--mud-palette-text-primary); font-weight: 700; }
 .kd-quote-total .kd-num { font-size: 1.25rem; }

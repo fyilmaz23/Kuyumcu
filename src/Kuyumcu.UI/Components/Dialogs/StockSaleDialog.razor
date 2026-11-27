@@ -40,7 +40,7 @@
                                  HelperText="@(Lookup.LaborPerGram(Item.CategoryId) > 0 ? $"{Lookup.CategoryName(Item.CategoryId)} varsayılanı" : "Kategoride işçilik tanımlı değil")" />
             </MudItem>
             <MudItem xs="12">
-                <PriceQuoteView Quote="quote" PriceTime="priceTime" EmptyText="Gram fiyatı girin." />
+                <PriceQuoteView Quote="quote" PriceTime="priceTime" Warning="@priceWarning" EmptyText="Gram fiyatı girin." />
             </MudItem>
             <MudItem xs="12">
                 <MudNumericField T="decimal?" Value="price" ValueChanged="OnPrice" Label="Satış fiyatı (TL)" Variant="Variant.Outlined" Margin="Margin.Dense"
@@ -97,6 +97,7 @@
     private string unitSource = "Alınıyor…";
     private bool unitFromList;
     private DateTime? priceTime;
+    private string? priceWarning;
     private SalePrice.Quote? quote;
     private bool priceTouched;
     private bool onCredit, saving;
@@ -114,8 +115,10 @@
     private async Task LoadPrices(bool force)
     {
         unitSource = "Alınıyor…";
-        try { prices = await GoldPrices.GetGoldPricesAsync(force); }
-        catch (Exception ex) { Console.WriteLine($"Fiyatlar alınamadı: {ex.Message}"); }
+        // İnternet yoksa son alınan fiyat kullanılır, "güncel olmayabilir" uyarısıyla
+        var snapshot = await GoldPrices.GetLatestPricesAsync(force, TimeSpan.FromSeconds(8));
+        prices = snapshot?.Prices;
+        priceWarning = snapshot?.Warning(DateTime.Now);
 
         if (SalePrice.UnitPriceFor(Item.Karat, Milyem, prices) is { } unit)
         {
@@ -126,6 +129,7 @@
         }
         else
         {
+            priceWarning = null;
             unitSource = "Canlı fiyat alınamadı, gram fiyatını elle girin";
         }
         Recalculate();
@@ -137,6 +141,7 @@
         unitFromList = false;
         unitSource = "Elle girildi";
         priceTime = null;
+        priceWarning = null;
         Recalculate();
     }
 
